@@ -355,7 +355,7 @@ npm run test:features --prefix front
 # Or: BASE_URL=http://127.0.0.1:4202 node front/scripts/test-features.mjs
 ```
 
-- No login. Opens `/features`, asserts `.features-page` shell, translated hero title (not a raw `FEATURES_PAGE.*` key), at least one `.features-category`, and brand link to `/` or a register CTA. Fails on pageerror or bad HTTP for the document.
+- No login. Opens `/features`, asserts `.features-page` shell, translated hero title (not a raw `FEATURES_PAGE.*` key), at least one `.features-category`, and brand link to `/` or a register CTA. Clicks through to `/features/reservations` and asserts `.feature-detail-page` hero plus at least two benefit bullets. Fails on pageerror or bad HTTP for the document.
 
 **Public pricing page (`/pricing`):**
 

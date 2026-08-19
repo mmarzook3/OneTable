@@ -144,6 +144,48 @@ async function main() {
     if (brandIsHome) console.log('   Brand nav to home: OK');
     if (shell.registerOk) console.log('   Register CTA: OK');
 
+    console.log('3. Opening feature detail /features/reservations from grid...');
+    const hasDetailLink = await page.$('a.features-card__link[href="/features/reservations"]');
+    if (!hasDetailLink) {
+      console.error('FAIL: No link to /features/reservations on /features grid.');
+      process.exit(1);
+    }
+    console.log('   Grid link to /features/reservations: OK');
+    const detailHref = new URL('/features/reservations', baseUrl).href;
+    const detailResponse = await page.goto(detailHref, {
+      waitUntil: 'networkidle2',
+      timeout: 20000,
+    });
+    if (!detailResponse || detailResponse.status() >= 400) {
+      console.error('FAIL: HTTP status for /features/reservations:', detailResponse?.status());
+      process.exit(1);
+    }
+    const detailPath = new URL(page.url()).pathname;
+    if (detailPath !== '/features/reservations') {
+      console.error('FAIL: Expected /features/reservations, got:', page.url());
+      process.exit(1);
+    }
+    await page.waitForSelector('.feature-detail-page', { timeout: 15000 });
+    await page.waitForSelector('[data-testid="feature-detail-title"]', { timeout: 10000 });
+    const detailShell = await page.evaluate(() => {
+      const titleEl = document.querySelector('[data-testid="feature-detail-title"]');
+      const title = (titleEl?.textContent || '').trim();
+      const benefits = document.querySelectorAll('.feature-detail-list__item').length;
+      const rawKeyDump =
+        title.includes('FEATURE_DETAIL.') || (document.body?.innerText || '').includes('FEATURE_DETAIL.ITEMS');
+      return { title, benefits, rawKeyDump };
+    });
+    if (!detailShell.title || detailShell.rawKeyDump) {
+      console.error('FAIL: Detail hero missing or untranslated key:', JSON.stringify(detailShell.title));
+      process.exit(1);
+    }
+    if (detailShell.benefits < 2) {
+      console.error('FAIL: Expected at least 2 benefit bullets on detail page.');
+      process.exit(1);
+    }
+    console.log('   Detail hero:', detailShell.title);
+    console.log('   Benefit bullets:', detailShell.benefits);
+
     if (badResponses.length) {
       console.error('FAIL: Bad HTTP for /features document:', badResponses);
       process.exit(1);
@@ -154,7 +196,7 @@ async function main() {
     }
 
     await browser.close();
-    console.log('\n>>> RESULT: /features loads with hero, categories, and nav/CTA.');
+    console.log('\n>>> RESULT: /features loads with hero, categories, nav/CTA, and /features/reservations detail page.');
     process.exit(0);
   } catch (err) {
     console.error('Error:', err.message);
