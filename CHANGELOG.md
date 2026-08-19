@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+## [2.1.149] - 2026-08-19
+
+### Added
+
+- **Feature landing pages (#347):** 31 public detail pages at `/features/{slug}` (e.g. `/features/reservations`, `/features/satisfecho-delivery`) with hero, benefits, how-it-works, and register/demo CTAs — no login. Grid cards on `/features` link to each page. Data-driven catalog in `feature-landings.ts`; `FEATURE_DETAIL.*` i18n in all locales; SEO meta and sitemap entries; honest preparation-only copy for invoicing/TSE. Smoke: `npm run test:features --prefix front`.
+
 ## [2.1.148] - 2026-08-13
 
 ### Fixed

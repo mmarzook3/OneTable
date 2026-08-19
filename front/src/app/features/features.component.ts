@@ -3,17 +3,7 @@ import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
-
-interface FeatureItem {
-  titleKey: string;
-  descKey: string;
-}
-
-interface FeatureCategory {
-  id: string;
-  titleKey: string;
-  items: FeatureItem[];
-}
+import { FEATURE_CATEGORIES } from './feature-landings';
 
 @Component({
   selector: 'app-features',
@@ -54,10 +44,13 @@ interface FeatureCategory {
           <section class="features-category" [attr.aria-labelledby]="'features-cat-' + category.id">
             <h2 [id]="'features-cat-' + category.id" class="features-category__title">{{ category.titleKey | translate }}</h2>
             <ul class="features-grid">
-              @for (item of category.items; track item.titleKey) {
+              @for (item of category.items; track item.slug) {
                 <li class="features-card">
-                  <h3 class="features-card__title">{{ item.titleKey | translate }}</h3>
-                  <p class="features-card__text">{{ item.descKey | translate }}</p>
+                  <a [routerLink]="['/features', item.slug]" class="features-card__link">
+                    <h3 class="features-card__title">{{ item.titleKey | translate }}</h3>
+                    <p class="features-card__text">{{ item.descKey | translate }}</p>
+                    <span class="features-card__more">{{ 'FEATURE_DETAIL.LEARN_MORE' | translate }}</span>
+                  </a>
                 </li>
               }
             </ul>
@@ -264,10 +257,30 @@ interface FeatureCategory {
     }
 
     .features-card {
-      padding: var(--space-5);
       border-radius: 16px;
       background: var(--fp-surface);
       border: 1px solid var(--fp-border);
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .features-card:hover {
+      border-color: rgba(255, 107, 71, 0.35);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .features-card__link {
+      display: block;
+      padding: var(--space-5);
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .features-card__more {
+      display: inline-block;
+      margin-top: var(--space-3);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--fp-accent);
     }
 
     .features-card__title {
@@ -286,61 +299,5 @@ interface FeatureCategory {
   `],
 })
 export class FeaturesComponent {
-  readonly categories: FeatureCategory[] = [
-    {
-      id: 'guest',
-      titleKey: 'FEATURES_PAGE.CAT_GUEST',
-      items: [
-        { titleKey: 'FEATURES_PAGE.FEAT_QR_MENU_TITLE', descKey: 'FEATURES_PAGE.FEAT_QR_MENU_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_TABLE_ORDER_TITLE', descKey: 'FEATURES_PAGE.FEAT_TABLE_ORDER_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_TAKEAWAY_TITLE', descKey: 'FEATURES_PAGE.FEAT_TAKEAWAY_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_RESERVATIONS_TITLE', descKey: 'FEATURES_PAGE.FEAT_RESERVATIONS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_WAITLIST_TITLE', descKey: 'FEATURES_PAGE.FEAT_WAITLIST_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_SATISFECHO_DELIVERY_TITLE', descKey: 'FEATURES_PAGE.FEAT_SATISFECHO_DELIVERY_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_PAYMENTS_TITLE', descKey: 'FEATURES_PAGE.FEAT_PAYMENTS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_ORDER_COMMENTS_TITLE', descKey: 'FEATURES_PAGE.FEAT_ORDER_COMMENTS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_GUEST_FEEDBACK_TITLE', descKey: 'FEATURES_PAGE.FEAT_GUEST_FEEDBACK_DESC' },
-      ],
-    },
-    {
-      id: 'operations',
-      titleKey: 'FEATURES_PAGE.CAT_OPERATIONS',
-      items: [
-        { titleKey: 'FEATURES_PAGE.FEAT_KITCHEN_TITLE', descKey: 'FEATURES_PAGE.FEAT_KITCHEN_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_BAR_TITLE', descKey: 'FEATURES_PAGE.FEAT_BAR_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_ORDERS_TITLE', descKey: 'FEATURES_PAGE.FEAT_ORDERS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_TABLES_TITLE', descKey: 'FEATURES_PAGE.FEAT_TABLES_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_MY_SHIFT_TITLE', descKey: 'FEATURES_PAGE.FEAT_MY_SHIFT_DESC' },
-      ],
-    },
-    {
-      id: 'business',
-      titleKey: 'FEATURES_PAGE.CAT_BUSINESS',
-      items: [
-        { titleKey: 'FEATURES_PAGE.FEAT_PRODUCTS_TITLE', descKey: 'FEATURES_PAGE.FEAT_PRODUCTS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_REPORTS_TITLE', descKey: 'FEATURES_PAGE.FEAT_REPORTS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_WORKING_PLAN_TITLE', descKey: 'FEATURES_PAGE.FEAT_WORKING_PLAN_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_INVENTORY_TITLE', descKey: 'FEATURES_PAGE.FEAT_INVENTORY_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_INVOICING_TITLE', descKey: 'FEATURES_PAGE.FEAT_INVOICING_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_TSE_TITLE', descKey: 'FEATURES_PAGE.FEAT_TSE_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_CONTRACTS_TITLE', descKey: 'FEATURES_PAGE.FEAT_CONTRACTS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_RESTAURANT_GROUPS_TITLE', descKey: 'FEATURES_PAGE.FEAT_RESTAURANT_GROUPS_DESC' },
-      ],
-    },
-    {
-      id: 'platform',
-      titleKey: 'FEATURES_PAGE.CAT_PLATFORM',
-      items: [
-        { titleKey: 'FEATURES_PAGE.FEAT_PROVIDER_TITLE', descKey: 'FEATURES_PAGE.FEAT_PROVIDER_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_COURIER_TITLE', descKey: 'FEATURES_PAGE.FEAT_COURIER_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_USERS_TITLE', descKey: 'FEATURES_PAGE.FEAT_USERS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_SETTINGS_TITLE', descKey: 'FEATURES_PAGE.FEAT_SETTINGS_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_GUIDED_SIGNUP_TITLE', descKey: 'FEATURES_PAGE.FEAT_GUIDED_SIGNUP_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_SAAS_PAYWALL_TITLE', descKey: 'FEATURES_PAGE.FEAT_SAAS_PAYWALL_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_PLATFORM_OPERATOR_TITLE', descKey: 'FEATURES_PAGE.FEAT_PLATFORM_OPERATOR_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_I18N_TITLE', descKey: 'FEATURES_PAGE.FEAT_I18N_DESC' },
-        { titleKey: 'FEATURES_PAGE.FEAT_OPEN_SOURCE_TITLE', descKey: 'FEATURES_PAGE.FEAT_OPEN_SOURCE_DESC' },
-      ],
-    },
-  ];
+  readonly categories = FEATURE_CATEGORIES;
 }

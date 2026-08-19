@@ -115,6 +115,12 @@ export class SeoService {
     this.sub = undefined;
   }
 
+  /** Public /features/:slug detail pages (fixed English meta for crawlers). */
+  applyFeatureDetail(path: string, title: string, description: string): void {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://satisfecho.de';
+    this.applyTags({ title, description, path }, origin);
+  }
+
   applyForUrl(rawUrl: string): void {
     const path = this.normalizePath(rawUrl);
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://satisfecho.de';
@@ -132,6 +138,14 @@ export class SeoService {
     const marketing = MARKETING_PAGES[path];
     if (marketing) {
       this.applyTags({ ...marketing, path }, origin);
+      return;
+    }
+
+    if (path.startsWith('/features/') && path.length > '/features/'.length) {
+      // Title/description set by FeatureDetailComponent via applyFeatureDetail.
+      this.meta.updateTag({ name: 'robots', content: 'index,follow' });
+      this.setCanonical(origin, path);
+      this.meta.updateTag({ property: 'og:url', content: this.absoluteUrl(origin, path) });
       return;
     }
 
