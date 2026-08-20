@@ -763,7 +763,11 @@
     "ITEM_COMMENT_PLACEHOLDER": "e.g. lots of ice, cold milk, cheese only mozzarella",
     "ORDER_NOTES_PLACEHOLDER": "Optional note for the whole order (e.g. serve together)",
     "ADD_COMMENT": "Add comment",
-    "HIDE_COMMENT": "Hide comment"
+    "HIDE_COMMENT": "Hide comment",
+    "SHARED_CART_HINT": "Shared table cart — everyone at this table sees these items. Place order sends only your items.",
+    "ADDED_BY": "Added by {{name}}",
+    "ADDED_BY_GUEST": "Added by another guest",
+    "PLACE_OWN_ITEMS_ONLY": "Add your own items before placing an order. Other guests’ items stay in the shared cart until they place their order."
   },
   "PRODUCTS": {
     "TITLE": "Products",

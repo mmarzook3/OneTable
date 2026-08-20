@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+## [2.1.151] - 2026-08-20
+
+### Added
+
+- **Shared table cart for dine-in QR (#349):** Guests on the same activated table QR now share a live draft cart before Place Order (Redis + WebSocket). Each device keeps its own session for attribution; Place Order still sends only that device’s lines. Take Away stays local-only. Docs 0008/0009 updated.
+
 ## [2.1.150] - 2026-08-20
 
 ### Fixed

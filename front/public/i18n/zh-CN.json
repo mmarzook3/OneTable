@@ -729,7 +729,11 @@
     "ITEM_COMMENT_PLACEHOLDER": "例如：多冰、冰牛奶、只要马苏里拉",
     "ORDER_NOTES_PLACEHOLDER": "整单可选备注（例如一起上菜）",
     "ADD_COMMENT": "添加备注",
-    "HIDE_COMMENT": "隐藏备注"
+    "HIDE_COMMENT": "隐藏备注",
+    "SHARED_CART_HINT": "同桌共享购物车——桌上每位客人都能看到这些菜品。下单只提交您自己的菜品。",
+    "ADDED_BY": "由 {{name}} 添加",
+    "ADDED_BY_GUEST": "由其他客人添加",
+    "PLACE_OWN_ITEMS_ONLY": "下单前请先添加您自己的菜品。其他客人的菜品会留在共享购物车中，直到他们自己下单。"
   },
   "PRODUCTS": {
     "TITLE": "产品",

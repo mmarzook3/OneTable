@@ -88,6 +88,7 @@ from .tse_service import (
 )
 from .inventory_service import deduct_inventory_for_order
 from . import inventory_models
+from . import table_cart as table_cart_svc
 from .translation_service import TranslationService
 from .messages import get_message
 from .api_errors import api_error_payload
@@ -11754,6 +11755,9 @@ def close_table(
                 current_user.tenant_id, {"type": "reservation_finished", "reservation": out}
             )
 
+    # Drop ephemeral shared draft cart for this table
+    table_cart_svc.clear_cart(get_redis(), table_id)
+
     # Notify connected customers via WebSocket that the table has been closed
     publish_order_update(
         tenant_id=current_user.tenant_id,
@@ -12433,6 +12437,8 @@ def get_menu(
         or (staff_access and _verify_staff_menu_token(table.token, staff_access))
         else (table.is_active and table.order_pin is not None),
         "active_order_id": table.active_order_id,
+        # Shared draft cart: dine-in activated tables only (not take-away). Needs Redis.
+        "table_shared_cart": bool(table.is_active and not _is_take_away_table(table)),
         "products": products_list,
     }
 
@@ -12468,6 +12474,204 @@ def get_menu(
                 tenant_data["display_tenant_address"] = display_address
 
     return JSONResponse(content=tenant_data)
+
+
+# ============ PUBLIC: SHARED TABLE DRAFT CART (#349) ============
+
+
+class TableCartItemCreate(_BaseModel):
+    session_id: str = Field(min_length=8, max_length=128)
+    customer_name: str | None = Field(default=None, max_length=120)
+    product_id: int
+    quantity: int = Field(default=1, ge=1, le=99)
+    notes: str | None = Field(default=None, max_length=500)
+    source: str | None = None
+    customization_answers: dict[str, Any] | None = None
+
+
+class TableCartItemUpdate(_BaseModel):
+    session_id: str = Field(min_length=8, max_length=128)
+    quantity: int | None = Field(default=None, ge=0, le=99)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+def _table_allows_shared_cart(table: models.Table) -> bool:
+    return bool(table.is_active and not _is_take_away_table(table))
+
+
+def _resolve_menu_cart_product(
+    session: Session, tenant_id: int, product_id: int, source: str | None
+) -> tuple[str, int]:
+    """Return (product_name, price_cents) for a menu cart line. Raises HTTPException if missing."""
+    if source == "tenant_product" or source is None:
+        tp = session.exec(
+            select(models.TenantProduct).where(
+                models.TenantProduct.id == product_id,
+                models.TenantProduct.tenant_id == tenant_id,
+            )
+        ).first()
+        if tp:
+            price = tp.price_cents
+            if price is None and tp.product_id:
+                linked = session.get(models.Product, tp.product_id)
+                price = linked.price_cents if linked else None
+            if price is None:
+                raise HTTPException(status_code=400, detail=f"Menu item «{tp.name}» has no price.")
+            return tp.name, int(price)
+        if source == "tenant_product":
+            raise HTTPException(status_code=400, detail=f"TenantProduct {product_id} not found")
+
+    product = session.exec(
+        select(models.Product).where(
+            models.Product.id == product_id,
+            models.Product.tenant_id == tenant_id,
+        )
+    ).first()
+    if not product:
+        raise HTTPException(status_code=400, detail=f"Product {product_id} not found")
+    return product.name, int(product.price_cents)
+
+
+def _cart_response(shared: bool, cart: dict, *, reason: str | None = None) -> JSONResponse:
+    payload: dict[str, Any] = {
+        "shared": shared,
+        "items": cart.get("items") or [] if shared else [],
+        "updated_at": cart.get("updated_at"),
+    }
+    if reason:
+        payload["reason"] = reason
+    return JSONResponse(content=payload)
+
+
+def _publish_cart_updated(table: models.Table) -> None:
+    publish_order_update(
+        table.tenant_id,
+        {"type": "cart_updated", "table_id": table.id},
+        table_id=table.id,
+    )
+
+
+@app.get("/menu/{table_token}/cart")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def get_table_cart(
+    request: Request,
+    table_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Shared draft cart for an activated dine-in table (Redis). Local-only when disabled."""
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table):
+        return _cart_response(False, {}, reason="local_only")
+    r = get_redis()
+    if r is None:
+        return _cart_response(False, {}, reason="redis_unavailable")
+    return _cart_response(True, table_cart_svc.load_cart(r, table.id))
+
+
+@app.post("/menu/{table_token}/cart/items")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def add_table_cart_item(
+    request: Request,
+    table_token: str,
+    body: TableCartItemCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    name, price = _resolve_menu_cart_product(
+        session, table.tenant_id, body.product_id, body.source
+    )
+    cart = table_cart_svc.add_item(
+        r,
+        table.id,
+        session_id=body.session_id.strip(),
+        customer_name=(body.customer_name or "").strip() or None,
+        product_id=body.product_id,
+        product_name=name,
+        price_cents=price,
+        quantity=body.quantity,
+        notes=body.notes,
+        source=body.source,
+        customization_answers=body.customization_answers,
+    )
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
+
+
+@app.put("/menu/{table_token}/cart/items/{line_id}")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def update_table_cart_item(
+    request: Request,
+    table_token: str,
+    line_id: str,
+    body: TableCartItemUpdate,
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    cart = table_cart_svc.update_item(
+        r,
+        table.id,
+        line_id,
+        session_id=body.session_id.strip(),
+        quantity=body.quantity,
+        notes=body.notes,
+    )
+    if cart is None:
+        raise HTTPException(status_code=404, detail="Cart line not found or not owned by this session")
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
+
+
+@app.delete("/menu/{table_token}/cart/items/{line_id}")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def delete_table_cart_item(
+    request: Request,
+    table_token: str,
+    line_id: str,
+    session_id: str = Query(..., min_length=8, max_length=128),
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    cart = table_cart_svc.remove_item(
+        r, table.id, line_id, session_id=session_id.strip()
+    )
+    if cart is None:
+        raise HTTPException(status_code=404, detail="Cart line not found or not owned by this session")
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
 
 
 @app.get("/menu/{table_token}/order")
@@ -13203,6 +13407,11 @@ def create_order(
         "status": order.status.value,
         "created_at": order.created_at.isoformat()
     }, table_id=table.id)
+
+    # Remove this device's draft cart lines after they were submitted to the shared order
+    if order_data.session_id and _table_allows_shared_cart(table):
+        table_cart_svc.remove_session_items(get_redis(), table.id, order_data.session_id.strip())
+        _publish_cart_updated(table)
 
     return JSONResponse(content={
         "status": "created" if is_new_order else "updated",

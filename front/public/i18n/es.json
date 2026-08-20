@@ -607,7 +607,11 @@
     "ITEM_COMMENT_PLACEHOLDER": "p. ej. mucho hielo, leche fría, solo mozzarella",
     "ORDER_NOTES_PLACEHOLDER": "Nota opcional para todo el pedido (p. ej. servir junto)",
     "ADD_COMMENT": "Añadir comentario",
-    "HIDE_COMMENT": "Ocultar comentario"
+    "HIDE_COMMENT": "Ocultar comentario",
+    "SHARED_CART_HINT": "Carrito compartido de la mesa: todos ven estos artículos. Al pedir se envían solo los tuyos.",
+    "ADDED_BY": "Añadido por {{name}}",
+    "ADDED_BY_GUEST": "Añadido por otro comensal",
+    "PLACE_OWN_ITEMS_ONLY": "Añade tus propios artículos antes de pedir. Los de otros comensales siguen en el carrito compartido hasta que ellos pidan."
   },
   "PRODUCTS": {
     "TITLE": "Productos",
