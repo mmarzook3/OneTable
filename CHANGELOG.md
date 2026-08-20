@@ -14,6 +14,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+## [2.1.150] - 2026-08-20
+
+### Fixed
+
+- **Feature page translations (#348):** Replaced English placeholders on `/features` and `/features/{slug}` with real copy in de, es, fr, ca, zh-CN, hi, ur, and bg (`FEATURES_PAGE` + all 31 `FEATURE_DETAIL` slugs). Compliance wording for VeriFactu/TSE stays honest. Locale parity and features smoke PASS.
+
 ## [2.1.149] - 2026-08-19
 
 ### Added
