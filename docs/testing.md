@@ -233,6 +233,19 @@ npm run test:restaurant-onboarding --prefix front
 
 Seed the matching local platform operator before running the smoke. Never use these test defaults in production.
 
+### 2a3e. Platform-created restaurant onboarding
+
+Full local smoke for the One Table operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
+
+```bash
+PLATFORM_OPERATOR_EMAIL=onboarding-platform-test@amvara.de \
+PLATFORM_OPERATOR_PASSWORD=onboarding-platform-password-42 \
+BASE_URL=http://127.0.0.1:4202 \
+npm run test:restaurant-onboarding --prefix front
+```
+
+Seed the matching local platform operator before running the smoke. Never use these test defaults in production.
+
 ```bash
 npm run test:platform-operator --prefix front
 # Or: BASE_URL=http://127.0.0.1:4202 node front/scripts/test-platform-operator.mjs

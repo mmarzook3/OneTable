@@ -13,7 +13,7 @@ type StarterItem = { name: string; priceCents: number; enabled: boolean };
   template: `
     <main class="onboarding-shell">
       <header class="onboarding-header">
-        <a routerLink="/" class="brand" aria-label="Scanaki">Scanaki</a>
+        <a routerLink="/" class="brand" aria-label="One Table">One Table</a>
         <div class="save-state">
           <span class="save-dot" aria-hidden="true"></span>
           {{ 'RESTAURANT_ONBOARDING.SAVED_AUTOMATICALLY' | translate }}
@@ -702,3 +702,4 @@ export class RestaurantOnboardingComponent implements OnInit {
     }
   }
 }
+

@@ -48,6 +48,7 @@ export interface User {
   tenant_id?: number | null;
   provider_id?: number | null;
   role: UserRole;
+  must_change_password?: boolean;
 }
 
 export interface UserCreate {
@@ -416,6 +417,43 @@ export interface PlatformTenantSummary {
   user_count: number;
   order_count: number;
   reservation_count: number;
+  onboarding_status: 'not_started' | 'in_progress' | 'completed' | string;
+  onboarding_step: number;
+}
+
+export interface PlatformRestaurantCreate {
+  restaurant_name: string;
+  owner_email: string;
+  owner_name?: string | null;
+}
+
+export interface PlatformRestaurantCredentials {
+  tenant_id: number;
+  restaurant_name: string;
+  username: string;
+  temporary_password: string;
+  password_setup_url?: string | null;
+}
+
+export interface RestaurantOnboardingState {
+  status: 'not_started' | 'in_progress' | 'completed' | string;
+  current_step: number;
+  must_change_password: boolean;
+  restaurant_name: string;
+  business_type?: string | null;
+  owner_name?: string | null;
+  owner_email: string;
+  business_email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  currency_code: string;
+  timezone: string;
+  ordering_mode: string;
+  ordering_service_hours?: Record<string, { open?: string; close?: string; closed?: boolean }> | null;
+  floor_count: number;
+  table_count: number;
+  product_count: number;
+  payment_configured: boolean;
 }
 
 export interface PlatformStaffContact {
@@ -2364,6 +2402,12 @@ export class ApiService {
     return this.http.get<PlatformTenantSummary[]>(`${this.apiUrl}/platform/tenants`);
   }
 
+  createPlatformRestaurant(
+    body: PlatformRestaurantCreate,
+  ): Observable<PlatformRestaurantCredentials> {
+    return this.http.post<PlatformRestaurantCredentials>(`${this.apiUrl}/platform/tenants`, body);
+  }
+
   getPlatformTenant(tenantId: number): Observable<PlatformTenantDetail> {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
   }
@@ -3587,6 +3631,54 @@ export class ApiService {
         this.tenantDisplayName.set(n || null);
       })
     );
+  }
+
+  getRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
+    return this.http.get<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/status`);
+  }
+
+  setRestaurantOnboardingPassword(newPassword: string): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/password`, {
+      new_password: newPassword,
+    });
+  }
+
+  saveRestaurantOnboardingBusiness(body: {
+    restaurant_name: string;
+    business_type: string;
+    owner_name?: string | null;
+    business_email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/business`, body);
+  }
+
+  saveRestaurantOnboardingOperations(body: {
+    days_open: string[];
+    opening_time: string;
+    closing_time: string;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/operations`, body);
+  }
+
+  createRestaurantOnboardingTables(body: {
+    floor_name: string;
+    table_prefix: string;
+    table_count: number;
+    seats_per_table: number;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/tables`, body);
+  }
+
+  saveRestaurantOnboardingProgress(currentStep: number): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/progress`, {
+      current_step: currentStep,
+    });
+  }
+
+  completeRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
+    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/complete`, {});
   }
 
   getOrderingStatus(): Observable<OrderingAvailability> {
