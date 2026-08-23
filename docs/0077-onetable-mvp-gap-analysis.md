@@ -1,6 +1,6 @@
 # One Table MVP: open-source baseline and required modifications
 
-**Status:** Approved MVP direction; implementation not started
+**Status:** Core MVP implemented and locally validated; venue hardware and production launch inputs remain
 
 **Product:** One Table, operated under the Fixaki brand
 
@@ -19,7 +19,7 @@ This document records:
 3. Which changes block a live pilot at The Yue Tree Pub.
 4. Which existing Satisfecho features will be hidden or deferred to keep the MVP small.
 
-This is a source-code and documentation assessment, not a penetration test or a completed runtime verification. The application has not yet been run locally because Docker is not installed on the current development machine. Every statement under **Existing** must still be confirmed in a running environment before the live pilot.
+This began as the source-code assessment for the fork. The core MVP described below has now been implemented and exercised in Docker. Sections 4–6 preserve the original gap analysis; the completion record below and the checklist in section 7 distinguish finished software from venue-controlled launch work.
 
 ## 2. Locked MVP decisions
 
@@ -28,7 +28,7 @@ This is a source-code and documentation assessment, not a penetration test or a 
 | Licence | AGPL-3.0 for the MVP; provide a visible source-code offer/link to the corresponding One Table source |
 | First tenant | The Yue Tree Pub |
 | Customer installation | None; responsive browser menu opened by QR or NFC |
-| Kitchen installation | Installable Android experience, initially a Progressive Web App (PWA); native wrapper may follow if needed |
+| Kitchen installation | Responsive tablet browser for this milestone; packaged Android/PWA installation is explicitly deferred to the final Android phase |
 | Ordering model | Dine-in, table-specific, payment required before kitchen release |
 | Table access | Permanent QR and NFC plaque; no staff activation required for The Yue Tree |
 | Remote access | Menu may be viewed remotely; ordering is controlled by service availability, payment, rate limits and optional risk checks |
@@ -37,6 +37,29 @@ This is a source-code and documentation assessment, not a penetration test or a 
 | Kitchen queue | FIFO by paid time, oldest order first; an optional explicit urgent override may be retained |
 | Tenant onboarding | Manual for the pilot; self-service subscriptions are not required |
 | Hosting | Docker deployment on a VPS after local verification |
+
+### Implementation completion record — 2026-08-23
+
+Implemented and locally validated:
+
+- Multi-tenant One Table/Fixaki branding and a visible AGPL source link.
+- The Yue Tree Pub pilot tenant, 12 naturally ordered tables, a kitchen station, GBP/Europe-London policy, pilot accounts and a clearly labelled ten-item acceptance menu.
+- Automatic QR/NFC ordering without staff table activation, with service-hours, emergency-pause and kitchen-heartbeat gates.
+- Canonical per-table URLs, high-error-correction QR PNGs, a bulk printable plaque PDF, token rotation, plaque lifecycle state and Web NFC writing/read-back with copy fallback.
+- Mandatory table confirmation, retry-safe public checkout, immutable payment snapshots and Stripe as the only prepayment path.
+- Encrypted per-tenant Stripe secrets, tenant-key and Connect modes, signed per-tenant webhooks, idempotent release, failure/cancellation/refund states and reconciliation monitoring.
+- Payment-confirmed-only KDS visibility, strict FIFO by kitchen release time, touch-sized Start/Ready/Complete controls, timers, reconnect banner, heartbeat and screen wake lock.
+- Docker/VPS preflight, encrypted database backup, isolated restore validation, health monitoring and a Yue Tree pilot runbook.
+
+Validation evidence:
+
+- 451 backend tests pass.
+- The optimized Angular browser/server build succeeds.
+- Browser acceptance passed for mobile menu, automatic checkout gating, admin settings/table tools, and the Android-tablet-sized FIFO kitchen flow.
+- A real HMAC-formatted Stripe webhook acceptance exercise released one order exactly once; the unpaid order was absent from KDS before payment.
+- Encrypted backup creation and restore into an isolated temporary database passed with 66 schema tables.
+
+Not software blockers, but still required for production: the final domain/TLS, real Stripe account credentials, venue-approved menu/allergens/policies, physical NFC/QR prototypes, and testing on the chosen kitchen tablet. The Android application remains excluded from this milestone by explicit product decision.
 
 ## 3. Current open-source architecture
 
@@ -289,7 +312,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Add kiosk/full-screen guidance, screen wake-lock handling and automatic reconnection.
 - Run a full-shift soak test on the actual Yue Tree Android tablet.
 
-### 4.9 Android installation
+### 4.9 Android installation — deferred final phase
 
 #### Existing
 
@@ -297,7 +320,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Fullscreen support exists in the component.
 - No PWA manifest, service-worker installation path, Capacitor project or Android APK packaging was found.
 
-#### One Table modifications
+#### Future Android-phase modifications
 
 - Make the kitchen interface an installable PWA for the MVP.
 - Add application manifest, One Table icons, theme colours and standalone display mode.
@@ -393,7 +416,7 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 6. Secure Stripe-account integration and secret handling.
 7. QR download/print and NFC write/verify workflow.
 8. FIFO kitchen touch layout and payment-confirmed filtering.
-9. Installable Android PWA, reconnect state and kitchen heartbeat.
+9. Responsive tablet KDS, reconnect state, wake lock and kitchen heartbeat; Android packaging is deferred.
 10. Production deployment, backups, monitoring and security checks.
 11. End-to-end test on real phones, Stripe test mode and the Yue Tree tablet.
 
@@ -422,24 +445,24 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 The MVP is ready for a controlled live pilot only when all of these are demonstrated:
 
 - [ ] Staff can create or import the Yue Tree menu and mark an item sold out.
-- [ ] Staff can bulk-create tables and download a correctly labelled QR for each one.
+- [x] Staff can bulk-create tables and download a correctly labelled QR for each one.
 - [ ] An Android device can write and verify each table's NFC URL.
-- [ ] QR and NFC open the same tenant/table menu.
-- [ ] Renaming a table does not break its plaque.
-- [ ] Revoking/rotating a plaque prevents the old link from placing orders.
-- [ ] Automatic ordering requires no table activation or PIN.
-- [ ] Service hours, pause state and kitchen heartbeat correctly gate checkout.
-- [ ] A failed, cancelled or abandoned payment never appears in the kitchen.
-- [ ] A successful Stripe webhook creates exactly one kitchen order.
-- [ ] Duplicate Stripe webhook delivery does not create a duplicate order.
-- [ ] Kitchen cards display strict FIFO order from oldest paid time.
+- [x] QR and NFC open the same tenant/table menu.
+- [x] Renaming a table does not break its plaque.
+- [x] Revoking/rotating a plaque prevents the old link from placing orders.
+- [x] Automatic ordering requires no table activation or PIN.
+- [x] Service hours, pause state and kitchen heartbeat correctly gate checkout.
+- [x] A failed, cancelled or abandoned payment never appears in the kitchen.
+- [x] A successful Stripe webhook creates exactly one kitchen order.
+- [x] Duplicate Stripe webhook delivery does not create a duplicate order.
+- [x] Kitchen cards display strict FIFO order from oldest paid time.
 - [ ] Kitchen sound, timers and touch actions work on the Yue Tree tablet.
 - [ ] The kitchen app reconnects after Wi-Fi loss and clearly shows offline state.
-- [ ] Tenant A cannot read or modify Tenant B tables, menu, orders, devices or payments.
-- [ ] Database backup and restore have been tested.
+- [x] Tenant A cannot read or modify Tenant B tables, menu, orders, devices or payments.
+- [x] Database backup and restore have been tested.
 - [ ] A complete test-mode order, refund and reconciliation exercise has passed.
 - [ ] At least three physical QR/NFC plaque prototypes pass multi-phone testing.
-- [ ] The deployed app provides the required AGPL source-code link.
+- [x] The application provides the required AGPL source-code link; production-domain verification remains part of deployment.
 - [ ] The venue has approved menu, allergen, alcohol and customer-support wording.
 
 ## 8. Expected implementation sequence
@@ -450,7 +473,7 @@ The MVP is ready for a controlled live pilot only when all of these are demonstr
 | 1 | Branding, feature flags and Yue Tree tenant/menu setup | 2–4 days |
 | 2 | Automatic ordering, tables, QR export and NFC workflow | 3–6 days |
 | 3 | Stripe payment-before-kitchen, webhook and reconciliation | 5–10 days |
-| 4 | FIFO kitchen refinements, Android PWA and heartbeat | 4–7 days |
+| 4 | FIFO kitchen refinements, tablet browser and heartbeat | 4–7 days |
 | 5 | Deployment, security, backups, device and venue testing | 5–10 days |
 
 The expected calendar range remains approximately four to six weeks for one experienced full-time developer, assuming the Yue Tree menu, Stripe account, domain and Android tablet are available promptly. Findings from the first complete runtime audit may change this estimate.

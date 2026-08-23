@@ -39,7 +39,7 @@ import { environment } from '../../environments/environment';
             <span class="landing-footer__group-label">{{ 'LANDING.FOOTER_SUPPORT' | translate }}</span>
             <a routerLink="/about" data-testid="landing-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
             <a routerLink="/manual-usuario" data-testid="landing-user-manual">{{ 'LANDING.USER_MANUAL' | translate }}</a>
-            <a href="mailto:hello@satisfecho.de" data-testid="landing-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
+            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" data-testid="landing-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
             <a routerLink="/terms" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
             <a routerLink="/privacy" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
           </div>
@@ -52,7 +52,7 @@ import { environment } from '../../environments/environment';
             >{{ version || '0.0.0' }} <span class="landing-commit">{{ commitHash || '' }}</span></span
           >
           <a
-            href="https://github.com/satisfecho/pos/"
+            href="https://github.com/mmarzook3/OneTable"
             target="_blank"
             rel="noopener noreferrer"
             class="landing-version-github"

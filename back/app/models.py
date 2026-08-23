@@ -5,7 +5,14 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.ext.compiler import compiles
 from sqlmodel import Field, Relationship, SQLModel
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_for_sqlite(_type: JSONB, _compiler: object, **_kwargs: object) -> str:
+    """Keep focused in-memory tests portable while production remains PostgreSQL JSONB."""
+    return "JSON"
 
 
 # ============ TAX (VAT/IVA) ============
@@ -109,6 +116,17 @@ class Tenant(SQLModel, table=True):
         default=False
     )  # Require immediate payment for orders
 
+    # One Table dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
+    ordering_mode: str = Field(default="activation_pin", max_length=32)
+    ordering_paused: bool = Field(default=False)
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    ordering_service_hours: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    require_kds_online: bool = Field(default=False)
+    kds_heartbeat_timeout_seconds: int = Field(default=120)
+    strict_fifo_kds: bool = Field(default=True)
+
     # Currency: store ISO 4217 code internally; frontend derives symbol via Intl.
     # Keep `currency` (symbol) for backward compatibility.
     currency_code: str | None = Field(
@@ -131,6 +149,16 @@ class Tenant(SQLModel, table=True):
     stripe_publishable_key: str | None = Field(
         default=None
     )  # Stripe publishable key for this tenant
+    # Payment secrets are encrypted with the server secret. stripe_secret_key remains only
+    # as a migration source for older installations and is cleared after encryption.
+    stripe_secret_key_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    stripe_webhook_secret_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    stripe_payment_mode: str = Field(default="tenant_keys", max_length=32)
+    stripe_connected_account_id: str | None = Field(default=None, max_length=128, index=True)
 
     revolut_merchant_secret: str | None = Field(
         default=None
@@ -487,6 +515,25 @@ class KitchenStationDefaultsUpdate(SQLModel):
     default_bar_station_id: int | None = None
 
 
+class KitchenDevice(SQLModel, table=True):
+    """Authenticated KDS browser heartbeat used to gate unattended ordering."""
+
+    __tablename__ = "kitchen_device"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "device_key", name="uq_kitchen_device_tenant_key"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    device_key: str = Field(max_length=64, index=True)
+    name: str = Field(max_length=120)
+    display_route: str = Field(default="kitchen", max_length=16, index=True)
+    station_id: int | None = Field(default=None, foreign_key="kitchen_station.id", index=True)
+    last_seen_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    revoked_at: datetime | None = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class Product(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -730,6 +777,13 @@ class Table(TenantMixin, table=True):
     is_active: bool = Field(default=False, index=True)  # Whether table is accepting orders
     active_order_id: int | None = Field(default=None)  # Current shared order for this table
     activated_at: datetime | None = Field(default=None)  # When table was activated
+
+    # Permanent QR/NFC plaque production lifecycle. The table token remains stable on rename.
+    plaque_status: str = Field(default="not_created", max_length=32, index=True)
+    plaque_last_tested_at: datetime | None = None
+    nfc_written_at: datetime | None = None
+    nfc_locked_at: datetime | None = None
+    token_rotated_at: datetime | None = None
 
 
 class Shift(TenantMixin, table=True):
@@ -1153,6 +1207,14 @@ class TseTransaction(SQLModel, table=True):
 
 
 class Order(TenantMixin, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "public_idempotency_key",
+            name="uq_order_tenant_public_idempotency",
+        ),
+    )
+
     id: int | None = Field(default=None, primary_key=True)
     # Null when soft-deleted and unlinked, or legacy cleanup; active orders always have a table.
     table_id: int | None = Field(default=None, foreign_key="table.id")
@@ -1177,6 +1239,15 @@ class Order(TenantMixin, table=True):
     paid_by_user_id: int | None = None  # Who marked it as paid (staff)
     payment_method: str | None = None  # 'stripe', 'cash', 'terminal', 'revolut', etc.
     revolut_order_id: str | None = None  # Revolut Merchant order id when paying via Revolut
+    # Public prepayment orders are invisible to KDS until kitchen_released_at is set.
+    requires_prepayment: bool = Field(default=False, index=True)
+    kitchen_released_at: datetime | None = Field(default=None, index=True)
+    payment_state: str | None = Field(default=None, max_length=32, index=True)
+    payment_amount_cents: int | None = Field(default=None, ge=0)
+    payment_currency: str | None = Field(default=None, max_length=3)
+    stripe_payment_intent_id: str | None = Field(default=None, max_length=128, unique=True, index=True)
+    public_idempotency_key: str | None = Field(default=None, max_length=64, index=True)
+    checkout_locked_at: datetime | None = None
     tip_percent_applied: int | None = None  # Preset % charged as tip when staff marked paid (null = no tip)
     tip_amount_cents: int | None = None  # Tip amount in cents (gross; VAT split uses tenant tip_tax_rate_percent)
     tip_attributed_user_id: int | None = Field(default=None, foreign_key="user.id")
@@ -1654,6 +1725,7 @@ class OrderCreate(SQLModel):
     staff_access: str | None = None  # Staff link token: when valid, PIN is not required
     latitude: float | None = None  # Optional GPS latitude for location verification
     longitude: float | None = None  # Optional GPS longitude for location verification
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=64)
 
 
 class SatisfechoDeliveryOrderCreate(SQLModel):
@@ -1817,6 +1889,13 @@ class TenantUpdate(SQLModel):
     ccc: str | None = None
     opening_hours: str | None = None  # JSON string
     immediate_payment_required: bool | None = None
+    ordering_mode: str | None = None
+    ordering_paused: bool | None = None
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    ordering_service_hours: dict | None = None
+    require_kds_online: bool | None = None
+    kds_heartbeat_timeout_seconds: int | None = Field(default=None, ge=30, le=900)
+    strict_fifo_kds: bool | None = None
 
     # Preferred configuration: ISO 4217 currency code.
     currency_code: str | None = None
@@ -1832,6 +1911,9 @@ class TenantUpdate(SQLModel):
 
     stripe_secret_key: str | None = None
     stripe_publishable_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_payment_mode: str | None = None
+    stripe_connected_account_id: str | None = None
     revolut_merchant_secret: str | None = None
     # inventory_tracking_enabled: bool | None = None  # Commented out - migration not applied
 

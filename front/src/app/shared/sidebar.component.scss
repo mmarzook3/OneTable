@@ -446,3 +446,10 @@
         max-width: 100vw;
     }
 }
+
+.source-link {
+    display: inline-block;
+    margin-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}

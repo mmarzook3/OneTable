@@ -94,7 +94,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
               </div>
               <p class="pricing-card__trial">{{ 'PRICING_PAGE.SELFHOST_LICENSE' | translate }}</p>
               <a
-                href="https://github.com/satisfecho/pos/"
+                href="https://github.com/mmarzook3/OneTable"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="pricing-btn pricing-btn--ghost"

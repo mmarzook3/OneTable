@@ -1211,6 +1211,13 @@ export interface Table {
   table_group_id?: number | null;
   group_member_ids?: number[] | null;
   group_seat_total?: number | null;
+  menu_url?: string | null;
+  nfc_payload?: string | null;
+  plaque_status?: 'not_created' | 'printed' | 'nfc_written' | 'tested' | 'installed' | 'needs_reprint' | string;
+  plaque_last_tested_at?: string | null;
+  nfc_written_at?: string | null;
+  nfc_locked_at?: string | null;
+  token_rotated_at?: string | null;
 }
 
 export interface TableActivateResponse {
@@ -1573,6 +1580,9 @@ export interface Order {
   external_order_ref?: string | null;
   hub_fulfillment?: HubFulfillment | null;
   can_request_hub_fulfillment?: boolean;
+  requires_prepayment?: boolean;
+  kitchen_released_at?: string | null;
+  payment_state?: string | null;
 }
 
 /** Staff create first-party Satisfecho Delivery order (no table). */
@@ -1683,6 +1693,7 @@ export interface MenuResponse {
   tenant_currency?: string | null;
   tenant_currency_code?: string | null;
   tenant_stripe_publishable_key?: string | null;
+  tenant_stripe_connected_account_id?: string | null;
   tenant_revolut_configured?: boolean;
   tenant_immediate_payment_required?: boolean;
   tenant_public_background_color?: string | null;
@@ -1693,7 +1704,31 @@ export interface MenuResponse {
   active_order_id?: number | null;
   /** When true, draft cart is shared across devices on this table token (#349). */
   table_shared_cart?: boolean;
+  ordering_mode?: 'activation_pin' | 'automatic' | 'menu_only';
+  ordering_availability?: OrderingAvailability;
   products: Product[];
+}
+
+export interface OrderingAvailability {
+  allowed: boolean;
+  code: 'OPEN' | 'PAUSED' | 'MENU_ONLY' | 'OUTSIDE_SERVICE_HOURS' | 'KDS_OFFLINE' | string;
+  customer_message: string;
+  staff_message?: string | null;
+  ordering_mode: 'activation_pin' | 'automatic' | 'menu_only';
+  strict_fifo_kds?: boolean;
+  checked_at: string;
+  kds_online?: boolean | null;
+}
+
+export interface KitchenDevice {
+  id: number;
+  device_key: string;
+  name: string;
+  display_route: 'kitchen' | 'bar';
+  station_id?: number | null;
+  last_seen_at: string;
+  revoked_at?: string | null;
+  online: boolean;
 }
 
 export interface TableCartLine {
@@ -1746,6 +1781,13 @@ export interface TenantSettings {
   header_background_filename?: string | null;
   opening_hours?: string | null;
   immediate_payment_required?: boolean;
+  ordering_mode?: 'activation_pin' | 'automatic' | 'menu_only';
+  ordering_paused?: boolean;
+  ordering_pause_reason?: string | null;
+  ordering_service_hours?: Record<string, unknown> | null;
+  require_kds_online?: boolean;
+  kds_heartbeat_timeout_seconds?: number;
+  strict_fifo_kds?: boolean;
   currency?: string | null;
   currency_code?: string | null;
   default_language?: string | null;
@@ -1754,6 +1796,9 @@ export interface TenantSettings {
   country_code?: string | null;
   stripe_secret_key?: string | null;
   stripe_publishable_key?: string | null;
+  stripe_webhook_secret?: string | null;
+  stripe_payment_mode?: 'tenant_keys' | 'connect';
+  stripe_connected_account_id?: string | null;
   revolut_merchant_secret?: string | null;
   logo_size_bytes?: number | null;
   logo_size_formatted?: string | null;
@@ -1853,6 +1898,7 @@ export interface OrderCreate {
   staff_access?: string;  // Staff link token: when valid, PIN is not required
   latitude?: number | null;  // Optional GPS latitude for location verification
   longitude?: number | null;  // Optional GPS longitude for location verification
+  idempotency_key?: string;
 }
 
 export interface OrderHistoryItem {
@@ -2745,6 +2791,37 @@ export class ApiService {
     return this.http.post<Table>(`${this.apiUrl}/tables`, body);
   }
 
+  bulkCreateTables(body: {
+    prefix: string;
+    start_number: number;
+    count: number;
+    floor_id?: number | null;
+    seat_count: number;
+  }): Observable<Table[]> {
+    return this.http.post<Table[]>(`${this.apiUrl}/tables/bulk`, body);
+  }
+
+  rotateTableToken(tableId: number): Observable<Table> {
+    return this.http.post<Table>(`${this.apiUrl}/tables/${tableId}/rotate-token`, {});
+  }
+
+  updateTablePlaqueStatus(
+    tableId: number,
+    body: { status: string; nfc_written?: boolean; nfc_locked?: boolean; tested?: boolean }
+  ): Observable<Table> {
+    return this.http.put<Table>(`${this.apiUrl}/tables/${tableId}/plaque-status`, body);
+  }
+
+  getTablePlaqueContactSheetUrl(): string {
+    return `${this.apiUrl}/tables/plaque-contact-sheet.pdf`;
+  }
+
+  downloadTablePlaqueContactSheet(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/tables/plaque-contact-sheet.pdf`, {
+      responseType: 'blob',
+    });
+  }
+
   updateTable(id: number, data: Partial<Table>): Observable<Table> {
     return this.http.put<Table>(`${this.apiUrl}/tables/${id}`, data);
   }
@@ -2805,9 +2882,11 @@ export class ApiService {
   }
 
   // Orders
-  getOrders(includeRemoved: boolean = false): Observable<Order[]> {
-    const params = includeRemoved ? { params: { include_removed: 'true' } } : {};
-    return this.http.get<Order[]>(`${this.apiUrl}/orders`, params);
+  getOrders(includeRemoved: boolean = false, kitchenReleasedOnly: boolean = false): Observable<Order[]> {
+    let params = new HttpParams();
+    if (includeRemoved) params = params.set('include_removed', 'true');
+    if (kitchenReleasedOnly) params = params.set('kitchen_released_only', 'true');
+    return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params });
   }
 
   createSatisfechoDeliveryOrder(body: SatisfechoDeliveryOrderCreate): Observable<SatisfechoDeliveryOrderResponse> {
@@ -3367,6 +3446,7 @@ export class ApiService {
     orderId: number,
     tableToken: string | null,
     publicOrderToken?: string | null,
+    sessionId?: string | null,
   ): Observable<any> {
     const params = new URLSearchParams();
     if (publicOrderToken) {
@@ -3374,6 +3454,7 @@ export class ApiService {
     } else if (tableToken) {
       params.set('table_token', tableToken);
     }
+    if (sessionId) params.set('session_id', sessionId);
     return this.http.post(`${this.apiUrl}/orders/${orderId}/create-payment-intent?${params.toString()}`, {});
   }
 
@@ -3382,6 +3463,7 @@ export class ApiService {
     tableToken: string | null,
     paymentIntentId: string,
     publicOrderToken?: string | null,
+    sessionId?: string | null,
   ): Observable<any> {
     const params = new URLSearchParams();
     params.set('payment_intent_id', paymentIntentId);
@@ -3390,6 +3472,7 @@ export class ApiService {
     } else if (tableToken) {
       params.set('table_token', tableToken);
     }
+    if (sessionId) params.set('session_id', sessionId);
     return this.http.post(
       `${this.apiUrl}/orders/${orderId}/confirm-payment?${params.toString()}`,
       {},
@@ -3511,6 +3594,40 @@ export class ApiService {
         const n = typeof s?.name === 'string' ? s.name.trim() : '';
         this.tenantDisplayName.set(n || null);
       })
+    );
+  }
+
+  getOrderingStatus(): Observable<OrderingAvailability> {
+    return this.http.get<OrderingAvailability>(`${this.apiUrl}/tenant/ordering-status`);
+  }
+
+  pauseOrdering(reason?: string | null): Observable<OrderingAvailability> {
+    return this.http.post<OrderingAvailability>(`${this.apiUrl}/tenant/ordering/pause`, { reason });
+  }
+
+  resumeOrdering(): Observable<OrderingAvailability> {
+    return this.http.post<OrderingAvailability>(`${this.apiUrl}/tenant/ordering/resume`, {});
+  }
+
+  heartbeatKitchenDevice(body: {
+    device_key: string;
+    name: string;
+    display_route: 'kitchen' | 'bar';
+    station_id?: number | null;
+  }): Observable<{ id: number; online: boolean; last_seen_at: string }> {
+    return this.http.post<{ id: number; online: boolean; last_seen_at: string }>(
+      `${this.apiUrl}/tenant/kitchen-devices/heartbeat`,
+      body
+    );
+  }
+
+  getKitchenDevices(): Observable<KitchenDevice[]> {
+    return this.http.get<KitchenDevice[]>(`${this.apiUrl}/tenant/kitchen-devices`);
+  }
+
+  revokeKitchenDevice(deviceId: number): Observable<{ status: string; id: number }> {
+    return this.http.delete<{ status: string; id: number }>(
+      `${this.apiUrl}/tenant/kitchen-devices/${deviceId}`
     );
   }
 

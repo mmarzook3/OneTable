@@ -28,7 +28,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
           <span></span>
         </button>
         <div class="mobile-brand" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-          <span class="header-title">POS</span>
+          <span class="header-title">One Table</span>
           @if (tenantOrgName()) {
             <span class="header-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
               tenantOrgName()
@@ -40,7 +40,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
       <aside class="sidebar">
         <div class="sidebar-header">
           <div class="logo-container" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-            <span class="logo">POS</span>
+            <span class="logo">One Table</span>
             <span class="version">{{ version }} <span class="commit-hash">{{ commitHash }}</span></span>
             @if (tenantOrgName()) {
               <span class="sidebar-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
@@ -295,6 +295,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
         </nav>
 
         <div class="sidebar-footer">
+          <a class="source-link" href="https://github.com/mmarzook3/OneTable" target="_blank" rel="noopener noreferrer">AGPL source code</a>
           <app-language-picker></app-language-picker>
           @if (user()) {
             <div class="user-info">
@@ -406,7 +407,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
 
   brandTitle = computed(() => {
     const org = this.tenantOrgName();
-    return org ? `POS (${org})` : 'POS';
+    return org ? `One Table (${org})` : 'One Table';
   });
 
   ngOnInit() {
