@@ -6,10 +6,10 @@
  *
  * Usage (from front/ or repo root):
  *   node front/scripts/test-register.mjs
- *   BASE_URL=https://scanaski.uk node front/scripts/test-register.mjs
+ *   BASE_URL=https://scanaki.uk node front/scripts/test-register.mjs
  *
  * Env:
- *   BASE_URL          App URL (default: auto-detect 4203, 4202, 4200, or https://scanaski.uk)
+ *   BASE_URL          App URL (default: auto-detect 4203, 4202, 4200, or https://scanaki.uk)
  *   REGISTER_EMAIL    Email (default: test-<timestamp>@amvara.de)
  *   REGISTER_PASSWORD Password (default: testpass123)
  *   REGISTER_FULL_NAME Full name (default: Test User)
@@ -41,7 +41,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaski.uk';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
   const registerUrl = new URL('/register', baseUrl).href;
 

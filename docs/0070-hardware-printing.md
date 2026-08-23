@@ -53,7 +53,7 @@ Unauthenticated print endpoints are not exposed. Agent routes are SaaS-paywall e
 2. **On a LAN machine** (Pi / staff PC), set env and run:
 
 ```bash
-export PRINT_AGENT_API_BASE=https://scanaski.uk/api   # or http://127.0.0.1:4202/api
+export PRINT_AGENT_API_BASE=https://scanaki.uk/api   # or http://127.0.0.1:4202/api
 export PRINT_AGENT_TOKEN='…'                            # from step 1
 export KITCHEN_PRINTER_HOST=192.168.1.50
 export RECEIPT_PRINTER_HOST=192.168.1.51

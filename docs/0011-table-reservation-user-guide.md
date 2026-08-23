@@ -76,7 +76,7 @@ The waiting list is for **walk-in guests** who want a table **without** picking 
 1. **Get the waiting-list link**  
    Share **`/waitlist/:tenantId`** (same tenant ID as booking), or send guests to **`/book/:tenantId`** and have them click **Join the waiting list** when no table is free.
    - **Local example**: `http://127.0.0.1:4202/waitlist/1`
-   - **Production example**: `https://scanaski.uk/waitlist/1`
+   - **Production example**: `https://scanaki.uk/waitlist/1`
 
 2. **Open the form**  
    The guest sees name, party size, and phone (same contact validation as booking). No account required.

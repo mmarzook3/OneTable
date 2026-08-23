@@ -3,7 +3,7 @@
 Scanaki separates the physical plaque identity from the restaurant table. A manufactured plaque contains one permanent, random URL:
 
 ```text
-https://scanaski.uk/p/{public-code}
+https://scanaki.uk/p/{public-code}
 ```
 
 The public code belongs to the physical QR/NFC plaque and never contains a tenant ID or table number. Scanaki resolves its current assignment and forwards the guest to the table menu. Moving a plaque therefore does not require printing a new QR or rewriting a locked NFC tag.

@@ -19,7 +19,7 @@ _A point-of-sale system with a customer-facing menu, table management, reservati
 
 **Topics:** `restaurant-pos` · `multi-tenant` · `self-hosted` · `docker` · `fastapi` · `angular` · `postgresql` · `stripe` · `kitchen-display`
 
-**[Try the live demo →](https://scanaski.uk/)**
+**[Try the live demo →](https://scanaki.uk/)**
 
 ---
 </div>
@@ -112,7 +112,7 @@ Planned but not yet implemented: batch order operations, and stricter “must pa
 
 ## Getting Started
 
-The quickest way to try POS out is to head over to [https://scanaski.uk/](https://scanaski.uk/) and set up your restaurant.
+The quickest way to try POS out is to head over to [https://scanaki.uk/](https://scanaki.uk/) and set up your restaurant.
 
 ### Prerequisites
 

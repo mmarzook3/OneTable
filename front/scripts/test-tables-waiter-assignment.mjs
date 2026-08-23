@@ -70,7 +70,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaski.uk';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const headless = isHeadless();

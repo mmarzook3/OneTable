@@ -7,7 +7,7 @@
  *
  * Usage (repo root, app up):
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/record-promo-video.mjs
- *   BASE_URL=https://scanaski.uk node front/scripts/record-promo-video.mjs
+ *   BASE_URL=https://scanaki.uk node front/scripts/record-promo-video.mjs
  *
  * Env:
  *   BASE_URL        App origin (default: auto-detect 4202/4203/4200)
