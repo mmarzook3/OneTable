@@ -1,4 +1,4 @@
-"""Reusable Scanaki QR/NFC plaque inventory, assignment, and public resolution."""
+"""Reusable OneTable QR/NFC plaque inventory, assignment, and public resolution."""
 
 from __future__ import annotations
 
@@ -102,20 +102,20 @@ def _normalize_code(raw: str) -> str:
     if "://" in value:
         parsed = urlparse(value)
         if parsed.scheme.lower() not in {"http", "https"}:
-            raise HTTPException(status_code=400, detail="The QR code is not a valid Scanaki URL")
+            raise HTTPException(status_code=400, detail="The QR code is not a valid OneTable URL")
         parts = [unquote(part) for part in parsed.path.split("/") if part]
         if len(parts) < 2 or parts[-2].lower() != "p":
-            raise HTTPException(status_code=400, detail="This is not a Scanaki smart-plaque QR code")
+            raise HTTPException(status_code=400, detail="This is not a OneTable smart-plaque QR code")
         value = parts[-1]
     else:
         value = value.split("?", 1)[0].split("#", 1)[0].strip().strip("/")
         if "/" in value:
             parts = [unquote(part) for part in value.split("/") if part]
             if len(parts) < 2 or parts[-2].lower() != "p":
-                raise HTTPException(status_code=400, detail="This is not a Scanaki smart-plaque code")
+                raise HTTPException(status_code=400, detail="This is not a OneTable smart-plaque code")
             value = parts[-1]
     if not _PLAQUE_CODE_RE.fullmatch(value):
-        raise HTTPException(status_code=400, detail="Invalid Scanaki smart-plaque code")
+        raise HTTPException(status_code=400, detail="Invalid OneTable smart-plaque code")
     return value
 
 
@@ -362,7 +362,7 @@ def platform_smart_plaque_contact_sheet(
         url = _public_url(plaque.public_code)
         canvas.roundRect(x + 5, y + 5, cell_width - 10, cell_height - 10, 7, stroke=1, fill=0)
         canvas.setFont("Helvetica-Bold", 11)
-        canvas.drawString(x + 13, y + cell_height - 22, "Scanaki Smart Plaque")
+        canvas.drawString(x + 13, y + cell_height - 22, "OneTable Smart Plaque")
         qr = QrCodeWidget(url, barLevel="H")
         bounds = qr.getBounds()
         size = min(105, cell_height - 48)
@@ -384,7 +384,7 @@ def platform_smart_plaque_contact_sheet(
     return StreamingResponse(
         output,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="scanaki-smart-plaques.pdf"'},
+        headers={"Content-Disposition": 'attachment; filename="onetable-smart-plaques.pdf"'},
     )
 
 
@@ -510,7 +510,7 @@ def assign_smart_plaque(
             status_code=409,
             detail={
                 "code": "plaque_assigned_to_another_restaurant",
-                "message": "This plaque must be released by Scanaki before another restaurant can use it.",
+                "message": "This plaque must be released by OneTable before another restaurant can use it.",
             },
         )
     if plaque.table_id == target.id and plaque.assigned_tenant_id == tenant_id:

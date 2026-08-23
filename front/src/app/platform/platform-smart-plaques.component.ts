@@ -215,7 +215,7 @@ export class PlatformSmartPlaquesComponent implements OnInit {
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = href;
-        link.download = 'scanaki-smart-plaques.pdf';
+        link.download = 'onetable-smart-plaques.pdf';
         link.click();
         setTimeout(() => URL.revokeObjectURL(href), 1000);
       },

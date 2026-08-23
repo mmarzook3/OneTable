@@ -1,12 +1,12 @@
-# Scanaki reusable QR and NFC plaques
+# OneTable reusable QR and NFC plaques
 
-Scanaki separates the physical plaque identity from the restaurant table. A manufactured plaque contains one permanent, random URL:
+OneTable separates the physical plaque identity from the restaurant table. A manufactured plaque contains one permanent, random URL:
 
 ```text
-https://scanaki.uk/p/{public-code}
+https://<one-table-host>/p/{public-code}
 ```
 
-The public code belongs to the physical QR/NFC plaque and never contains a tenant ID or table number. Scanaki resolves its current assignment and forwards the guest to the table menu. Moving a plaque therefore does not require printing a new QR or rewriting a locked NFC tag.
+The public code belongs to the physical QR/NFC plaque and never contains a tenant ID or table number. OneTable resolves its current assignment and forwards the guest to the table menu. Moving a plaque therefore does not require printing a new QR or rewriting a locked NFC tag.
 
 ## Manufacturing inventory
 
@@ -17,7 +17,7 @@ Platform operators open `/platform/smart-plaques` to:
 3. download a high-error-correction PDF contact sheet;
 4. track whether each plaque is available or assigned.
 
-`PUBLIC_APP_BASE_URL` must already be the permanent Scanaki production host before physical manufacturing. The assignment is reusable, but changing the hostname printed inside the QR still requires a new plaque.
+`PUBLIC_APP_BASE_URL` must already be the permanent OneTable production host before physical manufacturing. The assignment is reusable, but changing the hostname printed inside the QR still requires a new plaque.
 
 ## Restaurant assignment
 
@@ -40,7 +40,7 @@ Web NFC requires an NDEF-compatible tag. The permanent URL can be copied into a 
 - Reassignment rotates the source and target tables' hidden access tokens, invalidating bookmarked direct menu sessions.
 - The physical `/p/{code}` address remains unchanged and immediately resolves the new table.
 - Every assignment, reassignment, release, replacement and tenant purge is recorded in `smart_plaque_assignment_event`.
-- Deleting a table or tenant returns its plaque to Scanaki inventory instead of deleting the physical identity.
+- Deleting a table or tenant returns its plaque to OneTable inventory instead of deleting the physical identity.
 
 An unassigned, disabled or unknown public plaque displays a safe guest-facing message and never exposes another restaurant's assignment.
 

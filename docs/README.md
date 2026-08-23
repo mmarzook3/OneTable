@@ -82,6 +82,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Doc | Description |
 |-----|-------------|
 | [0077-onetable-mvp-gap-analysis.md](0077-onetable-mvp-gap-analysis.md) | One Table/Fixaki MVP assessment: verified Satisfecho baseline, required QR/NFC, automatic ordering, payment-before-kitchen, Android PWA and Yue Tree pilot work. |
+| [0079-reusable-smart-plaques.md](0079-reusable-smart-plaques.md) | Permanent OneTable QR/NFC inventory, camera assignment, Web NFC verification, safe table reassignment and public `/p/{code}` resolution. |
 | [0002-customer-features-plan.md](0002-customer-features-plan.md) | Customer features plan: **partial** — staff billing customers + fiscal invoices shipped; end-user accounts / MFA / self-serve history not shipped (design notes). |
 | [0008-order-management-logic.md](0008-order-management-logic.md) | Order management: **shipped** session rules / design reference (lifecycle, status reset, edge cases) — not an open backlog. |
 | [0009-table-pin-security.md](0009-table-pin-security.md) | Table PIN security: **shipped** (activate / PIN / regenerate / close; public-menu gates); optional GPS flagging off by default — operator/reference. |
