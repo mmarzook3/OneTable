@@ -14,6 +14,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Fixed
 
+## [2.1.153] - 2026-08-23
+
+### Added
+
+- **Reusable OneTable smart plaques:** Platform operators can manufacture permanent `/p/{code}` QR inventory, while restaurant owners scan a plaque with the device camera, assign or safely reassign it to a table, and optionally write plus read-back-verify the same URL through Android Web NFC.
+- **Permanent plaque resolution:** QR and NFC links now resolve their current restaurant/table assignment at scan time, allowing a 3D-printed plaque to move between tables without reprinting or rewriting its NFC tag.
+
+### Changed
+
+- **Table setup:** Adding a table now immediately opens the guided QR/NFC assignment sheet, with manual-code fallback, active-session protection, cross-tenant takeover protection, replacement warnings, audit history, and automatic hidden-token rotation.
+
+### Fixed
+
+- **Plaque cleanup:** Available plaque deletion now cascades only its assignment audit rows across both migration-first and metadata-first deployments.
+
 ## [2.1.152] - 2026-08-23
 
 ### Added

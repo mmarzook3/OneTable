@@ -32,9 +32,11 @@ AGPL-licensed Satisfecho POS project. This fork keeps
 remote so fixes can be reviewed and incorporated without overwriting One Table
 product work.
 
-The first pilot tenant is **The Yue Tree Pub**. Its MVP flow is permanent table
-QR/NFC plaque → mobile menu → Stripe prepayment → paid-order release → strict
-FIFO kitchen display. Start with [the pilot runbook](docs/0078-yue-tree-pilot-runbook.md).
+The first pilot tenant is **The Yue Tree Pub**. Its MVP flow is reusable permanent
+OneTable QR/NFC plaque → current table assignment → mobile menu → Stripe prepayment
+→ paid-order release → strict FIFO kitchen display. Start with
+[the pilot runbook](docs/0078-yue-tree-pilot-runbook.md) and
+[smart-plaque guide](docs/0079-reusable-smart-plaques.md).
 
 
 ## About the Project

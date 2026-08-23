@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Text, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, ForeignKey, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.ext.compiler import compiles
 from sqlmodel import Field, Relationship, SQLModel
@@ -860,6 +860,62 @@ class Table(TenantMixin, table=True):
     nfc_written_at: datetime | None = None
     nfc_locked_at: datetime | None = None
     token_rotated_at: datetime | None = None
+
+
+class SmartPlaque(SQLModel, table=True):
+    """A reusable physical QR/NFC plaque with a permanent OneTable URL."""
+
+    __tablename__ = "smart_plaque"
+    id: int | None = Field(default=None, primary_key=True)
+    public_code: str = Field(max_length=64, unique=True, index=True)
+    batch_label: str | None = Field(default=None, max_length=100, index=True)
+    status: str = Field(default="available", max_length=24, index=True)
+    assigned_tenant_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("tenant.id", ondelete="SET NULL"), nullable=True, index=True),
+    )
+    table_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("table.id", ondelete="SET NULL"), nullable=True, unique=True),
+    )
+    created_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    assigned_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    assigned_at: datetime | None = None
+    nfc_written_at: datetime | None = None
+    nfc_verified_at: datetime | None = None
+    nfc_locked_at: datetime | None = None
+
+
+class SmartPlaqueAssignmentEvent(SQLModel, table=True):
+    """Tenant-safe audit history for plaque assignment and release actions."""
+
+    __tablename__ = "smart_plaque_assignment_event"
+    id: int | None = Field(default=None, primary_key=True)
+    plaque_id: int = Field(
+        sa_column=Column(
+            ForeignKey("smart_plaque.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    action: str = Field(max_length=32)
+    from_tenant_id: int | None = None
+    from_table_id: int | None = None
+    to_tenant_id: int | None = None
+    to_table_id: int | None = None
+    actor_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 
 class Shift(TenantMixin, table=True):

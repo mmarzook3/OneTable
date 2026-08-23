@@ -435,6 +435,39 @@ export interface PlatformRestaurantCredentials {
   password_setup_url?: string | null;
 }
 
+export interface SmartPlaque {
+  id: number;
+  public_code: string;
+  public_url: string;
+  batch_label?: string | null;
+  status: 'available' | 'assigned' | 'disabled' | 'retired' | string;
+  assigned_tenant_id?: number | null;
+  table_id?: number | null;
+  table_name?: string | null;
+  table_token?: string | null;
+  assigned_at?: string | null;
+  nfc_written_at?: string | null;
+  nfc_verified_at?: string | null;
+  nfc_locked_at?: string | null;
+}
+
+export interface SmartPlaqueLookup extends SmartPlaque {
+  assignment_state:
+    | 'available'
+    | 'assigned_here'
+    | 'assigned_other_restaurant'
+    | 'disabled'
+    | 'retired'
+    | string;
+}
+
+export interface PublicSmartPlaqueResolution {
+  public_code: string;
+  menu_path: string;
+  tenant_name: string;
+  table_name: string;
+}
+
 export interface RestaurantOnboardingState {
   status: 'not_started' | 'in_progress' | 'completed' | string;
   current_step: number;
@@ -1256,6 +1289,13 @@ export interface Table {
   nfc_written_at?: string | null;
   nfc_locked_at?: string | null;
   token_rotated_at?: string | null;
+  smart_plaque_id?: number | null;
+  smart_plaque_code?: string | null;
+  smart_plaque_url?: string | null;
+  smart_plaque_status?: string | null;
+  smart_plaque_nfc_written_at?: string | null;
+  smart_plaque_nfc_verified_at?: string | null;
+  smart_plaque_nfc_locked_at?: string | null;
 }
 
 export interface TableActivateResponse {
@@ -2412,6 +2452,41 @@ export class ApiService {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
   }
 
+  createPlatformSmartPlaques(count: number, batchLabel?: string): Observable<SmartPlaque[]> {
+    return this.http.post<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques/batch`, {
+      count,
+      batch_label: batchLabel?.trim() || null,
+    });
+  }
+
+  getPlatformSmartPlaques(batchLabel?: string): Observable<SmartPlaque[]> {
+    let params = new HttpParams();
+    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    return this.http.get<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques`, { params });
+  }
+
+  downloadPlatformSmartPlaqueSheet(batchLabel?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    return this.http.get(`${this.apiUrl}/platform/smart-plaques/contact-sheet.pdf`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
+  releasePlatformSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
+    return this.http.post<SmartPlaque>(
+      `${this.apiUrl}/platform/smart-plaques/${plaqueId}/release`,
+      {},
+    );
+  }
+
+  deletePlatformSmartPlaque(plaqueId: number): Observable<{ status: string; id: number }> {
+    return this.http.delete<{ status: string; id: number }>(
+      `${this.apiUrl}/platform/smart-plaques/${plaqueId}`,
+    );
+  }
+
   getCourierOrders(): Observable<CourierOrderSummary[]> {
     return this.http.get<CourierOrderSummary[]>(`${this.apiUrl}/courier/orders`);
   }
@@ -2854,6 +2929,38 @@ export class ApiService {
     body: { status: string; nfc_written?: boolean; nfc_locked?: boolean; tested?: boolean }
   ): Observable<Table> {
     return this.http.put<Table>(`${this.apiUrl}/tables/${tableId}/plaque-status`, body);
+  }
+
+  lookupSmartPlaque(value: string): Observable<SmartPlaqueLookup> {
+    return this.http.get<SmartPlaqueLookup>(`${this.apiUrl}/smart-plaques/lookup`, {
+      params: { value },
+    });
+  }
+
+  assignSmartPlaque(body: {
+    table_id: number;
+    plaque_code: string;
+    confirm_reassignment?: boolean;
+    replace_existing?: boolean;
+  }): Observable<SmartPlaque> {
+    return this.http.post<SmartPlaque>(`${this.apiUrl}/smart-plaques/assign`, body);
+  }
+
+  updateSmartPlaqueNfc(
+    plaqueId: number,
+    body: { written?: boolean; verified?: boolean; locked?: boolean },
+  ): Observable<SmartPlaque> {
+    return this.http.put<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/nfc`, body);
+  }
+
+  releaseSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
+    return this.http.delete<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/assignment`);
+  }
+
+  resolvePublicSmartPlaque(publicCode: string): Observable<PublicSmartPlaqueResolution> {
+    return this.http.get<PublicSmartPlaqueResolution>(
+      `${this.apiUrl}/public/smart-plaques/${encodeURIComponent(publicCode)}`,
+    );
   }
 
   getTablePlaqueContactSheetUrl(): string {

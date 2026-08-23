@@ -17,6 +17,9 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
           }
         </div>
         <div class="header-actions">
+          <a routerLink="/platform/smart-plaques" class="btn-secondary" data-testid="platform-smart-plaques-link">
+            {{ 'SMART_PLAQUES.INVENTORY' | translate }}
+          </a>
           <a routerLink="/platform/restaurants/new" class="btn-create" data-testid="platform-create-restaurant-link">
             {{ 'PLATFORM_DASHBOARD.CREATE_RESTAURANT' | translate }}
           </a>
@@ -182,6 +185,11 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
       border-radius: var(--radius-md);
       background: var(--color-surface);
       cursor: pointer;
+    }
+    .btn-secondary {
+      padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+      border: 1px solid var(--color-border); background: var(--color-surface);
+      color: var(--color-text); text-decoration: none; font-weight: 600;
     }
     .header-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; }
     .btn-create {
