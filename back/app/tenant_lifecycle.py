@@ -342,6 +342,9 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
 
     user_ids_subq = select(models.User.id).where(models.User.tenant_id == tenant_id)
     session.exec(delete(models.PasswordResetToken).where(models.PasswordResetToken.user_id.in_(user_ids_subq)))
+    # Login events retain the tenant/user identity for platform metrics. They
+    # must be removed before tenant users or the user_id foreign key blocks purge.
+    session.exec(delete(models.LoginEvent).where(models.LoginEvent.tenant_id == tenant_id))
 
     for fl in session.exec(select(models.Floor).where(models.Floor.tenant_id == tenant_id)).all():
         fl.default_waiter_id = None

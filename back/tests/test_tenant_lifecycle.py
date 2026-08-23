@@ -81,6 +81,15 @@ class TestTenantLifecycle(PgClientTestCase):
         self.assertEqual(r.status_code, 400, r.text)
 
     def test_purge_deletes_tenant(self) -> None:
+        self.session.add(
+            models.LoginEvent(
+                user_id=self.owner.id,
+                role=self.owner.role,
+                tenant_id=self.tenant_id,
+                login_scope="tenant",
+            )
+        )
+        self.session.commit()
         r = self.client.post(
             "/tenant/purge",
             headers=_bearer_headers(self.owner),
