@@ -33,6 +33,7 @@ This began as the source-code assessment for the fork. The core MVP described be
 | Table access | Permanent QR and NFC plaque; no staff activation required for The Yue Tree |
 | Remote access | Menu may be viewed remotely; ordering is controlled by service availability, payment, rate limits and optional risk checks |
 | Payments | Stripe; the tenant receives its customer payments |
+| Demo-menu alcohol position | Do not promote alcohol-related demo content; this is a content choice and does not add platform restrictions |
 | Kitchen order | Created/released to the kitchen only after server-side payment confirmation |
 | Kitchen queue | FIFO by paid time, oldest order first; an optional explicit urgent override may be retained |
 | Tenant onboarding | Manual for the pilot; self-service subscriptions are not required |
@@ -127,7 +128,7 @@ The repository includes Docker Compose configurations for development and produc
 - Create a simplified pub-focused menu editor and onboarding path.
 - Confirm GBP display, UK tax settings and receipt behaviour.
 - Add or verify explicit allergen fields and customer-facing allergen guidance.
-- Add an alcohol flag, an age-confirmation step and a visible fulfilment age-check indicator; final operational wording must be approved by the venue.
+- Keep alcohol-related names and descriptions out of the One Table demo menu without adding a general alcohol restriction or age gate.
 - Add modifier price adjustments if the Yue Tree menu needs paid extras; the current customisation system does not implement per-option price deltas.
 - Add quick sold-out and back-in-stock actions suitable for a busy service.
 - Import the Yue Tree menu from a structured spreadsheet or CSV rather than entering every item manually.
@@ -463,7 +464,7 @@ The MVP is ready for a controlled live pilot only when all of these are demonstr
 - [ ] A complete test-mode order, refund and reconciliation exercise has passed.
 - [ ] At least three physical QR/NFC plaque prototypes pass multi-phone testing.
 - [x] The application provides the required AGPL source-code link; production-domain verification remains part of deployment.
-- [ ] The venue has approved menu, allergen, alcohol and customer-support wording.
+- [ ] The venue has approved menu, allergen and customer-support wording.
 
 ## 8. Expected implementation sequence
 
@@ -485,7 +486,6 @@ The expected calendar range remains approximately four to six weeks for one expe
 - Table count, table labels, floors/areas and seat counts.
 - Full menu, prices, product options, images and availability.
 - Allergen information and approved allergy notice.
-- Alcohol products and approved age-check workflow.
 - Food and drink service hours.
 - Whether food and drinks use one display or separate kitchen/bar displays.
 - Android tablet model and Android version.
