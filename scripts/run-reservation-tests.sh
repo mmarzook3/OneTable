@@ -2,7 +2,7 @@
 # Run reservation Puppeteer tests against localhost and optionally production (satisfecho.de).
 # Usage: from repo root:
 #   ./scripts/run-reservation-tests.sh
-#   BASE_URLS="http://127.0.0.1:4203 https://scanaski.uk" ./scripts/run-reservation-tests.sh
+#   BASE_URLS="http://127.0.0.1:4203 https://scanaki.uk" ./scripts/run-reservation-tests.sh
 #
 # Env:
 #   BASE_URLS     Space-separated list of base URLs (default: 127.0.0.1 then satisfecho.de)
@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-BASE_URLS="${BASE_URLS:-http://127.0.0.1:4202 http://127.0.0.1:4203 https://scanaski.uk}"
+BASE_URLS="${BASE_URLS:-http://127.0.0.1:4202 http://127.0.0.1:4203 https://scanaki.uk}"
 HEADLESS="${HEADLESS:-1}"
 STAFF_TEST="${STAFF_TEST:-0}"
 TENANT_ID="${TENANT_ID:-1}"

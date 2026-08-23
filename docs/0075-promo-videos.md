@@ -34,7 +34,7 @@ Delete intermediate PiP/loop/round MP4s, raw `.webm`, and `frames/` when done it
 # App must be up (local or production)
 BASE_URL=http://127.0.0.1:4202 npm run record-promo-video --prefix front
 # or
-BASE_URL=https://scanaski.uk npm run record-promo-video --prefix front
+BASE_URL=https://scanaki.uk npm run record-promo-video --prefix front
 ```
 
 **Env:** `BASE_URL`, `OUT_DIR` (default `tmp/promo`), `MUSIC_PATH`, `TENANT_ID` (default `1`), `HEADLESS=0` to watch, `SKIP_ENCODE=1` for raw WebM only. Requires **Google Chrome** (or `PUPPETEER_EXECUTABLE_PATH`) and **ffmpeg** on `PATH`.
