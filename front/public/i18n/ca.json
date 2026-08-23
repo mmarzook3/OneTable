@@ -240,7 +240,8 @@
     "QR_DEMO_OPEN_MENU": "Obrir carta demo",
     "NAV_PRICING": "Preus",
     "NAV_ABOUT": "Qui som",
-    "COMPANY_OPERATOR": "Operat per Amvara Consulting S.L."
+    "COMPANY_OPERATOR": "Operat per Amvara Consulting S.L.",
+    "USER_MANUAL": "Manual d'usuari"
   },
   "FEATURES_PAGE": {
     "BADGE": "Llista completa de funcions",
@@ -2888,7 +2889,9 @@
     "OPEN_SOURCE_TITLE": "Codi obert",
     "OPEN_SOURCE_BODY": "El producte es desenvolupa en obert. Podeu revisar el codi, autoallotjar-lo sota AGPLv3 o usar el servei gestionat a satisfecho.de.",
     "CONTACT_TITLE": "Contacte",
-    "CONTACT_BODY": "Preguntes sobre la plataforma o el servei allotjat:"
+    "CONTACT_BODY": "Preguntes sobre la plataforma o el servei allotjat:",
+    "MANUAL_TITLE": "Manual d'usuari",
+    "MANUAL_BODY": "Guies pas a pas per a la configuració, l'operació diària, reserves, inventari i més."
   },
   "CUSTOMER_AUTH": {
     "TITLE": "Customer account",

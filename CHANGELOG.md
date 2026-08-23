@@ -10,7 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ### Added
 
+- **User manual on marketing site (#352):** Published the Spanish user manual at `/manual-usuario/` (static assets from `docs/manual-usuario/`). **User manual** links on the shared marketing footer, `/about`, and `/features`.
+
 ### Changed
+
+- **Agent loop (FEAT waiting for human):** Feature coder step skips parked **FEAT** tasks after one waiting GitHub comment until a human replies on the linked issue (`scripts/agent-feat-waiting-human-preflight.sh`).
 
 ### Fixed
 

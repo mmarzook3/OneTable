@@ -240,7 +240,8 @@
     "FEATURES_VIEW_ALL": "Voir toutes les fonctionnalités",
     "NAV_PRICING": "Tarifs",
     "NAV_ABOUT": "À propos",
-    "COMPANY_OPERATOR": "Exploité par Amvara Consulting S.L."
+    "COMPANY_OPERATOR": "Exploité par Amvara Consulting S.L.",
+    "USER_MANUAL": "Manuel utilisateur"
   },
   "PUBLIC_MENU": {
     "PAGE_TITLE": "Carte",
@@ -2888,7 +2889,9 @@
     "OPEN_SOURCE_TITLE": "Open source",
     "OPEN_SOURCE_BODY": "Le produit est développé en open source. Vous pouvez consulter le code, l’auto-héberger sous AGPLv3 ou utiliser le service géré sur satisfecho.de.",
     "CONTACT_TITLE": "Contact",
-    "CONTACT_BODY": "Questions sur la plateforme ou le service hébergé :"
+    "CONTACT_BODY": "Questions sur la plateforme ou le service hébergé :",
+    "MANUAL_TITLE": "Manuel utilisateur",
+    "MANUAL_BODY": "Guides pas à pas pour la configuration, les opérations quotidiennes, les réservations, l'inventaire et plus."
   },
   "CUSTOMER_AUTH": {
     "TITLE": "Customer account",

@@ -240,7 +240,8 @@
     "QR_DEMO_OPEN_MENU": "Open demo menu",
     "NAV_PRICING": "Pricing",
     "NAV_ABOUT": "About us",
-    "COMPANY_OPERATOR": "Operated by Amvara Consulting S.L."
+    "COMPANY_OPERATOR": "Operated by Amvara Consulting S.L.",
+    "USER_MANUAL": "User manual"
   },
   "FEATURES_PAGE": {
     "BADGE": "Full feature list",
@@ -2922,7 +2923,9 @@
     "OPEN_SOURCE_TITLE": "Open source",
     "OPEN_SOURCE_BODY": "The product is developed in the open. You can inspect the code, self-host under AGPLv3, or use the managed service at satisfecho.de.",
     "CONTACT_TITLE": "Contact",
-    "CONTACT_BODY": "Questions about the platform or hosted service:"
+    "CONTACT_BODY": "Questions about the platform or hosted service:",
+    "MANUAL_TITLE": "User manual",
+    "MANUAL_BODY": "Step-by-step guides for setup, daily operations, reservations, inventory, and more."
   },
   "TALK": {
     "TITLE": "Talk to POS",

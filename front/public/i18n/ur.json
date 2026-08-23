@@ -240,7 +240,8 @@
     "FEATURES_VIEW_ALL": "View all features",
     "NAV_PRICING": "قیمتیں",
     "NAV_ABOUT": "ہمارے بارے میں",
-    "COMPANY_OPERATOR": "Amvara Consulting S.L. کے زیر چلایا جاتا ہے"
+    "COMPANY_OPERATOR": "Amvara Consulting S.L. کے زیر چلایا جاتا ہے",
+    "USER_MANUAL": "صارف دستی کتاب"
   },
   "PUBLIC_MENU": {
     "PAGE_TITLE": "مینو",
@@ -2888,7 +2889,9 @@
     "OPEN_SOURCE_TITLE": "اوپن سورس",
     "OPEN_SOURCE_BODY": "پروڈکٹ کھلے طور پر تیار ہوتا ہے۔ آپ کوڈ دیکھ سکتے ہیں، AGPLv3 کے تحت خود میزبانی کر سکتے ہیں، یا satisfecho.de پر منظم سروس استعمال کر سکتے ہیں۔",
     "CONTACT_TITLE": "رابطہ",
-    "CONTACT_BODY": "پلیٹ فارم یا میزبانی شدہ سروس کے بارے میں سوالات:"
+    "CONTACT_BODY": "پلیٹ فارم یا میزبانی شدہ سروس کے بارے میں سوالات:",
+    "MANUAL_TITLE": "صارف دستی کتاب",
+    "MANUAL_BODY": "سیٹ اپ، روزانہ آپریشنز، ریزرویشنز، انوینٹری اور مزید کے لیے مرحلہ وار رہنمائیں۔"
   },
   "CUSTOMER_AUTH": {
     "TITLE": "Customer account",

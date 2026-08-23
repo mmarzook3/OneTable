@@ -1,7 +1,8 @@
 # QR menu order history: consumer-bound, not table-bound
 
 ## Status
-- **Blocked (2026-08-20):** Feature coder (010) re-checked issue #350. Questions 1–5 still lack an explicit human decision comment. Left as **FEAT** (no WIP rename; no code). Do not add `agent:wip` until humans decide.
+- **Blocked (2026-08-20 ~15:08 UTC):** Feature coder (010) re-checked issue #350. Questions 1–5 still lack an explicit human decision comment. Left as **FEAT** (no WIP rename; no code). Do not add `agent:wip` until humans decide.
+- **Waiting notice posted:** 2026-08-20T15:08:00Z — one GitHub comment only; loop stays quiet until a human replies on the issue (or linked discussion).
 
 ## GitHub Issues
 - **Issue:** https://github.com/satisfecho/pos/issues/350
@@ -17,7 +18,7 @@ Relevant context: public menu + rate limits (`docs/0020`), session/order model (
 
 ## High-level instructions for coder
 
-- **Stop if undecided:** Re-read https://github.com/satisfecho/pos/issues/350. If questions 1–5 lack an explicit human decision comment, leave this task as **FEAT** (do not rename to WIP, do not ship code). Comment on the issue that work is blocked on decision.
+- **Stop if undecided:** Re-read https://github.com/satisfecho/pos/issues/350. If questions 1–5 lack an explicit human decision comment, leave this task as **FEAT** (do not rename to WIP, do not ship code). Post **one** waiting comment only; set **`Waiting notice posted:`** in **Status** (see **`agents2/TASKS-README.md`**). Do not re-comment on later loop cycles.
 - After humans decide, implement only the agreed policy in the smallest slice:
   - Anonymous QR: typically **do not** show other parties’ paid table history.
   - Logged-in consumer: optional short “my” history from account identity (not table token alone), if that path exists / is approved.

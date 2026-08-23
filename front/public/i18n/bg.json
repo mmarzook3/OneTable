@@ -240,7 +240,8 @@
     "FEATURES_VIEW_ALL": "View all features",
     "NAV_PRICING": "Цени",
     "NAV_ABOUT": "За нас",
-    "COMPANY_OPERATOR": "Управлявано от Amvara Consulting S.L."
+    "COMPANY_OPERATOR": "Управлявано от Amvara Consulting S.L.",
+    "USER_MANUAL": "Ръководство за потребителя"
   },
   "PUBLIC_MENU": {
     "PAGE_TITLE": "Меню",
@@ -2888,7 +2889,9 @@
     "OPEN_SOURCE_TITLE": "Отворен код",
     "OPEN_SOURCE_BODY": "Продуктът се разработва открито. Можете да прегледате кода, да го хоствате сами под AGPLv3 или да ползвате управляваната услуга на satisfecho.de.",
     "CONTACT_TITLE": "Контакт",
-    "CONTACT_BODY": "Въпроси за платформата или хостваната услуга:"
+    "CONTACT_BODY": "Въпроси за платформата или хостваната услуга:",
+    "MANUAL_TITLE": "Ръководство за потребителя",
+    "MANUAL_BODY": "Стъпка по стъпка ръководства за настройка, ежедневна работа, резервации, инвентар и др."
   },
   "CUSTOMER_AUTH": {
     "TITLE": "Customer account",

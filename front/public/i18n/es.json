@@ -240,7 +240,8 @@
     "FEATURES_VIEW_ALL": "Ver todas las funciones",
     "NAV_PRICING": "Precios",
     "NAV_ABOUT": "Sobre nosotros",
-    "COMPANY_OPERATOR": "Operado por Amvara Consulting S.L."
+    "COMPANY_OPERATOR": "Operado por Amvara Consulting S.L.",
+    "USER_MANUAL": "Manual de usuario"
   },
   "PUBLIC_MENU": {
     "PAGE_TITLE": "Carta",
@@ -2888,7 +2889,9 @@
     "OPEN_SOURCE_TITLE": "Código abierto",
     "OPEN_SOURCE_BODY": "El producto se desarrolla en abierto. Puedes revisar el código, autoalojarlo bajo AGPLv3 o usar el servicio gestionado en satisfecho.de.",
     "CONTACT_TITLE": "Contacto",
-    "CONTACT_BODY": "Preguntas sobre la plataforma o el servicio alojado:"
+    "CONTACT_BODY": "Preguntas sobre la plataforma o el servicio alojado:",
+    "MANUAL_TITLE": "Manual de usuario",
+    "MANUAL_BODY": "Guías paso a paso para configuración, operación diaria, reservas, inventario y más."
   },
   "CUSTOMER_AUTH": {
     "TITLE": "Customer account",
