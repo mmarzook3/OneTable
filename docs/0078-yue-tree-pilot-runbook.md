@@ -25,13 +25,16 @@ The seed does not remove tables, rotate plaque tokens or overwrite an existing p
 
 ## Plaque production
 
-In **Tables**, each permanent table owns a random stable token. Its QR code and NFC payload open the same canonical HTTPS menu URL. Use the tenant bulk PDF for prototype printing, then:
+The physical plaque owns a permanent OneTable `/p/{code}` address; the table assignment is stored separately. This lets the same 3D-printed QR and NFC tag move to another table without being manufactured again.
 
-1. Print three prototype plaques with high-error-correction QR artwork.
-2. On compatible Android Chrome, tap **Write NFC** and hold an NDEF-capable tag to the phone. Otherwise copy the NFC URL into a trusted tag-writing app.
-3. Test both scan and tap on multiple phones and mark the plaque tested.
-4. Embed a ferrite-backed/on-metal NFC tag if the finished plaque touches metal.
-5. Do not permanently lock pilot tags until the production domain is final. Token rotation invalidates both old QR and NFC links and marks the plaque for reprint.
+1. The OneTable operator opens `/platform/smart-plaques`, generates a prototype batch and downloads the high-error-correction contact sheet.
+2. Print three prototype plaques and place the matching NDEF-capable NFC tags inside them.
+3. The restaurant owner opens **Tables → Assign QR & NFC**, scans the printed QR with the device camera and confirms the target table.
+4. On Android Chrome over HTTPS, tap **Write NFC**, hold the tag against the phone, then tap it again for read-back verification. A manual code and copy-to-NFC-app fallback remain available.
+5. Test QR and NFC on multiple customer phones. Embed a ferrite-backed/on-metal tag when the plaque touches metal.
+6. Do not permanently lock pilot tags until the permanent OneTable production domain and physical prototypes are approved.
+
+Moving a plaque rotates the affected tables' hidden menu tokens and invalidates old direct sessions, but the permanent QR/NFC address does not change. Moving within the same restaurant requires confirmation. Cross-restaurant transfer requires the OneTable team to release the plaque first.
 
 ## Stripe activation
 
@@ -52,7 +55,7 @@ Subscribe to `payment_intent.succeeded`, `payment_intent.payment_failed`, `payme
 ## Acceptance checklist
 
 - Owner and kitchen logins work and unrelated upstream modules are hidden.
-- Each table link names the correct table; QR and NFC resolve to the same HTTPS menu.
+- Each permanent plaque link names the currently assigned table; QR and NFC resolve to the same HTTPS menu.
 - Off-hours, paused and kitchen-offline states permit browsing but block order creation.
 - A customer confirms the table, submits a basket and is directed to Stripe.
 - The unpaid order is absent from `/kitchen`.

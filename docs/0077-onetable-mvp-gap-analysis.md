@@ -160,7 +160,7 @@ The repository includes Docker Compose configurations for development and produc
 - Add explicit token rotation/revocation for lost, stolen or replaced plaques.
 - Keep the table token stable when a table is renamed so existing plaques remain valid.
 - Add a plaque status such as `not_created`, `printed`, `nfc_written`, `tested`, `active` or `revoked`.
-- For the MVP, one plaque may map directly to one table token. Introduce a separate plaque/access-point table later only if multiple plaques per table or reassignment history is needed.
+- Reusable plaque inventory is now separate from table tokens. Each permanent `/p/{code}` can be assigned and reassigned with an audit trail; hidden table tokens rotate without reprinting the plaque.
 
 ### 4.4 QR-code lifecycle
 
@@ -172,12 +172,12 @@ The repository includes Docker Compose configurations for development and produc
 
 #### One Table modifications
 
-- Use the One Table production host rather than `window.location.origin` as the canonical plaque host.
+- Use the One Table production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://<one-table-host>/p/{code}`.
 - Add an access-source marker:
 
   ```text
-  QR:  https://<one-table-host>/menu/{token}?via=qr
-  NFC: https://<one-table-host>/menu/{token}?via=nfc
+  QR:  https://<one-table-host>/p/{permanent-code}
+  NFC: https://<one-table-host>/p/{permanent-code}
   ```
 
 - Generate downloadable PNG and SVG files per table.
@@ -196,11 +196,11 @@ The repository includes Docker Compose configurations for development and produc
 
 #### One Table modifications
 
-- Add **Write NFC** to the table/plaque administration screen.
+- **Write NFC** is available inside the guided camera assignment sheet.
 - Write the table's HTTPS URL as an NDEF URL record.
 - Support Web NFC on compatible Android Chrome devices.
 - Provide **Copy NFC URL** as a fallback for a separate NFC-writing application.
-- Verify the written tag by reading it back where the browser supports this.
+- The Android Web NFC flow reads the tag back and verifies the exact permanent URL before recording it as tested.
 - Record who wrote the tag and when, without treating the NFC hardware UID as the public identity.
 - Do not make pilot tags permanently read-only until the production domain and full flow are verified.
 - After final verification, allow the operator to mark a tag as locked/read-only and warn that the action is irreversible.

@@ -65,6 +65,16 @@ Pytest sets **`RATE_LIMIT_ENABLED=false`** via `back/tests/conftest.py` (and `pg
 
 ## Test scripts
 
+### Reusable smart-plaque setup
+
+The smart-plaque smoke creates one temporary platform inventory code and restaurant, completes onboarding, assigns the plaque from the Tables UI, mocks Android Web NFC write/read-back, verifies `/p/{code}` resolution, and removes all test data:
+
+```bash
+BASE_URL=http://127.0.0.1:4202 npm run test:smart-plaques --prefix front
+```
+
+Set `PLATFORM_OPERATOR_EMAIL` and `PLATFORM_OPERATOR_PASSWORD` to a local platform operator. The script never uses production credentials.
+
 ### 1. Reservations (public + staff)
 
 **Public flow** (no login: book page → submit → view/cancel by token):

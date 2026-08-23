@@ -71,9 +71,11 @@ export const routes: Routes = [
   // Platform operator portal (public auth + protected dashboard)
   { path: 'platform/login', loadComponent: () => import('./platform/platform-login.component').then(m => m.PlatformLoginComponent) },
   { path: 'platform/restaurants/new', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-create-restaurant.component').then(m => m.PlatformCreateRestaurantComponent) },
+  { path: 'platform/smart-plaques', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-smart-plaques.component').then(m => m.PlatformSmartPlaquesComponent) },
   { path: 'platform/tenants/:tenantId', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
   { path: 'platform', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
   { path: 'menu/:token', loadComponent: () => import('./menu/menu.component').then(m => m.MenuComponent) },
+  { path: 'p/:code', loadComponent: () => import('./smart-plaque/public-smart-plaque.component').then(m => m.PublicSmartPlaqueComponent) },
   { path: 'menu/:token/payment-success', loadComponent: () => import('./menu/payment-success.component').then(m => m.PaymentSuccessComponent) },
   { path: 'public-menu/:tenantId', loadComponent: () => import('./public-menu/public-menu.component').then(m => m.PublicMenuComponent) },
   {

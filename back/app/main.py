@@ -62,6 +62,11 @@ from .tenant_subcategory_routes import router as tenant_subcategory_router
 from .reports_routes import router as reports_router
 from .platform_routes import router as platform_router
 from .restaurant_onboarding_routes import router as restaurant_onboarding_router
+from .smart_plaque_routes import (
+    release_smart_plaque_for_deleted_table,
+    router as smart_plaque_router,
+    smart_plaque_fields_by_table,
+)
 from .saas_routes import router as saas_router
 from .attendance_routes import router as attendance_router
 from .tenant_lifecycle_routes import router as tenant_lifecycle_router
@@ -612,6 +617,7 @@ app.include_router(print_staff_router, tags=["Print jobs"])
 app.include_router(print_agent_router, tags=["Print agent"])
 app.include_router(customer_router, prefix="/customer", tags=["Customer accounts"])
 app.include_router(onetable_ordering_router, tags=["One Table ordering"])
+app.include_router(smart_plaque_router, tags=["Smart plaques"])
 
 
 # ============ IMAGE OPTIMIZATION ============
@@ -9021,10 +9027,16 @@ def list_tables(
         ).all()
         waiter_map = {w.id: (w.full_name or w.email) for w in waiters}
 
+    plaque_fields = smart_plaque_fields_by_table(
+        session,
+        int(current_user.tenant_id),
+        [int(t.id) for t in tables if t.id is not None],
+    )
     result = []
     for t in tables:
         d = t.model_dump()
-        d["menu_url"] = _public_url_from_app_base(f"/menu/{t.token}")
+        d.update(plaque_fields.get(int(t.id), {}) if t.id is not None else {})
+        d["menu_url"] = d.get("smart_plaque_url") or _public_url_from_app_base(f"/menu/{t.token}")
         d["nfc_payload"] = d["menu_url"]
         effective_waiter_id = t.assigned_waiter_id or floor_waiter_map.get(t.floor_id)
         d["assigned_waiter_name"] = waiter_map.get(t.assigned_waiter_id) if t.assigned_waiter_id else None
@@ -9312,16 +9324,27 @@ def rotate_table_token(
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    plaque = session.exec(
+        select(models.SmartPlaque).where(
+            models.SmartPlaque.table_id == table.id,
+            models.SmartPlaque.assigned_tenant_id == current_user.tenant_id,
+        )
+    ).first()
     table.token = str(uuid4())
     table.token_rotated_at = datetime.now(timezone.utc)
-    table.plaque_status = "needs_reprint"
+    table.plaque_status = "installed" if plaque else "needs_reprint"
     table.plaque_last_tested_at = None
-    table.nfc_written_at = None
-    table.nfc_locked_at = None
+    if plaque is None:
+        table.nfc_written_at = None
+        table.nfc_locked_at = None
     session.add(table)
     session.commit()
     session.refresh(table)
-    menu_url = _public_url_from_app_base(f"/menu/{table.token}")
+    menu_url = (
+        _public_url_from_app_base(f"/p/{plaque.public_code}")
+        if plaque
+        else _public_url_from_app_base(f"/menu/{table.token}")
+    )
     return {
         "id": table.id,
         "token": table.token,
@@ -9402,6 +9425,12 @@ def download_table_plaque_contact_sheet(
     if not tables:
         raise HTTPException(status_code=404, detail="No tables found")
 
+    plaque_fields = smart_plaque_fields_by_table(
+        session,
+        int(current_user.tenant_id),
+        [int(table.id) for table in tables if table.id is not None],
+    )
+
     output = BytesIO()
     canvas = Canvas(output, pagesize=A4)
     page_width, page_height = A4
@@ -9417,7 +9446,10 @@ def download_table_plaque_contact_sheet(
         row = slot // cols
         x = margin + col * cell_width
         y = page_height - margin - (row + 1) * cell_height
-        menu_url = _public_url_from_app_base(f"/menu/{table.token}")
+        smart_fields = plaque_fields.get(int(table.id), {}) if table.id is not None else {}
+        menu_url = smart_fields.get("smart_plaque_url") or _public_url_from_app_base(
+            f"/menu/{table.token}"
+        )
         if not menu_url:
             raise HTTPException(status_code=503, detail="PUBLIC_APP_BASE_URL is not configured")
         canvas.roundRect(x + 6, y + 6, cell_width - 12, cell_height - 12, 8, stroke=1, fill=0)
@@ -9441,7 +9473,8 @@ def download_table_plaque_contact_sheet(
         canvas.drawString(x + 142, y + 56, menu_url[:38])
         canvas.drawString(x + 142, y + 46, menu_url[38:76])
         canvas.setFont("Helvetica-Bold", 9)
-        canvas.drawString(x + 142, y + 26, f"Plaque: {table.plaque_status}")
+        display_status = smart_fields.get("smart_plaque_status") or table.plaque_status
+        canvas.drawString(x + 142, y + 26, f"Plaque: {display_status}")
     canvas.save()
     output.seek(0)
     filename = re.sub(r"[^A-Za-z0-9_-]+", "-", tenant.name).strip("-") or "one-table"
@@ -9769,6 +9802,11 @@ def delete_table(
             ).all()
         )
 
+    release_smart_plaque_for_deleted_table(
+        session,
+        table,
+        actor_user_id=current_user.id,
+    )
     session.delete(table)
 
     if gid:
