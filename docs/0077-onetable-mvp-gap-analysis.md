@@ -1,8 +1,8 @@
-# Scanaki MVP: open-source baseline and required modifications
+# One Table MVP: open-source baseline and required modifications
 
-**Status:** Core MVP implemented and locally validated; venue hardware and production launch inputs remain
+**Status:** Approved MVP direction; implementation not started
 
-**Product:** Scanaki, operated under the Fixaki brand
+**Product:** One Table, operated under the Fixaki brand
 
 **Founding pilot tenant:** The Yue Tree Pub
 
@@ -15,52 +15,28 @@
 This document records:
 
 1. What is already present in the imported Satisfecho open-source application.
-2. What must be changed to produce the Scanaki MVP.
+2. What must be changed to produce the One Table MVP.
 3. Which changes block a live pilot at The Yue Tree Pub.
 4. Which existing Satisfecho features will be hidden or deferred to keep the MVP small.
 
-This began as the source-code assessment for the fork. The core MVP described below has now been implemented and exercised in Docker. Sections 4–6 preserve the original gap analysis; the completion record below and the checklist in section 7 distinguish finished software from venue-controlled launch work.
+This is a source-code and documentation assessment, not a penetration test or a completed runtime verification. The application has not yet been run locally because Docker is not installed on the current development machine. Every statement under **Existing** must still be confirmed in a running environment before the live pilot.
 
 ## 2. Locked MVP decisions
 
-| Decision | Scanaki MVP choice |
+| Decision | One Table MVP choice |
 |---|---|
-| Licence | AGPL-3.0 for the MVP; provide a visible source-code offer/link to the corresponding Scanaki source |
+| Licence | AGPL-3.0 for the MVP; provide a visible source-code offer/link to the corresponding One Table source |
 | First tenant | The Yue Tree Pub |
 | Customer installation | None; responsive browser menu opened by QR or NFC |
-| Kitchen installation | Responsive tablet browser for this milestone; packaged Android/PWA installation is explicitly deferred to the final Android phase |
+| Kitchen installation | Installable Android experience, initially a Progressive Web App (PWA); native wrapper may follow if needed |
 | Ordering model | Dine-in, table-specific, payment required before kitchen release |
 | Table access | Permanent QR and NFC plaque; no staff activation required for The Yue Tree |
 | Remote access | Menu may be viewed remotely; ordering is controlled by service availability, payment, rate limits and optional risk checks |
 | Payments | Stripe; the tenant receives its customer payments |
-| Demo-menu alcohol position | Do not promote alcohol-related demo content; this is a content choice and does not add platform restrictions |
 | Kitchen order | Created/released to the kitchen only after server-side payment confirmation |
 | Kitchen queue | FIFO by paid time, oldest order first; an optional explicit urgent override may be retained |
 | Tenant onboarding | Manual for the pilot; self-service subscriptions are not required |
 | Hosting | Docker deployment on a VPS after local verification |
-
-### Implementation completion record — 2026-08-23
-
-Implemented and locally validated:
-
-- Multi-tenant Scanaki/Fixaki branding and a visible AGPL source link.
-- The Yue Tree Pub pilot tenant, 12 naturally ordered tables, a kitchen station, GBP/Europe-London policy, pilot accounts and a clearly labelled ten-item acceptance menu.
-- Automatic QR/NFC ordering without staff table activation, with service-hours, emergency-pause and kitchen-heartbeat gates.
-- Canonical per-table URLs, high-error-correction QR PNGs, a bulk printable plaque PDF, token rotation, plaque lifecycle state and Web NFC writing/read-back with copy fallback.
-- Mandatory table confirmation, retry-safe public checkout, immutable payment snapshots and Stripe as the only prepayment path.
-- Encrypted per-tenant Stripe secrets, tenant-key and Connect modes, signed per-tenant webhooks, idempotent release, failure/cancellation/refund states and reconciliation monitoring.
-- Payment-confirmed-only KDS visibility, strict FIFO by kitchen release time, touch-sized Start/Ready/Complete controls, timers, reconnect banner, heartbeat and screen wake lock.
-- Docker/VPS preflight, encrypted database backup, isolated restore validation, health monitoring and a Yue Tree pilot runbook.
-
-Validation evidence:
-
-- 451 backend tests pass.
-- The optimized Angular browser/server build succeeds.
-- Browser acceptance passed for mobile menu, automatic checkout gating, admin settings/table tools, and the Android-tablet-sized FIFO kitchen flow.
-- A real HMAC-formatted Stripe webhook acceptance exercise released one order exactly once; the unpaid order was absent from KDS before payment.
-- Encrypted backup creation and restore into an isolated temporary database passed with 66 schema tables.
-
-Not software blockers, but still required for production: the final domain/TLS, real Stripe account credentials, venue-approved menu/allergens/policies, physical NFC/QR prototypes, and testing on the chosen kitchen tablet. The Android application remains excluded from this milestone by explicit product decision.
 
 ## 3. Current open-source architecture
 
@@ -98,16 +74,16 @@ The repository includes Docker Compose configurations for development and produc
 - Per-tenant currency, timezone, language and business settings.
 - Per-tenant public background colour, logo and header image.
 
-#### Scanaki modifications
+#### One Table modifications
 
-- Replace Satisfecho, POS2 and Amvara public branding with Scanaki and Fixaki branding.
+- Replace Satisfecho, POS2 and Amvara public branding with One Table and Fixaki branding.
 - Replace upstream domains, SEO content, email copy, public footer content and support links.
 - Add the required AGPL source-code link to public and authenticated application surfaces.
-- Simplify the platform portal around Scanaki tenants, locations, tables, payment state and kitchen connectivity.
+- Simplify the platform portal around One Table tenants, locations, tables, payment state and kitchen connectivity.
 - Keep tenant creation manual for the Yue Tree pilot.
 - Keep the existing SaaS paywall disabled during the pilot.
 - Add explicit tenant feature flags so irrelevant modules can be hidden without deleting upstream code.
-- Repeat tenant-isolation tests for every new Scanaki endpoint and data model.
+- Repeat tenant-isolation tests for every new One Table endpoint and data model.
 
 ### 4.2 Menu and product administration
 
@@ -123,12 +99,12 @@ The repository includes Docker Compose configurations for development and produc
 - Kitchen/bar station mapping.
 - Menu translations and multiple interface languages.
 
-#### Scanaki modifications
+#### One Table modifications
 
 - Create a simplified pub-focused menu editor and onboarding path.
 - Confirm GBP display, UK tax settings and receipt behaviour.
 - Add or verify explicit allergen fields and customer-facing allergen guidance.
-- Keep alcohol-related names and descriptions out of the Scanaki demo menu without adding a general alcohol restriction or age gate.
+- Add an alcohol flag, an age-confirmation step and a visible fulfilment age-check indicator; final operational wording must be approved by the venue.
 - Add modifier price adjustments if the Yue Tree menu needs paid extras; the current customisation system does not implement per-option price deltas.
 - Add quick sold-out and back-in-stock actions suitable for a busy service.
 - Import the Yue Tree menu from a structured spreadsheet or CSV rather than entering every item manually.
@@ -148,7 +124,7 @@ The repository includes Docker Compose configurations for development and produc
 - Staff can copy the public menu link.
 - Table activation and rotating four-digit PIN controls.
 
-#### Scanaki modifications
+#### One Table modifications
 
 - Add bulk creation such as `Table 1` through `Table 20`.
 - Add a tenant ordering mode:
@@ -160,7 +136,7 @@ The repository includes Docker Compose configurations for development and produc
 - Add explicit token rotation/revocation for lost, stolen or replaced plaques.
 - Keep the table token stable when a table is renamed so existing plaques remain valid.
 - Add a plaque status such as `not_created`, `printed`, `nfc_written`, `tested`, `active` or `revoked`.
-- Reusable plaque inventory is now separate from table tokens. Each permanent `/p/{code}` can be assigned and reassigned with an audit trail; hidden table tokens rotate without reprinting the plaque.
+- For the MVP, one plaque may map directly to one table token. Introduce a separate plaque/access-point table later only if multiple plaques per table or reassignment history is needed.
 
 ### 4.4 QR-code lifecycle
 
@@ -170,20 +146,20 @@ The repository includes Docker Compose configurations for development and produc
 - The current QR uses medium error correction and includes the table name below it.
 - The menu link can be copied.
 
-#### Scanaki modifications
+#### One Table modifications
 
-- Use the Scanaki production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://scanaki.uk/p/{code}`.
+- Use the One Table production host rather than `window.location.origin` as the canonical plaque host.
 - Add an access-source marker:
 
   ```text
-  QR:  https://scanaki.uk/p/{permanent-code}
-  NFC: https://scanaki.uk/p/{permanent-code}
+  QR:  https://<one-table-host>/menu/{token}?via=qr
+  NFC: https://<one-table-host>/menu/{token}?via=nfc
   ```
 
 - Generate downloadable PNG and SVG files per table.
 - Generate a printable PDF/contact sheet for all tables in a tenant.
 - Add high error correction and validate minimum size, quiet zone and contrast for physical printing.
-- Include tenant name, table number, Scanaki identity and “Scan or tap to order” text in the plaque artwork.
+- Include tenant name, table number, One Table identity and “Scan or tap to order” text in the plaque artwork.
 - Add a **Test link** action before marking a plaque active.
 - Add bulk plaque export for the 3D-printing workflow.
 - Record QR versus NFC entry analytics without storing unnecessary customer-identifying data.
@@ -194,13 +170,13 @@ The repository includes Docker Compose configurations for development and produc
 
 - No NFC, NDEF, NTAG or tag-management implementation was found in the imported application.
 
-#### Scanaki modifications
+#### One Table modifications
 
-- **Write NFC** is available inside the guided camera assignment sheet.
+- Add **Write NFC** to the table/plaque administration screen.
 - Write the table's HTTPS URL as an NDEF URL record.
 - Support Web NFC on compatible Android Chrome devices.
 - Provide **Copy NFC URL** as a fallback for a separate NFC-writing application.
-- The Android Web NFC flow reads the tag back and verifies the exact permanent URL before recording it as tested.
+- Verify the written tag by reading it back where the browser supports this.
 - Record who wrote the tag and when, without treating the NFC hardware UID as the public identity.
 - Do not make pilot tags permanently read-only until the production domain and full flow are verified.
 - After final verification, allow the operator to mark a tag as locked/read-only and warn that the action is irreversible.
@@ -232,7 +208,7 @@ Create tables
 - Optional setting named `immediate_payment_required`.
 - Stripe and Revolut customer payment interfaces.
 
-#### Scanaki modifications
+#### One Table modifications
 
 - Remove the mandatory activation/PIN gate when the tenant uses automatic ordering.
 - Display the tenant and table prominently before checkout.
@@ -260,9 +236,9 @@ Create tables
 
 The current table flow creates a pending order, commits it and publishes a `new_order` WebSocket event **before payment**. The kitchen display includes pending orders. The optional immediate-payment setting opens checkout after the order already exists; it does not enforce payment-before-kitchen.
 
-The current successful-payment path depends on the browser calling `/orders/{id}/confirm-payment`. If the customer pays but closes the browser before this call, the server may not mark the order paid promptly. This is unsuitable for the Scanaki live pilot.
+The current successful-payment path depends on the browser calling `/orders/{id}/confirm-payment`. If the customer pays but closes the browser before this call, the server may not mark the order paid promptly. This is unsuitable for the One Table live pilot.
 
-#### Scanaki modifications — live-pilot blockers
+#### One Table modifications — live-pilot blockers
 
 - Introduce a quote or unpaid-checkout record that is not visible to the kitchen.
 - Create the Stripe payment from a server-calculated, immutable amount snapshot.
@@ -298,7 +274,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Kitchen/bar station routing and station filter.
 - Finished/delivered lines leave the active view.
 
-#### Scanaki modifications
+#### One Table modifications
 
 - Change the queue timestamp from order creation to confirmed paid/released time.
 - Default to strict FIFO, oldest paid order on the left; make urgent override an explicit tenant option.
@@ -313,7 +289,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Add kiosk/full-screen guidance, screen wake-lock handling and automatic reconnection.
 - Run a full-shift soak test on the actual Yue Tree Android tablet.
 
-### 4.9 Android installation — deferred final phase
+### 4.9 Android installation
 
 #### Existing
 
@@ -321,10 +297,10 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Fullscreen support exists in the component.
 - No PWA manifest, service-worker installation path, Capacitor project or Android APK packaging was found.
 
-#### Future Android-phase modifications
+#### One Table modifications
 
 - Make the kitchen interface an installable PWA for the MVP.
-- Add application manifest, Scanaki icons, theme colours and standalone display mode.
+- Add application manifest, One Table icons, theme colours and standalone display mode.
 - Add an installation guide and “Install kitchen app” prompt for compatible Android browsers.
 - Persist the selected tenant/station and restore the kitchen screen after restart.
 - Avoid caching live order responses as authoritative offline data.
@@ -341,7 +317,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Rate limits backed by Redis.
 - Staff can manage items and orders.
 
-#### Scanaki modifications
+#### One Table modifications
 
 An automatic table is allowed to check out only when all mandatory conditions pass:
 
@@ -371,11 +347,11 @@ AND Stripe payment succeeds
 - Rate limiting and a documented security review.
 - Printing agent and broader operational modules that are not needed for the pilot.
 
-#### Scanaki modifications
+#### One Table modifications
 
-- Create Scanaki-specific environment examples without real secrets.
+- Create One Table-specific environment examples without real secrets.
 - Remove assumptions about the upstream production host and certificates.
-- Configure the final Scanaki domain, HTTPS, CORS and WebSocket URL.
+- Configure the final One Table domain, HTTPS, CORS and WebSocket URL.
 - Add automated encrypted database backups and a tested restore runbook.
 - Add uptime monitoring, exception reporting and payment/order reconciliation alerts.
 - Add log retention without payment secrets or unnecessary personal data.
@@ -410,14 +386,14 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 ### P0 — required before accepting live customer payments
 
 1. Run and audit the unmodified stack locally.
-2. Scanaki/Fixaki branding and AGPL source offer.
+2. One Table/Fixaki branding and AGPL source offer.
 3. Yue Tree tenant, staff roles and menu import.
 4. Automatic ordering mode and service/pause rules.
 5. Payment-before-kitchen redesign with signed Stripe webhook and idempotency.
 6. Secure Stripe-account integration and secret handling.
 7. QR download/print and NFC write/verify workflow.
 8. FIFO kitchen touch layout and payment-confirmed filtering.
-9. Responsive tablet KDS, reconnect state, wake lock and kitchen heartbeat; Android packaging is deferred.
+9. Installable Android PWA, reconnect state and kitchen heartbeat.
 10. Production deployment, backups, monitoring and security checks.
 11. End-to-end test on real phones, Stripe test mode and the Yue Tree tablet.
 
@@ -433,7 +409,7 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 
 ### P2 — after MVP validation
 
-- Self-service tenant signup and Scanaki subscriptions.
+- Self-service tenant signup and One Table subscriptions.
 - Google Play or managed APK distribution.
 - POS integration.
 - Stock management and automated purchasing.
@@ -446,25 +422,25 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 The MVP is ready for a controlled live pilot only when all of these are demonstrated:
 
 - [ ] Staff can create or import the Yue Tree menu and mark an item sold out.
-- [x] Staff can bulk-create tables and download a correctly labelled QR for each one.
+- [ ] Staff can bulk-create tables and download a correctly labelled QR for each one.
 - [ ] An Android device can write and verify each table's NFC URL.
-- [x] QR and NFC open the same tenant/table menu.
-- [x] Renaming a table does not break its plaque.
-- [x] Revoking/rotating a plaque prevents the old link from placing orders.
-- [x] Automatic ordering requires no table activation or PIN.
-- [x] Service hours, pause state and kitchen heartbeat correctly gate checkout.
-- [x] A failed, cancelled or abandoned payment never appears in the kitchen.
-- [x] A successful Stripe webhook creates exactly one kitchen order.
-- [x] Duplicate Stripe webhook delivery does not create a duplicate order.
-- [x] Kitchen cards display strict FIFO order from oldest paid time.
+- [ ] QR and NFC open the same tenant/table menu.
+- [ ] Renaming a table does not break its plaque.
+- [ ] Revoking/rotating a plaque prevents the old link from placing orders.
+- [ ] Automatic ordering requires no table activation or PIN.
+- [ ] Service hours, pause state and kitchen heartbeat correctly gate checkout.
+- [ ] A failed, cancelled or abandoned payment never appears in the kitchen.
+- [ ] A successful Stripe webhook creates exactly one kitchen order.
+- [ ] Duplicate Stripe webhook delivery does not create a duplicate order.
+- [ ] Kitchen cards display strict FIFO order from oldest paid time.
 - [ ] Kitchen sound, timers and touch actions work on the Yue Tree tablet.
 - [ ] The kitchen app reconnects after Wi-Fi loss and clearly shows offline state.
-- [x] Tenant A cannot read or modify Tenant B tables, menu, orders, devices or payments.
-- [x] Database backup and restore have been tested.
+- [ ] Tenant A cannot read or modify Tenant B tables, menu, orders, devices or payments.
+- [ ] Database backup and restore have been tested.
 - [ ] A complete test-mode order, refund and reconciliation exercise has passed.
 - [ ] At least three physical QR/NFC plaque prototypes pass multi-phone testing.
-- [x] The application provides the required AGPL source-code link; production-domain verification remains part of deployment.
-- [ ] The venue has approved menu, allergen and customer-support wording.
+- [ ] The deployed app provides the required AGPL source-code link.
+- [ ] The venue has approved menu, allergen, alcohol and customer-support wording.
 
 ## 8. Expected implementation sequence
 
@@ -474,18 +450,19 @@ The MVP is ready for a controlled live pilot only when all of these are demonstr
 | 1 | Branding, feature flags and Yue Tree tenant/menu setup | 2–4 days |
 | 2 | Automatic ordering, tables, QR export and NFC workflow | 3–6 days |
 | 3 | Stripe payment-before-kitchen, webhook and reconciliation | 5–10 days |
-| 4 | FIFO kitchen refinements, tablet browser and heartbeat | 4–7 days |
+| 4 | FIFO kitchen refinements, Android PWA and heartbeat | 4–7 days |
 | 5 | Deployment, security, backups, device and venue testing | 5–10 days |
 
 The expected calendar range remains approximately four to six weeks for one experienced full-time developer, assuming the Yue Tree menu, Stripe account, domain and Android tablet are available promptly. Findings from the first complete runtime audit may change this estimate.
 
 ## 9. Inputs required from Fixaki and The Yue Tree
 
-- Scanaki and Fixaki logos, colours and preferred domain.
+- One Table and Fixaki logos, colours and preferred domain.
 - Yue Tree legal/business name and customer-facing contact details.
 - Table count, table labels, floors/areas and seat counts.
 - Full menu, prices, product options, images and availability.
 - Allergen information and approved allergy notice.
+- Alcohol products and approved age-check workflow.
 - Food and drink service hours.
 - Whether food and drinks use one display or separate kitchen/bar displays.
 - Android tablet model and Android version.
@@ -495,13 +472,13 @@ The expected calendar range remains approximately four to six weeks for one expe
 
 ## 10. Repository and licence handling
 
-- Scanaki MVP source is currently hosted in `mmarzook3/OneTable`; the repository name remains a compatibility identifier until it is renamed on GitHub.
-- `origin` is the Scanaki repository.
+- One Table MVP source is hosted in `mmarzook3/OneTable`.
+- `origin` is the One Table repository.
 - `upstream` fetches Satisfecho changes and is configured as no-push locally.
 - Routine work is committed to `development`; `master` remains the stable branch.
 - Upstream changes are reviewed and selectively merged; they are never applied automatically.
 - AGPL copyright and licence notices must be preserved.
-- Scanaki modifications used by remote customers must be offered as corresponding source under AGPL.
+- One Table modifications used by remote customers must be offered as corresponding source under AGPL.
 - A future proprietary implementation must use a separate clean codebase or an appropriate commercial licence; this AGPL history remains available under AGPL.
 
 ## 11. Primary code and documentation references
