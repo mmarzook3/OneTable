@@ -61,7 +61,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaki.uk';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const tenantId = process.env.TENANT_ID != null ? String(process.env.TENANT_ID) : '1';

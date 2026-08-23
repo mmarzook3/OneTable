@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", validation_alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, validation_alias="SMTP_USE_TLS")
     email_from: str = Field(
-        default="noreply@scanaki.uk",
+        default="noreply@scanaski.uk",
         validation_alias="EMAIL_FROM",
         description="From address when tenant has none; use a domain you control (not example.com).",
     )
@@ -133,7 +133,7 @@ class Settings(BaseSettings):
     public_app_base_url: str = Field(
         default="",
         validation_alias="PUBLIC_APP_BASE_URL",
-        description="e.g. https://scanaki.uk or http://127.0.0.1:4202 - required for password-reset and reservation email links; if empty, POST /password-reset/request returns 503",
+        description="e.g. https://scanaski.uk or http://127.0.0.1:4202 - required for password-reset and reservation email links; if empty, POST /password-reset/request returns 503",
     )
 
     # Product-wide legal URLs when a tenant has not set its own (landing, auth pages).

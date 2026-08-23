@@ -1335,7 +1335,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   
                   <div class="divider"></div>
 
-                  <h3>One Table ordering</h3>
+                  <h3>Scanaki ordering</h3>
                   <p class="hint">Automatic mode lets guests order without staff activating a table. Orders reach the kitchen only after Stripe confirms payment.</p>
                   <div class="form-group">
                     <label for="ordering_mode">Ordering mode</label>

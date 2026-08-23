@@ -27,6 +27,6 @@ curl -sI http://127.0.0.1:4202/sitemap.xml  # application/xml or text/xml
 curl -s http://127.0.0.1:4202/ | head -n 40 # title + meta description present
 ```
 
-Chrome DevTools → Lighthouse → SEO (or PageSpeed Insights) on `https://scanaki.uk` and `/features`. Expect meta-description and robots.txt audits to pass.
+Chrome DevTools → Lighthouse → SEO (or PageSpeed Insights) on `https://scanaski.uk` and `/features`. Expect meta-description and robots.txt audits to pass.
 
 Related issue: [#307](https://github.com/satisfecho/pos/issues/307).

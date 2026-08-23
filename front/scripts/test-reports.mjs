@@ -8,7 +8,7 @@
  *   BASE_URL=http://127.0.0.1:4202 HEADLESS=1 npm run test:reports --prefix front
  *
  * Env:
- *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or https://scanaki.uk)
+ *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or https://scanaski.uk)
  *   LOGIN_EMAIL    Owner/admin email (required)
  *   LOGIN_PASSWORD Password
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
@@ -38,7 +38,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaki.uk';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

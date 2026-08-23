@@ -80,7 +80,7 @@ MARKETING_SYNC_FORCE=1 MARKETING_VERIFY_NO_PLACEHOLDERS=1 bash scripts/sync-all-
   - Migrations run with **strict failure** (script exits if migrate or sync-idempotent fails).
   - After **`up -d`**, the script waits for **`http://127.0.0.1:8020/health`** inside the **back** container (retries) instead of a fixed long sleep.
   - After **back** and **front** images build successfully, **`docker buildx prune -f`** runs to drop **unused** BuildKit cache and limit disk growth on the server ([issue #73](https://github.com/satisfecho/pos/issues/73)). It is non-interactive (`-f`). Override with **`SKIP_BUILDX_PRUNE=1`** on the server if you need to skip it. Failures are logged as a warning and do not abort deploy.
-- **Post-deploy smoke:** The workflow retries **landing**, **app-version** meta, and **`/api/health`** against **`SMOKE_TEST_BASE_URL`** (default **https://scanaki.uk**).
+- **Post-deploy smoke:** The workflow retries **landing**, **app-version** meta, and **`/api/health`** against **`SMOKE_TEST_BASE_URL`** (default **https://scanaski.uk**).
 
 ## First deploy
 
@@ -195,20 +195,20 @@ Once the GitHub Actions deploy job has finished, run smoke tests from a machine 
 ```bash
 cd pos/front
 BASE_URL=http://167.235.138.59 HEADLESS=1 npm run test:landing-version
-# Or when DNS/SSL is set: BASE_URL=https://scanaki.uk HEADLESS=1 npm run test:landing-version
+# Or when DNS/SSL is set: BASE_URL=https://scanaski.uk HEADLESS=1 npm run test:landing-version
 ```
 
 **2. Reports (owner/admin credentials required; create first user at /register after fresh install):**
 ```bash
 cd pos/front
 BASE_URL=http://167.235.138.59 HEADLESS=1 LOGIN_EMAIL=your-owner@amvara.de LOGIN_PASSWORD=yourpassword npm run test:reports
-# Or BASE_URL=https://scanaki.uk when DNS is set
+# Or BASE_URL=https://scanaski.uk when DNS is set
 ```
 
 **3. Optional – full reservation tests:**
 ```bash
 # From repo root
-STAFF_TEST=1 BASE_URLS="https://scanaki.uk" HEADLESS=1 ./scripts/run-reservation-tests.sh
+STAFF_TEST=1 BASE_URLS="https://scanaski.uk" HEADLESS=1 ./scripts/run-reservation-tests.sh
 # Set LOGIN_EMAIL / LOGIN_PASSWORD in env or .env (DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD) for staff test
 ```
 

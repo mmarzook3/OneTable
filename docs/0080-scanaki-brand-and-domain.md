@@ -3,7 +3,7 @@
 The hosted product name is **Scanaki**, a Fixaki product. Its canonical public origin is:
 
 ```text
-https://scanaki.uk
+https://scanaski.uk
 ```
 
 Customer-visible application copy, legal pages, metadata, email defaults, QR/NFC artwork and operational documentation use Scanaki. Restaurant-specific names and branding still override the product identity where appropriate on guest menus.
@@ -13,20 +13,20 @@ Customer-visible application copy, legal pages, metadata, email defaults, QR/NFC
 Use the following values in the production secret environment:
 
 ```text
-PUBLIC_APP_BASE_URL=https://scanaki.uk
-CORS_ORIGINS=https://scanaki.uk
-PUBLIC_TERMS_OF_SERVICE_URL=https://scanaki.uk/terms
-PUBLIC_PRIVACY_POLICY_URL=https://scanaki.uk/privacy
-EMAIL_FROM=noreply@scanaki.uk
+PUBLIC_APP_BASE_URL=https://scanaski.uk
+CORS_ORIGINS=https://scanaski.uk
+PUBLIC_TERMS_OF_SERVICE_URL=https://scanaski.uk/terms
+PUBLIC_PRIVACY_POLICY_URL=https://scanaski.uk/privacy
+EMAIL_FROM=noreply@scanaski.uk
 EMAIL_FROM_NAME=Scanaki
 ```
 
 Before switching live traffic:
 
-1. Point the `scanaki.uk` DNS records at the production ingress.
-2. Install a TLS certificate covering `scanaki.uk`.
-3. Register `https://scanaki.uk` with Stripe, Revolut, OAuth and email-link providers where used.
-4. Update Stripe guest-order webhooks to the `scanaki.uk` endpoint.
+1. Point the `scanaski.uk` DNS records at the production ingress.
+2. Install a TLS certificate covering `scanaski.uk`.
+3. Register `https://scanaski.uk` with Stripe, Revolut, OAuth and email-link providers where used.
+4. Update Stripe guest-order webhooks to the `scanaski.uk` endpoint.
 5. Run the landing, API health, payment and smart-plaque smokes against the new origin.
 6. Generate physical QR/NFC plaques only after the final domain and TLS configuration are working.
 7. Rebuild and republish each separately bundled tenant microsite under `front/sites/` before retiring the previous platform origin; keep an HTTPS redirect during that transition.

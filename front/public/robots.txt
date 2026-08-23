@@ -1,4 +1,4 @@
-# Scanaki public site - https://scanaki.uk
+# Scanaki public site - https://scanaski.uk
 User-agent: *
 Allow: /
 Allow: /features
@@ -41,4 +41,4 @@ Disallow: /provider/
 Disallow: /courier/
 Disallow: /platform/
 
-Sitemap: https://scanaki.uk/sitemap.xml
+Sitemap: https://scanaski.uk/sitemap.xml

@@ -137,14 +137,14 @@ Ordered checklist (local or amvara9 `/development/pos`):
    # Local (HAProxy)
    curl -sS http://127.0.0.1:4202/api/saas/config
    # Production
-   curl -sS https://scanaki.uk/api/saas/config
+   curl -sS https://scanaski.uk/api/saas/config
    ```
 6. **Dry-run signup** — Register a throwaway restaurant → finish onboarding → land on `/paywall` → **Start free trial** (or Checkout) → staff dashboard unlocks. Existing grandfathered tenants must still reach `/dashboard` without `/paywall`.
 7. **Smoke (optional)** — With paywall on:
    ```bash
    BASE_URL=http://127.0.0.1:4202 REQUIRE_PAYWALL=1 npm run test:paywall --prefix front
    # Prod example:
-   BASE_URL=https://scanaki.uk REQUIRE_PAYWALL=1 npm run test:paywall --prefix front
+   BASE_URL=https://scanaski.uk REQUIRE_PAYWALL=1 npm run test:paywall --prefix front
    ```
    Full notes: `docs/testing.md` (§ SaaS signup paywall). Restore `SAAS_PAYWALL_ENABLED=false` afterward if this was only a local dry-run.
 

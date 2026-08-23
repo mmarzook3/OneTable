@@ -215,7 +215,7 @@ emit "G005_NEW_REPOS=${G005_NEW_REPOS}"
 emit "G005_CHANGED_REPOS=${G005_CHANGED_REPOS}"
 emit "G005_UNTRACKED_ISSUES=${G005_UNTRACKED_ISSUES}"
 emit "G005_DEPLOY_CANDIDATES=${G005_DEPLOY_CANDIDATES}"
-emit "live_url_pattern: https://scanaki.uk/<slug>/ (e.g. /wimpi/)"
+emit "live_url_pattern: https://scanaski.uk/<slug>/ (e.g. /wimpi/)"
 
 if [[ "${MARKETING_PREFLIGHT_READONLY:-0}" != "1" ]]; then
   printf '%s UTC | 005 preflight | new=%s changed=%s untracked_issues=%s deploy_candidates=%s\n\n' \

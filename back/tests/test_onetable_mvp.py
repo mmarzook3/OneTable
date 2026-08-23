@@ -31,11 +31,11 @@ def _bearer_headers(user: models.User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-class TestOneTableMvp(PgClientTestCase):
+class TestScanakiMvp(PgClientTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.tenant = models.Tenant(
-            name="One Table Test Pub",
+            name="Scanaki Test Pub",
             ordering_mode="automatic",
             immediate_payment_required=True,
             require_kds_online=False,
@@ -307,7 +307,7 @@ class TestOneTableMvp(PgClientTestCase):
             revoked = self.client.get(f"/menu/{old_token}")
             self.assertEqual(revoked.status_code, 404, revoked.text)
 
-            other_tenant = models.Tenant(name="Other One Table Tenant")
+            other_tenant = models.Tenant(name="Other Scanaki Tenant")
             self.session.add(other_tenant)
             self.session.commit()
             self.session.refresh(other_tenant)

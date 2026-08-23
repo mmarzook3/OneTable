@@ -7,7 +7,7 @@ network thermal printer (JetDirect :9100) or writes to a dry-run file.
 
 Environment:
   PRINT_AGENT_API_BASE   Base URL including /api if behind HAProxy
-                         (e.g. http://127.0.0.1:4202/api or https://scanaki.uk/api)
+                         (e.g. http://127.0.0.1:4202/api or https://scanaski.uk/api)
   PRINT_AGENT_TOKEN      Agent token from Settings → Printing (shown once at create)
   PRINT_AGENT_POLL_SEC   Poll interval seconds (default 2)
   KITCHEN_PRINTER_HOST   Host/IP for kitchen role (default 127.0.0.1)

@@ -162,7 +162,7 @@ Optional env: `BASE_URL` (e.g. `http://127.0.0.1:4203`), `TENANT_ID` (default `1
 STAFF_TEST=1 ./scripts/run-reservation-tests.sh
 
 # Custom URLs, headless
-BASE_URLS="http://127.0.0.1:4203 https://scanaki.uk" HEADLESS=1 ./scripts/run-reservation-tests.sh
+BASE_URLS="http://127.0.0.1:4203 https://scanaski.uk" HEADLESS=1 ./scripts/run-reservation-tests.sh
 ```
 
 Production (satisfecho.de) requires the front container’s nginx to strip the `/api` prefix when proxying to the backend; see `front/nginx.conf` (`location /api` → `proxy_pass http://pos-back:8020/`).
@@ -193,9 +193,9 @@ Exit 0 means tenant 1 has T01–T10 with the correct seat counts; exit 1 reports
 
 **Demo orders/reservations/waiting-list reset (tenant 1 only):** Clears orders, reservations, and waiting-list entries for tenant 1, then re-seeds (including a demo courier user when missing, Scanaki Delivery samples, a small waitlist queue, and demo delivery fee/postal settings when unset). Safe while the stack is up. Local: `docker compose exec back python -m app.seeds.reset_demo_data`. Production wrapper: `./scripts/reset-demo-data-on-server.sh`. Daily host cron on amvara9 is documented in **`docs/0001-ci-cd-amvara9.md`** (section *Daily demo data reset*). **Delivery orders check:** `docker compose exec back python -m app.seeds.check_demo_delivery_orders` (exit 0 = tenant 1 has ≥1 `order_channel=satisfecho_delivery` row). **Delivery settings check:** `docker compose exec back python -m app.seeds.check_demo_delivery_settings` (exit 0 = tenant 1 has fee and/or zone). **Waiting list check:** `docker compose exec back python -m app.seeds.check_demo_waiting_list` (exit 0 = tenant 1 has ≥1 `waiting` and ≥1 `notified` row). **Demo courier:** `docker compose exec back python -m app.seeds.seed_demo_courier_user` (defaults `COURIER_EMAIL=courier-test-phase1@amvara.de` / `COURIER_PASSWORD=secret`, same as courier Puppeteer smokes).
 
-**Puppeteer test (demo data):** Verifies tenant 1 has ≥10 tables and ≥10 products and /book/1 loads. Run with tenant 1 credentials: `BASE_URL=https://scanaki.uk LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs` (or `npm run test:demo-data` from front/). Runs headless by default; use `HEADLESS=0` to show the browser.
+**Puppeteer test (demo data):** Verifies tenant 1 has ≥10 tables and ≥10 products and /book/1 loads. Run with tenant 1 credentials: `BASE_URL=https://scanaski.uk LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs` (or `npm run test:demo-data` from front/). Runs headless by default; use `HEADLESS=0` to show the browser.
 
-**Puppeteer test (catalog + images):** `front/scripts/test-catalog.mjs` logs in, opens /catalog, and reports total cards, how many have loaded images vs placeholders. Compare dev vs amvara9: `BASE_URL=http://127.0.0.1:4202 LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-catalog.mjs` and same with `BASE_URL=https://scanaki.uk`. Catalog data (ProductCatalog, ProviderProduct, images) comes from wine/beer/pizza import seeds, not from deploy; amvara9 has no catalog unless those imports are run on the server.
+**Puppeteer test (catalog + images):** `front/scripts/test-catalog.mjs` logs in, opens /catalog, and reports total cards, how many have loaded images vs placeholders. Compare dev vs amvara9: `BASE_URL=http://127.0.0.1:4202 LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-catalog.mjs` and same with `BASE_URL=https://scanaski.uk`. Catalog data (ProductCatalog, ProviderProduct, images) comes from wine/beer/pizza import seeds, not from deploy; amvara9 has no catalog unless those imports are run on the server.
 
 ## Development conventions
 

@@ -35,7 +35,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaki.uk';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

@@ -1,4 +1,4 @@
-"""Reusable OneTable smart-plaque inventory and assignment security."""
+"""Reusable Scanaki smart-plaque inventory and assignment security."""
 
 from datetime import timedelta
 
@@ -28,7 +28,7 @@ class TestSmartPlaques(PgClientTestCase):
         from app.settings import settings
 
         self._previous_base = settings.public_app_base_url
-        settings.public_app_base_url = "https://tap.onetable.test"
+        settings.public_app_base_url = "https://scanaski.uk"
         self.operator = models.User(
             email="smart-plaque-operator@amvara.de",
             hashed_password=security.get_password_hash("operator-password"),
@@ -111,7 +111,7 @@ class TestSmartPlaques(PgClientTestCase):
 
     def test_platform_creates_permanent_plaque_and_owner_assigns_it(self) -> None:
         plaque = self._create_plaque()
-        self.assertTrue(plaque["public_url"].startswith("https://tap.onetable.test/p/"))
+        self.assertTrue(plaque["public_url"].startswith("https://scanaski.uk/p/"))
         self.assertEqual(plaque["status"], "available")
         old_table_token = self.table_a1.token
 

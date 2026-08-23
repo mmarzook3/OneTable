@@ -14,7 +14,7 @@ Tests auto-detect the first responding port among **4203, 4202, 4200** when `BAS
 
 | Variable | Description |
 |----------|-------------|
-| `BASE_URL` | App base URL (e.g. `http://127.0.0.1:4203`, `https://scanaki.uk`). Default: auto-detect localhost port or fallback. |
+| `BASE_URL` | App base URL (e.g. `http://127.0.0.1:4203`, `https://scanaski.uk`). Default: auto-detect localhost port or fallback. |
 | `HEADLESS` | Default **headless**. Set `0`, `false`, or `no` for a visible Chrome window. |
 | `PUPPETEER_EXECUTABLE_PATH` | Path to Chrome binary; default macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. |
 | `LOGIN_EMAIL` / `LOGIN_PASSWORD` | Staff/demo user for login-required tests. Often loaded from `.env` as `DEMO_LOGIN_EMAIL` / `DEMO_LOGIN_PASSWORD`. |
@@ -57,7 +57,7 @@ Pytest sets **`RATE_LIMIT_ENABLED=false`** via `back/tests/conftest.py` (and `pg
 
 `tests/test_public_menu_order_response.py` checks that the first public menu order response is **`created`** and the next is **`updated`** (same `order_id`).
 
-`tests/test_settings_defaults.py` asserts the **`EMAIL_FROM`** settings default is **`noreply@scanaki.uk`** (not **`example.com`**).
+`tests/test_settings_defaults.py` asserts the **`EMAIL_FROM`** settings default is **`noreply@scanaski.uk`** (not **`example.com`**).
 
 **Note:** `GET /users/me` returns **200** with JSON **`null`** when there is no session (not **401**), so the SPA auth probe does not show as a failed request for guests.
 
@@ -99,7 +99,7 @@ node front/scripts/debug-reservations.mjs
 ./scripts/run-reservation-tests.sh
 # With staff test: STAFF_TEST=1 ./scripts/run-reservation-tests.sh
 # Headless: HEADLESS=1 ./scripts/run-reservation-tests.sh
-# Custom URLs: BASE_URLS="http://127.0.0.1:4203 https://scanaki.uk" ./scripts/run-reservation-tests.sh
+# Custom URLs: BASE_URLS="http://127.0.0.1:4203 https://scanaski.uk" ./scripts/run-reservation-tests.sh
 ```
 
 | Script | Purpose |
@@ -114,7 +114,7 @@ node front/scripts/debug-reservations.mjs
 ```bash
 node front/scripts/test-reservation-create.mjs
 # amvara9 headless (sends confirmation to ralf.roeber@amvara.de by default):
-#   BASE_URL=https://scanaki.uk HEADLESS=1 node front/scripts/test-reservation-create.mjs
+#   BASE_URL=https://scanaski.uk HEADLESS=1 node front/scripts/test-reservation-create.mjs
 # Override email: TEST_EMAIL=you@your-domain.com node front/scripts/test-reservation-create.mjs
 # Or: npm run test:reservation-create --prefix front
 ```
@@ -127,7 +127,7 @@ Checks tenant 1 has ≥10 tables, ≥10 products, and that `/book/1` loads. Uses
 
 ```bash
 npm run test:demo-data --prefix front
-# Or: BASE_URL=https://scanaki.uk LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs
+# Or: BASE_URL=https://scanaski.uk LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs
 ```
 
 - **Env:** `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, `BOOK_TENANT_ID` (default `1`), `HEADLESS`.
@@ -223,19 +223,6 @@ Smoke for the SaaS platform operator dashboard (`/platform`, login at `/platform
 ### 2a3e. Platform-created restaurant onboarding
 
 Full local smoke for the Scanaki operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
-
-```bash
-PLATFORM_OPERATOR_EMAIL=onboarding-platform-test@amvara.de \
-PLATFORM_OPERATOR_PASSWORD=onboarding-platform-password-42 \
-BASE_URL=http://127.0.0.1:4202 \
-npm run test:restaurant-onboarding --prefix front
-```
-
-Seed the matching local platform operator before running the smoke. Never use these test defaults in production.
-
-### 2a3e. Platform-created restaurant onboarding
-
-Full local smoke for the One Table operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
 
 ```bash
 PLATFORM_OPERATOR_EMAIL=onboarding-platform-test@amvara.de \
@@ -372,7 +359,7 @@ npm run test:landing-version --prefix front
 - Asserts `[data-testid="landing-version"]` or `.landing-version-bar` is visible and contains a version-like string (e.g. `1.0.1`). Skips if redirected to dashboard/login.
 - After a **`front/package.json`** version bump, run **`node front/scripts/get-commit-hash.js`** and commit **`commit-hash.ts`** with the bump so the footer semver matches (see committer / commit-changelog-version rule).
 - When `LOGIN_EMAIL`/`LOGIN_PASSWORD` or `DEMO_LOGIN_EMAIL`/`DEMO_LOGIN_PASSWORD` are set (e.g. from repo `.env`), also logs in with `TENANT_ID` (default `1`), then from `/dashboard` clicks each visible sidebar `a.nav-link` and each inventory `a.nav-sublink` (opens the inventory section when needed). Fullscreen routes (`/kitchen`, `/bar`) have no sidebar, so the test returns to `/dashboard` before each link. Without credentials, only the landing check runs (CI-friendly).
-- Set `LANDING_VERSION_ONLY=1` to force only the landing/version step even when `.env` defines demo login vars (e.g. `BASE_URL=https://scanaki.uk` smoke without a **401** from wrong credentials).
+- Set `LANDING_VERSION_ONLY=1` to force only the landing/version step even when `.env` defines demo login vars (e.g. `BASE_URL=https://scanaski.uk` smoke without a **401** from wrong credentials).
 - For **non-local** `BASE_URL`, the script runs a short HTTP reachability probe to `/` before Puppeteer so firewall/sandbox issues fail fast with a clear hint. Set `LANDING_SMOKE_NO_REACHABILITY_PROBE=1` to skip that probe. Use `SKIP_LANDING_PACKAGE_VERSION_CHECK=1` when the deployed footer semver may differ from this checkout’s `front/package.json`.
 
 **Provider login and register links:**
@@ -491,7 +478,7 @@ npm run test:guided-signup-wizard --prefix front
 
 ```bash
 npm run test:register --prefix front
-# Or: BASE_URL=https://scanaki.uk node front/scripts/test-register.mjs
+# Or: BASE_URL=https://scanaski.uk node front/scripts/test-register.mjs
 ```
 
 - **Env:** `BASE_URL`, `REGISTER_EMAIL`, `REGISTER_PASSWORD`, `REGISTER_FULL_NAME`, `REGISTER_TENANT_NAME`, `HEADLESS`. Uses unique email by default (`test-<timestamp>@amvara.de`).
@@ -555,7 +542,7 @@ Login, open `/catalog`, count cards and how many show real images vs placeholder
 
 ```bash
 npm run test:catalog --prefix front
-# Or: LOGIN_EMAIL=... LOGIN_PASSWORD=... BASE_URL=https://scanaki.uk node front/scripts/test-catalog.mjs
+# Or: LOGIN_EMAIL=... LOGIN_PASSWORD=... BASE_URL=https://scanaski.uk node front/scripts/test-catalog.mjs
 ```
 
 - **Env:** `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, `HEADLESS`.
@@ -603,7 +590,7 @@ npm run test:api-docs --prefix front
 
 ### 11c. amvara9 production smoke
 
-Landing, login page, public book page, and `/api/health` against production. **Default `BASE_URL` is `https://scanaki.uk`** — set an explicit local `BASE_URL` if you do not intend to hit prod.
+Landing, login page, public book page, and `/api/health` against production. **Default `BASE_URL` is `https://scanaski.uk`** — set an explicit local `BASE_URL` if you do not intend to hit prod.
 
 ```bash
 npm run test:amvara9-smoke --prefix front
@@ -694,7 +681,7 @@ npm run test:settings-logo --prefix front
 
 ### 13d. Support access (Users → Add Scanaki support)
 
-Login as admin or owner, open `/users`, use **Add Scanaki support**, and assert the form pre-fills `support@scanaki.uk` as admin.
+Login as admin or owner, open `/users`, use **Add Scanaki support**, and assert the form pre-fills `support@scanaski.uk` as admin.
 
 ```bash
 npm run test:support-access --prefix front
@@ -788,7 +775,7 @@ From repo root: `npm run <script> --prefix front`. From `front/`: `npm run <scri
 | `test:kitchen-status-dropdown` | `scripts/test-kitchen-status-dropdown.mjs` (Kitchen display: status dropdown visible, not clipped) |
 | `test:bar-display` | `scripts/test-bar-display.mjs` (Bar display `/bar`: route + chrome + Bar title) |
 | `test:settings-logo` | `scripts/test-settings-logo-upload.mjs` (Settings logo upload; owner/admin `LOGIN_*` / `DEMO_LOGIN_*`) |
-| `test:support-access` | `scripts/test-support-access.mjs` (Users → Add Scanaki support pre-fills `support@scanaki.uk`; admin/owner) |
+| `test:support-access` | `scripts/test-support-access.mjs` (Users → Add Scanaki support pre-fills `support@scanaski.uk`; admin/owner) |
 | `test:kitchen-timer` | `scripts/test-kitchen-timer.mjs` (Kitchen `/kitchen`: Timer settings + Waiting timer when orders exist) |
 | `test:book-whatsapp` | `scripts/test-book-whatsapp-puppeteer.mjs` (public `/book/1` WhatsApp CTA; optional `API_BASE`; no login) |
 | `test:my-shift-clock-qr` | `scripts/test-my-shift-clock-qr.mjs` (My shift venue clock QR / `.scan-cta`; waiter `LOGIN_*` + optional `OWNER_*`) |
@@ -805,7 +792,7 @@ From repo root: `npm run <script> --prefix front`. From `front/`: `npm run <scri
 | `test:staff-delivery` | `scripts/test-staff-delivery.mjs` (staff `/staff/orders`: create Scanaki Delivery + edit address/phone; needs `LOGIN_*` / `DEMO_LOGIN_*`) |
 | `test:api-docs` | `scripts/test-api-docs.mjs` (Swagger `/api/docs` + OpenAPI; no login) |
 | `test:websocket` | `scripts/test-websocket.mjs` (post-login WS on `/orders`; needs ws-bridge + `LOGIN_*` / `DEMO_LOGIN_*`) |
-| `test:amvara9-smoke` | `scripts/test-amvara9-smoke.mjs` (prod smoke: landing/login/book + `/api/health`; **default `BASE_URL=https://scanaki.uk`**) |
+| `test:amvara9-smoke` | `scripts/test-amvara9-smoke.mjs` (prod smoke: landing/login/book + `/api/health`; **default `BASE_URL=https://scanaski.uk`**) |
 | `test:menu-logo` | `scripts/test-menu-logo.mjs` (customer `/menu/:token` shows restaurant logo; needs `LOGIN_*` or `TABLE_TOKEN`) |
 | `test:settings-contact-tax` | `scripts/test-settings-contact-tax-dropdown.mjs` (Settings → Contact default tax IVA options; needs `LOGIN_*` / `DEMO_LOGIN_*`) |
 | `test:staff-menu-link` | `scripts/test-staff-menu-link-puppeteer.mjs` (staff Open menu → place order without PIN modal; needs open order + `LOGIN_*`) |

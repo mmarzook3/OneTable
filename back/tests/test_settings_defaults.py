@@ -5,7 +5,7 @@ def test_email_from_default_is_project_domain_not_example_com() -> None:
     from app.settings import Settings
 
     default = Settings.model_fields["email_from"].default
-    assert default == "noreply@scanaki.uk"
+    assert default == "noreply@scanaski.uk"
     assert "example.com" not in (default or "")
 
 
