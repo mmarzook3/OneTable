@@ -78,7 +78,7 @@ Implementation: `back/app/loyalty_wallet.py`.
 
 ### Config model (shared platform + per-tenant opt-out)
 
-Satisfecho uses **one shared** Apple Pass Type ID and **one** Google Wallet issuer for the platform (env below). Each pass’s `organizationName` / Google `issuerName` is the **restaurant tenant name**. Tenants can turn issuance off with `loyalty_program.wallet_passes_enabled` (Settings → Loyalty club) without disabling join or the balance card.
+Scanaki uses **one shared** Apple Pass Type ID and **one** Google Wallet issuer for the platform (env below). Each pass’s `organizationName` / Google `issuerName` is the **restaurant tenant name**. Tenants can turn issuance off with `loyalty_program.wallet_passes_enabled` (Settings → Loyalty club) without disabling join or the balance card.
 
 **Apple multi-merchant note:** A single Pass Type ID for an organization’s own loyalty passes (branded per merchant in pass fields) is the usual SaaS pattern. Confirm ongoing Apple Developer Program terms for your account; if Apple requires a Pass Type ID per merchant, you would need per-tenant cert onboarding (not implemented — out of scope for this MVP).
 

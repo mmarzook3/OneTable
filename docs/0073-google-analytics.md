@@ -1,6 +1,6 @@
 # Google Analytics 4 (gtag)
 
-Satisfecho loads the standard Google tag (**gtag.js**) in the Angular shell (`front/src/index.html`) when a **measurement ID** is provided at container start. The real ID is **not** committed to git.
+Scanaki loads the standard Google tag (**gtag.js**) in the Angular shell (`front/src/index.html`) when a **measurement ID** is provided at container start. The real ID is **not** committed to git.
 
 ## Where the ID lives
 

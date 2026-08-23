@@ -47,7 +47,7 @@ class TestRestaurantOnboarding(PgClientTestCase):
         self.operator = models.User(
             email="one-table-onboarding-operator@amvara.de",
             hashed_password=security.get_password_hash("operator-test-password"),
-            full_name="One Table Operator",
+            full_name="Scanaki Operator",
             role=models.UserRole.platform_operator,
             tenant_id=None,
             provider_id=None,

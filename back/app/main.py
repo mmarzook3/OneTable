@@ -378,7 +378,7 @@ async def _app_lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="One Table API",
+    title="Scanaki API",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -616,7 +616,7 @@ app.include_router(
 app.include_router(print_staff_router, tags=["Print jobs"])
 app.include_router(print_agent_router, tags=["Print agent"])
 app.include_router(customer_router, prefix="/customer", tags=["Customer accounts"])
-app.include_router(onetable_ordering_router, tags=["One Table ordering"])
+app.include_router(onetable_ordering_router, tags=["Scanaki ordering"])
 app.include_router(smart_plaque_router, tags=["Smart plaques"])
 
 
@@ -937,12 +937,12 @@ def _verify_staff_menu_token(table_token: str, token: str) -> bool:
         return False
 
 
-# Public Satisfecho Delivery checkout + track: signed token covers pay and track (24h)
+# Public Scanaki Delivery checkout + track: signed token covers pay and track (24h)
 PUBLIC_DELIVERY_ORDER_TOKEN_EXPIRY = 86400  # 24 hours
 
 
 def _sign_public_delivery_order_token(order_id: int, tenant_id: int) -> str:
-    """Signed token proving guest ownership of a public Satisfecho Delivery order for pay/track."""
+    """Signed token proving guest ownership of a public Scanaki Delivery order for pay/track."""
     expiry = int(_time.time()) + PUBLIC_DELIVERY_ORDER_TOKEN_EXPIRY
     payload = f"sd:{order_id}:{tenant_id}:{expiry}"
     sig = hmac.new(
@@ -1032,11 +1032,11 @@ def _resolve_guest_payment_order(
         raise HTTPException(status_code=404, detail="Order not found")
     if not _verify_public_delivery_order_token(order.id, order.tenant_id, pot or ""):
         raise HTTPException(status_code=404, detail="Order not found")
-    return order, None, "Satisfecho Delivery"
+    return order, None, "Scanaki Delivery"
 
 
 def _guest_order_payable_total_cents(session: Session, order: models.Order) -> int:
-    """Line items + delivery fee for Satisfecho Delivery guest checkout totals."""
+    """Line items + delivery fee for Scanaki Delivery guest checkout totals."""
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order.id)
     ).all()
@@ -1260,7 +1260,7 @@ def get_public_tenant_menu(
 
 @app.get(
     "/public/tenants/{tenant_id}/satisfecho-delivery-config",
-    summary="Public Satisfecho Delivery fee and coverage config",
+    summary="Public Scanaki Delivery fee and coverage config",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1299,7 +1299,7 @@ def get_public_satisfecho_delivery_config(
 
 @app.get(
     "/public/orders/{order_id}/delivery-status",
-    summary="Public Satisfecho Delivery order track status",
+    summary="Public Scanaki Delivery order track status",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1357,7 +1357,7 @@ def get_public_delivery_order_status(
 
 @app.post(
     "/public/tenants/{tenant_id}/satisfecho-delivery",
-    summary="Public Satisfecho Delivery checkout create",
+    summary="Public Scanaki Delivery checkout create",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1369,7 +1369,7 @@ def create_public_satisfecho_delivery_order(
     session: Session = Depends(get_session),
 ) -> dict:
     """
-    Unauthenticated: create a Satisfecho Delivery order (no table) for guest checkout.
+    Unauthenticated: create a Scanaki Delivery order (no table) for guest checkout.
     Kitchen is notified only after successful payment (via public_order_token pay endpoints).
     """
     tenant = session.get(models.Tenant, tenant_id)
@@ -3632,7 +3632,7 @@ def list_courier_users(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     session: Session = Depends(get_session),
 ) -> list[models.UserResponse]:
-    """List courier-role users in the tenant (for Satisfecho Delivery assign)."""
+    """List courier-role users in the tenant (for Scanaki Delivery assign)."""
     users = session.exec(
         select(models.User).where(
             models.User.tenant_id == current_user.tenant_id,
@@ -4500,7 +4500,7 @@ def update_tenant_settings(
         else:
             tenant.guest_birthday_consent_text = None
 
-    # Satisfecho Delivery fee + coverage
+    # Scanaki Delivery fee + coverage
     if tenant_update.delivery_fee_cents is not None:
         fee = int(tenant_update.delivery_fee_cents)
         if fee < 0:
@@ -7053,7 +7053,7 @@ def _courier_pickup_context(session: Session, tenant_id: int) -> tuple[str | Non
 
 
 def _courier_order_base_query(tenant_id: int):
-    """Marketplace (integration) or first-party Satisfecho Delivery orders."""
+    """Marketplace (integration) or first-party Scanaki Delivery orders."""
     return (
         select(models.Order)
         .where(
@@ -7284,7 +7284,7 @@ def courier_order_action(
             "action": action,
             "status": order.status.value,
             "courier_user_id": order.courier_user_id,
-            "table_name": "Satisfecho Delivery"
+            "table_name": "Scanaki Delivery"
             if _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value
             else "Delivery",
         },
@@ -9477,7 +9477,7 @@ def download_table_plaque_contact_sheet(
         canvas.drawString(x + 142, y + 26, f"Plaque: {display_status}")
     canvas.save()
     output.seek(0)
-    filename = re.sub(r"[^A-Za-z0-9_-]+", "-", tenant.name).strip("-") or "one-table"
+    filename = re.sub(r"[^A-Za-z0-9_-]+", "-", tenant.name).strip("-") or "scanaki"
     return StreamingResponse(
         output,
         media_type="application/pdf",
@@ -14356,7 +14356,7 @@ def create_satisfecho_delivery_order_endpoint(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_UPDATE_STATUS))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Staff: create a first-party Satisfecho Delivery order (no table / marketplace)."""
+    """Staff: create a first-party Scanaki Delivery order (no table / marketplace)."""
     if not body.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
     address = (body.delivery_address or "").strip()
@@ -14419,7 +14419,7 @@ def update_order_delivery(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_UPDATE_STATUS))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Staff: update delivery metadata on a Satisfecho Delivery order."""
+    """Staff: update delivery metadata on a Scanaki Delivery order."""
     order = session.exec(
         select(models.Order).where(
             models.Order.id == order_id,
@@ -14431,7 +14431,7 @@ def update_order_delivery(
     if _order_channel_value(order) != models.OrderChannel.satisfecho_delivery.value:
         raise HTTPException(
             status_code=400,
-            detail="Only Satisfecho Delivery orders can update delivery fields via this endpoint",
+            detail="Only Scanaki Delivery orders can update delivery fields via this endpoint",
         )
 
     updates = body.model_dump(exclude_unset=True)
@@ -14649,7 +14649,7 @@ def list_orders(
         channel = _order_channel_value(order)
         table_display = "Unknown"
         if channel == models.OrderChannel.satisfecho_delivery.value:
-            table_display = "Satisfecho Delivery"
+            table_display = "Scanaki Delivery"
         elif getattr(order, "delivery_integration_id", None) or channel == models.OrderChannel.marketplace.value:
             table_display = "Delivery"
         elif table:
@@ -16634,7 +16634,7 @@ def create_payment_intent(
             "amount": order.payment_amount_cents,
         }
 
-    # Calculate total from order items (+ delivery fee for Satisfecho Delivery)
+    # Calculate total from order items (+ delivery fee for Scanaki Delivery)
     total_cents = _guest_order_payable_total_cents(session, order)
 
     if total_cents <= 0:

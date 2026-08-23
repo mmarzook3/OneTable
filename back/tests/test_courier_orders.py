@@ -151,7 +151,7 @@ class TestCourierOrders(PgClientTestCase):
         self.assertEqual(row["total_cents"], 2400)
 
     def test_courier_list_includes_assigned_delivery_fields(self) -> None:
-        """Assigned Satisfecho Delivery orders expose address/phone/courier for Mine tab."""
+        """Assigned Scanaki Delivery orders expose address/phone/courier for Mine tab."""
         product = self.session.exec(
             select(models.Product).where(models.Product.tenant_id == self.tenant_a.id)
         ).first()

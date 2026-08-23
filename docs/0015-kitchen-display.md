@@ -20,11 +20,11 @@ The **kitchen display** is a dedicated full-screen view for the kitchen: large, 
 - **Auto-refresh** — Polling every 15 seconds plus live updates via WebSocket when order data changes.
 - **Optional sound** — Toggle “Sound on” / “Sound off”. When on, a short double beep plays on WebSocket events `new_order` and `items_added`. Preference is stored in `localStorage` (`kitchen-display-sound`).
 
-## Satisfecho Delivery on kitchen / bar
+## Scanaki Delivery on kitchen / bar
 
 Delivery channel orders appear on `/kitchen` and `/bar` like table orders, with these differences:
 
-- **Table label** — API `table_name` is **`Satisfecho Delivery`** (no physical table; `table_id` is null). See [`docs/0053-satisfecho-delivery-order-channel.md`](0053-satisfecho-delivery-order-channel.md).
+- **Table label** — API `table_name` is **`Scanaki Delivery`** (no physical table; `table_id` is null). See [`docs/0053-satisfecho-delivery-order-channel.md`](0053-satisfecho-delivery-order-channel.md).
 - **While prep is open** — Same active filter as above: cards stay until items leave pending/preparing/ready (or the order leaves the active set).
 - **After courier pickup** — When the courier marks pickup, order status becomes **`out_for_delivery`**. Kitchen/bar **drop** that order (handoff done); courier track and staff Delivery / courier portal own the rest of the journey.
 

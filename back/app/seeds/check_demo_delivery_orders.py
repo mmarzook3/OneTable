@@ -1,5 +1,5 @@
 """
-Check that tenant 1 has Satisfecho Delivery demo orders.
+Check that tenant 1 has Scanaki Delivery demo orders.
 
 Exits 0 when tenant 1 has at least MIN_DELIVERY_ORDERS rows with
 order_channel=satisfecho_delivery; exits 1 otherwise. Soft-warns (non-fail)
@@ -42,7 +42,7 @@ def run() -> int:
 
     if total < MIN_DELIVERY_ORDERS:
         print(
-            f"Missing Satisfecho Delivery orders for tenant {DEMO_TENANT_ID}: "
+            f"Missing Scanaki Delivery orders for tenant {DEMO_TENANT_ID}: "
             f"got {total}, need ≥{MIN_DELIVERY_ORDERS}. "
             "Run: python -m app.seeds.reset_demo_data "
             "(or seed_demo_orders when tenant 1 has no orders)."

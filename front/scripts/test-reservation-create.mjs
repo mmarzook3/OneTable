@@ -7,10 +7,10 @@
  *
  * Usage (from repo root or front/):
  *   node front/scripts/test-reservation-create.mjs
- *   BASE_URL=https://www.satisfecho.de HEADLESS=1 node front/scripts/test-reservation-create.mjs
+ *   BASE_URL=https://scanaski.uk HEADLESS=1 node front/scripts/test-reservation-create.mjs
  *
  * Env:
- *   BASE_URL   Default: https://www.satisfecho.de (amvara9). For local: auto-detect 4203/4202/4200.
+ *   BASE_URL   Default: https://scanaski.uk (amvara9). For local: auto-detect 4203/4202/4200.
  *   TENANT_ID  Tenant for /book/:id (default 1)
  *   TEST_EMAIL Customer email for the reservation (default ralf.roeber@amvara.de so confirmations can be verified).
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
@@ -37,7 +37,7 @@ async function resolveBaseUrl() {
       if (res.ok || res.status < 500) return `http://127.0.0.1:${port}`;
     } catch (_) {}
   }
-  return 'https://www.satisfecho.de';
+  return 'https://scanaski.uk';
 }
 
 async function main() {

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 1 decision record for **which certified middleware** Satisfecho integrates for:
+Phase 1 decision record for **which certified middleware** Scanaki integrates for:
 
 - Spain **VeriFactu** (`fiscal_mode: live`)
 - Germany **TSE / KassenSichV** (`tse_mode: live`)
@@ -72,7 +72,7 @@ Related: GitHub **#342**.
 | Fiskaly SIGN ES taxpayer / social collaboration | On merchant onboard; renew when Fiskaly/AEAT notify | Merchant + ops |
 | Fiskaly SIGN DE TSS admin PIN/PUK | Store in deploy secrets; rotate per Fiskaly policy | Platform ops |
 | Middleware TLS / base URL | Review when Fiskaly publishes env changes | Platform ops |
-| Satisfecho `*_LIVE_UNLOCK` | Keep **false** on prod until sandbox sign-off | Platform ops |
+| Scanaki `*_LIVE_UNLOCK` | Keep **false** on prod until sandbox sign-off | Platform ops |
 
 **Never commit** API keys, secrets, PUK/PIN, or AEAT certs. Use `config.env` / deploy secrets only.
 
@@ -84,7 +84,7 @@ Related: GitHub **#342**.
 
 ## Marketing / product copy
 
-`/features` and Settings already describe preparation and locked live. Review after this ship: still **do not** claim AEAT/BSI certification by Satisfecho alone. When production Fiskaly LIVE is verified, update copy and ROADMAP row together.
+`/features` and Settings already describe preparation and locked live. Review after this ship: still **do not** claim AEAT/BSI certification by Scanaki alone. When production Fiskaly LIVE is verified, update copy and ROADMAP row together.
 
 ## Testing
 

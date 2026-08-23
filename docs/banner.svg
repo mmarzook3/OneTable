@@ -18,8 +18,8 @@
     <rect x="80" y="124" width="44" height="44" rx="4"/>
     <rect x="134" y="124" width="44" height="44" rx="4"/>
   </g>
-  <!-- POS2 title -->
-  <text x="220" y="115" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="48" font-weight="700" fill="#f8fafc">POS2</text>
+  <!-- Scanaki title -->
+  <text x="220" y="115" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="48" font-weight="700" fill="#f8fafc">Scanaki</text>
   <!-- Tagline -->
-  <text x="220" y="148" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#94a3b8">Restaurant POS &#183; Orders &#183; Tables &#183; Reservations</text>
+  <text x="220" y="148" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#94a3b8">QR and NFC ordering for hospitality</text>
 </svg>

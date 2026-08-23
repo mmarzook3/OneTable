@@ -1028,7 +1028,7 @@ ModuleRegistry.registerModules([
           </div>
         }
 
-        <!-- Create Satisfecho Delivery Order Modal -->
+        <!-- Create Scanaki Delivery Order Modal -->
         @if (createDeliveryOpen()) {
           <div class="modal-overlay">
             <div class="modal modal-order-edit" (click)="$event.stopPropagation()" appFocusFirstInput>
@@ -1099,7 +1099,7 @@ ModuleRegistry.registerModules([
           </div>
         }
 
-        <!-- Edit Satisfecho Delivery metadata Modal -->
+        <!-- Edit Scanaki Delivery metadata Modal -->
         @if (editDeliveryOrder(); as dOrder) {
           <div class="modal-overlay">
             <div class="modal modal-order-edit" (click)="$event.stopPropagation()" appFocusFirstInput>
@@ -2548,7 +2548,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   showRemovedItems = false;
   viewMode = signal<'active' | 'not_paid' | 'history' | 'delivery'>('active');
 
-  /** Satisfecho Delivery create / edit forms */
+  /** Scanaki Delivery create / edit forms */
   createDeliveryOpen = signal(false);
   editDeliveryOrder = signal<Order | null>(null);
   creatingDelivery = signal(false);
@@ -2682,7 +2682,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     if (tid != null) list = list.filter(o => o.table_id === tid);
     return list;
   });
-  /** Satisfecho Delivery + marketplace delivery orders (Delivery tab). */
+  /** Scanaki Delivery + marketplace delivery orders (Delivery tab). */
   deliveryOrders = computed(() => {
     return this.orders().filter(o => this.isDeliveryChannel(o));
   });

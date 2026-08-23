@@ -15,7 +15,7 @@ This codebase does **not** define a table named `restaurantorder`. That name usu
 
 | Concept | PostgreSQL identifier | Notes |
 |--------|------------------------|--------|
-| Restaurant **order** (header: table, status, payment, …) | **`"order"`** | `order` is a **reserved word** — use **double quotes** in SQL. Satisfecho Delivery rows live here too (`order_channel`, `delivery_address`, …) — there is **no** separate `deliveryorder` table. |
+| Restaurant **order** (header: table, status, payment, …) | **`"order"`** | `order` is a **reserved word** — use **double quotes** in SQL. Scanaki Delivery rows live here too (`order_channel`, `delivery_address`, …) — there is **no** separate `deliveryorder` table. |
 | Order **line items** | **`orderitem`** | Lowercase, unquoted is fine. |
 | Physical **tables** (seats, floor plan) | **`"table"`** | `table` is reserved — **double quotes** in SQL. |
 | Walk-in **waiting list** | **`waiting_list_entry`** | Not `waitinglist` / `waitlist`. Filter by **`tenant_id`** and **`status`** (`waiting`, `notified`, `seated`, `cancelled`, `no_show`). |

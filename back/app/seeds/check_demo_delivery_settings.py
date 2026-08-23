@@ -1,5 +1,5 @@
 """
-Check that tenant 1 has demo Satisfecho Delivery fee and/or zone configured.
+Check that tenant 1 has demo Scanaki Delivery fee and/or zone configured.
 
 Exits 0 when fee > 0 or postal codes / radius are set; exits 1 otherwise.
 Use after seed_demo_delivery_settings or reset_demo_data.

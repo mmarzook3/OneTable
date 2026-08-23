@@ -1,4 +1,4 @@
-"""Provision the idempotent One Table pilot tenant for The Yue Tree Pub.
+"""Provision the idempotent Scanaki pilot tenant for The Yue Tree Pub.
 
 This seed is safe to rerun: it updates the pilot policy, creates only missing
 tables/products/stations, and creates or resets the two pilot accounts only when
@@ -109,7 +109,7 @@ def run() -> None:
         if not tenant:
             tenant = Tenant(name=TENANT_NAME)
         tenant.business_type = BusinessType.bar
-        tenant.description = "One Table pilot venue"
+        tenant.description = "Scanaki pilot venue"
         tenant.country_code = "GB"
         tenant.currency_code = "GBP"
         tenant.currency = "£"
@@ -199,7 +199,7 @@ def run() -> None:
         }
 
         # Migrate the original pilot menu without introducing any restriction logic:
-        # One Table simply does not promote alcohol-related demo content.
+        # Scanaki simply does not promote alcohol-related demo content.
         fish_and_chips = existing_products.get("Fish & Chips")
         if (
             fish_and_chips

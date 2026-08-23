@@ -36,7 +36,7 @@ def _write_self_signed_pem_pair(dir_path: Path, name: str) -> tuple[Path, Path]:
     subject = issuer = x509.Name(
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "ES"),
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Satisfecho Test"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Scanaki Test"),
             x509.NameAttribute(NameOID.COMMON_NAME, name),
         ]
     )

@@ -1,8 +1,8 @@
-# One Table MVP: open-source baseline and required modifications
+# Scanaki MVP: open-source baseline and required modifications
 
 **Status:** Core MVP implemented and locally validated; venue hardware and production launch inputs remain
 
-**Product:** One Table, operated under the Fixaki brand
+**Product:** Scanaki, operated under the Fixaki brand
 
 **Founding pilot tenant:** The Yue Tree Pub
 
@@ -15,7 +15,7 @@
 This document records:
 
 1. What is already present in the imported Satisfecho open-source application.
-2. What must be changed to produce the One Table MVP.
+2. What must be changed to produce the Scanaki MVP.
 3. Which changes block a live pilot at The Yue Tree Pub.
 4. Which existing Satisfecho features will be hidden or deferred to keep the MVP small.
 
@@ -23,9 +23,9 @@ This began as the source-code assessment for the fork. The core MVP described be
 
 ## 2. Locked MVP decisions
 
-| Decision | One Table MVP choice |
+| Decision | Scanaki MVP choice |
 |---|---|
-| Licence | AGPL-3.0 for the MVP; provide a visible source-code offer/link to the corresponding One Table source |
+| Licence | AGPL-3.0 for the MVP; provide a visible source-code offer/link to the corresponding Scanaki source |
 | First tenant | The Yue Tree Pub |
 | Customer installation | None; responsive browser menu opened by QR or NFC |
 | Kitchen installation | Responsive tablet browser for this milestone; packaged Android/PWA installation is explicitly deferred to the final Android phase |
@@ -43,7 +43,7 @@ This began as the source-code assessment for the fork. The core MVP described be
 
 Implemented and locally validated:
 
-- Multi-tenant One Table/Fixaki branding and a visible AGPL source link.
+- Multi-tenant Scanaki/Fixaki branding and a visible AGPL source link.
 - The Yue Tree Pub pilot tenant, 12 naturally ordered tables, a kitchen station, GBP/Europe-London policy, pilot accounts and a clearly labelled ten-item acceptance menu.
 - Automatic QR/NFC ordering without staff table activation, with service-hours, emergency-pause and kitchen-heartbeat gates.
 - Canonical per-table URLs, high-error-correction QR PNGs, a bulk printable plaque PDF, token rotation, plaque lifecycle state and Web NFC writing/read-back with copy fallback.
@@ -98,16 +98,16 @@ The repository includes Docker Compose configurations for development and produc
 - Per-tenant currency, timezone, language and business settings.
 - Per-tenant public background colour, logo and header image.
 
-#### One Table modifications
+#### Scanaki modifications
 
-- Replace Satisfecho, POS2 and Amvara public branding with One Table and Fixaki branding.
+- Replace Satisfecho, POS2 and Amvara public branding with Scanaki and Fixaki branding.
 - Replace upstream domains, SEO content, email copy, public footer content and support links.
 - Add the required AGPL source-code link to public and authenticated application surfaces.
-- Simplify the platform portal around One Table tenants, locations, tables, payment state and kitchen connectivity.
+- Simplify the platform portal around Scanaki tenants, locations, tables, payment state and kitchen connectivity.
 - Keep tenant creation manual for the Yue Tree pilot.
 - Keep the existing SaaS paywall disabled during the pilot.
 - Add explicit tenant feature flags so irrelevant modules can be hidden without deleting upstream code.
-- Repeat tenant-isolation tests for every new One Table endpoint and data model.
+- Repeat tenant-isolation tests for every new Scanaki endpoint and data model.
 
 ### 4.2 Menu and product administration
 
@@ -123,12 +123,12 @@ The repository includes Docker Compose configurations for development and produc
 - Kitchen/bar station mapping.
 - Menu translations and multiple interface languages.
 
-#### One Table modifications
+#### Scanaki modifications
 
 - Create a simplified pub-focused menu editor and onboarding path.
 - Confirm GBP display, UK tax settings and receipt behaviour.
 - Add or verify explicit allergen fields and customer-facing allergen guidance.
-- Keep alcohol-related names and descriptions out of the One Table demo menu without adding a general alcohol restriction or age gate.
+- Keep alcohol-related names and descriptions out of the Scanaki demo menu without adding a general alcohol restriction or age gate.
 - Add modifier price adjustments if the Yue Tree menu needs paid extras; the current customisation system does not implement per-option price deltas.
 - Add quick sold-out and back-in-stock actions suitable for a busy service.
 - Import the Yue Tree menu from a structured spreadsheet or CSV rather than entering every item manually.
@@ -148,7 +148,7 @@ The repository includes Docker Compose configurations for development and produc
 - Staff can copy the public menu link.
 - Table activation and rotating four-digit PIN controls.
 
-#### One Table modifications
+#### Scanaki modifications
 
 - Add bulk creation such as `Table 1` through `Table 20`.
 - Add a tenant ordering mode:
@@ -170,20 +170,20 @@ The repository includes Docker Compose configurations for development and produc
 - The current QR uses medium error correction and includes the table name below it.
 - The menu link can be copied.
 
-#### One Table modifications
+#### Scanaki modifications
 
-- Use the One Table production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://<one-table-host>/p/{code}`.
+- Use the Scanaki production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://scanaski.uk/p/{code}`.
 - Add an access-source marker:
 
   ```text
-  QR:  https://<one-table-host>/p/{permanent-code}
-  NFC: https://<one-table-host>/p/{permanent-code}
+  QR:  https://scanaski.uk/p/{permanent-code}
+  NFC: https://scanaski.uk/p/{permanent-code}
   ```
 
 - Generate downloadable PNG and SVG files per table.
 - Generate a printable PDF/contact sheet for all tables in a tenant.
 - Add high error correction and validate minimum size, quiet zone and contrast for physical printing.
-- Include tenant name, table number, One Table identity and “Scan or tap to order” text in the plaque artwork.
+- Include tenant name, table number, Scanaki identity and “Scan or tap to order” text in the plaque artwork.
 - Add a **Test link** action before marking a plaque active.
 - Add bulk plaque export for the 3D-printing workflow.
 - Record QR versus NFC entry analytics without storing unnecessary customer-identifying data.
@@ -194,7 +194,7 @@ The repository includes Docker Compose configurations for development and produc
 
 - No NFC, NDEF, NTAG or tag-management implementation was found in the imported application.
 
-#### One Table modifications
+#### Scanaki modifications
 
 - **Write NFC** is available inside the guided camera assignment sheet.
 - Write the table's HTTPS URL as an NDEF URL record.
@@ -232,7 +232,7 @@ Create tables
 - Optional setting named `immediate_payment_required`.
 - Stripe and Revolut customer payment interfaces.
 
-#### One Table modifications
+#### Scanaki modifications
 
 - Remove the mandatory activation/PIN gate when the tenant uses automatic ordering.
 - Display the tenant and table prominently before checkout.
@@ -260,9 +260,9 @@ Create tables
 
 The current table flow creates a pending order, commits it and publishes a `new_order` WebSocket event **before payment**. The kitchen display includes pending orders. The optional immediate-payment setting opens checkout after the order already exists; it does not enforce payment-before-kitchen.
 
-The current successful-payment path depends on the browser calling `/orders/{id}/confirm-payment`. If the customer pays but closes the browser before this call, the server may not mark the order paid promptly. This is unsuitable for the One Table live pilot.
+The current successful-payment path depends on the browser calling `/orders/{id}/confirm-payment`. If the customer pays but closes the browser before this call, the server may not mark the order paid promptly. This is unsuitable for the Scanaki live pilot.
 
-#### One Table modifications — live-pilot blockers
+#### Scanaki modifications — live-pilot blockers
 
 - Introduce a quote or unpaid-checkout record that is not visible to the kitchen.
 - Create the Stripe payment from a server-calculated, immutable amount snapshot.
@@ -298,7 +298,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Kitchen/bar station routing and station filter.
 - Finished/delivered lines leave the active view.
 
-#### One Table modifications
+#### Scanaki modifications
 
 - Change the queue timestamp from order creation to confirmed paid/released time.
 - Default to strict FIFO, oldest paid order on the left; make urgent override an explicit tenant option.
@@ -324,7 +324,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 #### Future Android-phase modifications
 
 - Make the kitchen interface an installable PWA for the MVP.
-- Add application manifest, One Table icons, theme colours and standalone display mode.
+- Add application manifest, Scanaki icons, theme colours and standalone display mode.
 - Add an installation guide and “Install kitchen app” prompt for compatible Android browsers.
 - Persist the selected tenant/station and restore the kitchen screen after restart.
 - Avoid caching live order responses as authoritative offline data.
@@ -341,7 +341,7 @@ The current successful-payment path depends on the browser calling `/orders/{id}
 - Rate limits backed by Redis.
 - Staff can manage items and orders.
 
-#### One Table modifications
+#### Scanaki modifications
 
 An automatic table is allowed to check out only when all mandatory conditions pass:
 
@@ -371,11 +371,11 @@ AND Stripe payment succeeds
 - Rate limiting and a documented security review.
 - Printing agent and broader operational modules that are not needed for the pilot.
 
-#### One Table modifications
+#### Scanaki modifications
 
-- Create One Table-specific environment examples without real secrets.
+- Create Scanaki-specific environment examples without real secrets.
 - Remove assumptions about the upstream production host and certificates.
-- Configure the final One Table domain, HTTPS, CORS and WebSocket URL.
+- Configure the final Scanaki domain, HTTPS, CORS and WebSocket URL.
 - Add automated encrypted database backups and a tested restore runbook.
 - Add uptime monitoring, exception reporting and payment/order reconciliation alerts.
 - Add log retention without payment secrets or unnecessary personal data.
@@ -410,7 +410,7 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 ### P0 — required before accepting live customer payments
 
 1. Run and audit the unmodified stack locally.
-2. One Table/Fixaki branding and AGPL source offer.
+2. Scanaki/Fixaki branding and AGPL source offer.
 3. Yue Tree tenant, staff roles and menu import.
 4. Automatic ordering mode and service/pause rules.
 5. Payment-before-kitchen redesign with signed Stripe webhook and idempotency.
@@ -433,7 +433,7 @@ Keeping these modules disabled reduces navigation, support and test scope while 
 
 ### P2 — after MVP validation
 
-- Self-service tenant signup and One Table subscriptions.
+- Self-service tenant signup and Scanaki subscriptions.
 - Google Play or managed APK distribution.
 - POS integration.
 - Stock management and automated purchasing.
@@ -481,7 +481,7 @@ The expected calendar range remains approximately four to six weeks for one expe
 
 ## 9. Inputs required from Fixaki and The Yue Tree
 
-- One Table and Fixaki logos, colours and preferred domain.
+- Scanaki and Fixaki logos, colours and preferred domain.
 - Yue Tree legal/business name and customer-facing contact details.
 - Table count, table labels, floors/areas and seat counts.
 - Full menu, prices, product options, images and availability.
@@ -495,13 +495,13 @@ The expected calendar range remains approximately four to six weeks for one expe
 
 ## 10. Repository and licence handling
 
-- One Table MVP source is hosted in `mmarzook3/OneTable`.
-- `origin` is the One Table repository.
+- Scanaki MVP source is currently hosted in `mmarzook3/OneTable`; the repository name remains a compatibility identifier until it is renamed on GitHub.
+- `origin` is the Scanaki repository.
 - `upstream` fetches Satisfecho changes and is configured as no-push locally.
 - Routine work is committed to `development`; `master` remains the stable branch.
 - Upstream changes are reviewed and selectively merged; they are never applied automatically.
 - AGPL copyright and licence notices must be preserved.
-- One Table modifications used by remote customers must be offered as corresponding source under AGPL.
+- Scanaki modifications used by remote customers must be offered as corresponding source under AGPL.
 - A future proprietary implementation must use a separate clean codebase or an appropriate commercial licence; this AGPL history remains available under AGPL.
 
 ## 11. Primary code and documentation references

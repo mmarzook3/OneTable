@@ -1,4 +1,4 @@
-"""Public Satisfecho Delivery checkout — create + pay without table_token."""
+"""Public Scanaki Delivery checkout — create + pay without table_token."""
 from __future__ import annotations
 
 import unittest

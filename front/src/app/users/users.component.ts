@@ -8,8 +8,9 @@ import { ConfirmationModalComponent } from '../shared/confirmation-modal.compone
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
-/** Satisfecho support login for owner-granted temporary admin access (issue #257). */
-export const SUPPORT_USER_EMAIL = 'support@satisfecho.de';
+/** Scanaki support login for owner-granted temporary admin access (issue #257). */
+export const SUPPORT_USER_EMAIL = 'support@scanaski.uk';
+const LEGACY_SUPPORT_USER_EMAIL = 'support@satisfecho.de';
 
 @Component({
   selector: 'app-users',
@@ -645,7 +646,7 @@ export class UsersComponent implements OnInit {
   showDeleteConfirm = signal(false);
   userToDelete = signal<User | null>(null);
 
-  /** True when edit modal was opened via "Add Satisfecho support" for an existing support user. */
+  /** True when edit modal was opened via "Add Scanaki support" for an existing support user. */
   supportAccessFromShortcut = signal(false);
 
   // Available roles based on current user's permissions
@@ -722,11 +723,11 @@ export class UsersComponent implements OnInit {
   }
 
   isSupportUser(user: User): boolean {
-    return user.email.trim().toLowerCase() === SUPPORT_USER_EMAIL;
+    return [SUPPORT_USER_EMAIL, LEGACY_SUPPORT_USER_EMAIL].includes(user.email.trim().toLowerCase());
   }
 
   isSupportEmailForm(): boolean {
-    return this.formEmail.trim().toLowerCase() === SUPPORT_USER_EMAIL;
+    return [SUPPORT_USER_EMAIL, LEGACY_SUPPORT_USER_EMAIL].includes(this.formEmail.trim().toLowerCase());
   }
 
   canManageSupportAccess(): boolean {
