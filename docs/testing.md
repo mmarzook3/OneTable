@@ -210,6 +210,19 @@ npm run test:courier-actions --prefix front
 
 Smoke for the SaaS platform operator dashboard (`/platform`, login at `/platform/login`): log in, assert metric cards on the dashboard, open a tenant detail page, and confirm the public Satisfecho Delivery link for that tenant. See `docs/0059-platform-operator-portal.md`. Does not cover tenant staff login, paywall (`test:paywall`), or courier portal (`test:courier-actions`).
 
+### 2a3e. Platform-created restaurant onboarding
+
+Full local smoke for the One Table operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
+
+```bash
+PLATFORM_OPERATOR_EMAIL=onboarding-platform-test@amvara.de \
+PLATFORM_OPERATOR_PASSWORD=onboarding-platform-password-42 \
+BASE_URL=http://127.0.0.1:4202 \
+npm run test:restaurant-onboarding --prefix front
+```
+
+Seed the matching local platform operator before running the smoke. Never use these test defaults in production.
+
 ```bash
 npm run test:platform-operator --prefix front
 # Or: BASE_URL=http://127.0.0.1:4202 node front/scripts/test-platform-operator.mjs

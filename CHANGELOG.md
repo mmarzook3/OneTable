@@ -30,6 +30,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 - **Agent loop (FEAT waiting for human):** Feature coder step skips parked **FEAT** tasks after one waiting GitHub comment until a human replies on the linked issue (`scripts/agent-feat-waiting-human-preflight.sh`).
 
+## [2.1.152] - 2026-08-23
+
+### Added
+
+- **One Table restaurant provisioning:** Platform operators can create a restaurant owner from `/platform/restaurants/new` and receive a one-time temporary password plus password-creation link.
+- **Resumable first-login onboarding:** New restaurant owners are guided through password security, business details, ordering hours, bulk table QR/NFC allocation, starter menu items, and a safe launch review before entering the dashboard.
+
+### Changed
+
+- **Safe onboarding launch:** Restaurants without both a menu and tenant Stripe credentials remain browse-only after setup, preventing accidental unpaid ordering.
+
+### Fixed
+
+- **Tenant cleanup:** Tenant purge now removes tenant login-history rows before staff accounts, avoiding a foreign-key failure after an owner has signed in.
+
 ## [2.1.151] - 2026-08-20
 
 ### Added

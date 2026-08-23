@@ -94,6 +94,13 @@ class Tenant(SQLModel, table=True):
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # One Table first-login setup. Platform provisioning starts new restaurants
+    # at not_started; existing and self-managed tenants remain completed.
+    onboarding_status: str = Field(default="completed", max_length=32, index=True)
+    onboarding_step: int = Field(default=0)
+    onboarding_started_at: datetime | None = None
+    onboarding_completed_at: datetime | None = None
+
     # Business Profile Fields
     business_type: BusinessType | None = Field(default=None)
     description: str | None = None
@@ -327,6 +334,8 @@ class User(SQLModel, table=True):
     otp_secret: str | None = Field(default=None, exclude=True)  # Never serialized in API responses
     otp_enabled: bool = Field(default=False)
     employee_number: str | None = Field(default=None, max_length=64)
+    must_change_password: bool = Field(default=False)
+    temporary_password_issued_at: datetime | None = None
 
 
 class PasswordResetToken(SQLModel, table=True):
@@ -446,6 +455,73 @@ class PlatformTenantSummary(SQLModel):
     user_count: int = 0
     order_count: int = 0
     reservation_count: int = 0
+    onboarding_status: str = "completed"
+    onboarding_step: int = 0
+
+
+class PlatformRestaurantCreate(SQLModel):
+    restaurant_name: str = Field(min_length=2, max_length=200)
+    owner_email: str = Field(min_length=3, max_length=320)
+    owner_name: str | None = Field(default=None, max_length=200)
+
+
+class PlatformRestaurantCredentials(SQLModel):
+    tenant_id: int
+    restaurant_name: str
+    username: str
+    temporary_password: str
+    password_setup_url: str | None = None
+
+
+class RestaurantOnboardingState(SQLModel):
+    status: str
+    current_step: int
+    must_change_password: bool
+    restaurant_name: str
+    business_type: str | None = None
+    owner_name: str | None = None
+    owner_email: str
+    business_email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    currency_code: str
+    timezone: str
+    ordering_mode: str
+    ordering_service_hours: dict | None = None
+    floor_count: int = 0
+    table_count: int = 0
+    product_count: int = 0
+    payment_configured: bool = False
+
+
+class RestaurantOnboardingPassword(SQLModel):
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class RestaurantOnboardingBusiness(SQLModel):
+    restaurant_name: str = Field(min_length=2, max_length=200)
+    business_type: BusinessType = BusinessType.restaurant
+    owner_name: str | None = Field(default=None, max_length=200)
+    business_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=500)
+
+
+class RestaurantOnboardingOperations(SQLModel):
+    days_open: list[str]
+    opening_time: str = Field(min_length=5, max_length=5)
+    closing_time: str = Field(min_length=5, max_length=5)
+
+
+class RestaurantOnboardingTables(SQLModel):
+    floor_name: str = Field(default="Main", min_length=1, max_length=100)
+    table_prefix: str = Field(default="Table ", min_length=1, max_length=40)
+    table_count: int = Field(default=10, ge=1, le=100)
+    seats_per_table: int = Field(default=4, ge=1, le=50)
+
+
+class RestaurantOnboardingProgress(SQLModel):
+    current_step: int = Field(ge=0, le=5)
 
 
 class PlatformStaffContact(SQLModel):
