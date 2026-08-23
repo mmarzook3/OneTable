@@ -43,7 +43,7 @@ SERVICE_HOURS = {
 
 # Acceptance-test data only. Replace it with the venue's approved menu before launch.
 PILOT_PRODUCTS = (
-    ("Fish & Chips", 1395, "Mains", "beer-battered fish, chips, peas, tartare sauce"),
+    ("Fish & Chips", 1395, "Mains", "crispy battered fish, chips, peas, tartare sauce"),
     ("Classic Beef Burger", 1295, "Mains", "beef patty, cheese, lettuce, tomato, chips"),
     ("Plant Burger", 1250, "Mains", "plant-based patty, lettuce, tomato, chips"),
     ("Chicken Wings", 795, "Small Plates", "chicken wings, house sauce"),
@@ -52,8 +52,15 @@ PILOT_PRODUCTS = (
     ("Sticky Toffee Pudding", 650, "Desserts", "dates, toffee sauce, ice cream"),
     ("House Lemonade", 325, "Soft Drinks", None),
     ("Cola", 300, "Soft Drinks", None),
-    ("Alcohol-free Lager", 425, "Beer", None),
+    (
+        "Traditional Sausage Roll",
+        495,
+        "Small Plates",
+        "pork sausage, puff pastry, English mustard",
+    ),
 )
+
+PILOT_DESCRIPTION = "Pilot menu item — confirm before live launch"
 
 
 def _upsert_account(
@@ -185,11 +192,45 @@ def run() -> None:
             )
 
         existing_products = {
-            product.name
+            product.name: product
             for product in session.exec(
                 select(Product).where(Product.tenant_id == tenant.id)
             ).all()
         }
+
+        # Migrate the original pilot menu without introducing any restriction logic:
+        # One Table simply does not promote alcohol-related demo content.
+        fish_and_chips = existing_products.get("Fish & Chips")
+        if (
+            fish_and_chips
+            and fish_and_chips.ingredients
+            == "beer-battered fish, chips, peas, tartare sauce"
+        ):
+            fish_and_chips.ingredients = "crispy battered fish, chips, peas, tartare sauce"
+            session.add(fish_and_chips)
+
+        legacy_lager = existing_products.pop("Alcohol-free Lager", None)
+        if legacy_lager:
+            if "Traditional Sausage Roll" not in existing_products:
+                legacy_lager.name = "Traditional Sausage Roll"
+                legacy_lager.price_cents = 495
+                legacy_lager.category = "Small Plates"
+                legacy_lager.subcategory = None
+                legacy_lager.ingredients = "pork sausage, puff pastry, English mustard"
+                legacy_lager.description = PILOT_DESCRIPTION
+                legacy_lager.kitchen_station_id = station.id
+                existing_products[legacy_lager.name] = legacy_lager
+            else:
+                legacy_lager.name = "Traditional Pork Pie"
+                legacy_lager.price_cents = 495
+                legacy_lager.category = "Small Plates"
+                legacy_lager.subcategory = None
+                legacy_lager.ingredients = "seasoned pork, hot-water crust pastry"
+                legacy_lager.description = PILOT_DESCRIPTION
+                legacy_lager.kitchen_station_id = station.id
+                existing_products[legacy_lager.name] = legacy_lager
+            session.add(legacy_lager)
+
         for name, price_cents, category, ingredients in PILOT_PRODUCTS:
             if name not in existing_products:
                 session.add(
@@ -199,7 +240,7 @@ def run() -> None:
                         price_cents=price_cents,
                         category=category,
                         ingredients=ingredients,
-                        description="Pilot menu item — confirm before live launch",
+                        description=PILOT_DESCRIPTION,
                         kitchen_station_id=station.id,
                     )
                 )
