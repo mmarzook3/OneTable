@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Puppeteer test: /users "Add Satisfecho support" pre-fills support@satisfecho.de as admin.
+ * Puppeteer test: /users "Add Scanaki support" pre-fills support@scanaski.uk as admin.
  *
  * Env:
  *   BASE_URL       App URL (default: auto-detect 4203/4202/4200)
@@ -14,7 +14,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const puppeteer = require('puppeteer-core');
 
-const SUPPORT_EMAIL = 'support@satisfecho.de';
+const SUPPORT_EMAIL = 'support@scanaski.uk';
 
 const CHROME_PATH =
   process.env.PUPPETEER_EXECUTABLE_PATH ||

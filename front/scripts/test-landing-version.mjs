@@ -7,7 +7,7 @@
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/test-landing-version.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaski.uk)
  *   HEADLESS   Default headless; set 0, false, or no for a visible browser.
  *   TENANT_ID  Login tenant (default 1). Used with DEMO_LOGIN_* / LOGIN_*.
  *   SKIP_LANDING_PACKAGE_VERSION_CHECK  Set to 1 to skip comparing footer semver to front/package.json
@@ -218,7 +218,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const tenantId = process.env.TENANT_ID != null ? String(process.env.TENANT_ID) : '1';
@@ -253,12 +253,16 @@ async function main() {
     console.log('0. Reachability probe: skipped (LANDING_SMOKE_NO_REACHABILITY_PROBE)');
   }
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless,
-    defaultViewport: headless ? { width: 1280, height: 720 } : null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = process.env.PUPPETEER_WS_ENDPOINT
+    ? await puppeteer.connect({ browserWSEndpoint: process.env.PUPPETEER_WS_ENDPOINT })
+    : process.env.PUPPETEER_CONNECT_URL
+      ? await puppeteer.connect({ browserURL: process.env.PUPPETEER_CONNECT_URL })
+      : await puppeteer.launch({
+          executablePath: CHROME_PATH,
+          headless,
+          defaultViewport: headless ? { width: 1280, height: 720 } : null,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
 
   const page = await browser.newPage();
   page.on('console', (msg) => console.log('[browser]', msg.text()));
@@ -282,6 +286,27 @@ async function main() {
     }
 
     await page.waitForSelector('.landing-page', { timeout: 10000 });
+    const brandState = await page.evaluate(() => ({
+      title: document.title,
+      siteName: document.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '',
+      body: document.body.textContent || '',
+    }));
+    if (!brandState.title.includes('Scanaki') || brandState.siteName !== 'Scanaki') {
+      console.log('   FAIL: Scanaki title or Open Graph site name is missing.', brandState);
+      await browser.close();
+      process.exit(1);
+    }
+    if (/\bOne Table\b|\bSatisfecho\b/.test(brandState.body)) {
+      console.log('   FAIL: Legacy product branding is still visible on the landing page.');
+      await browser.close();
+      process.exit(1);
+    }
+    if (/[—–]/.test(brandState.body)) {
+      console.log('   FAIL: Landing copy contains an em dash or en dash.');
+      await browser.close();
+      process.exit(1);
+    }
+    console.log('   Brand:', brandState.siteName);
     await page.waitForFunction(
       () => {
         const el =

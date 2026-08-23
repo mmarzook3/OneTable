@@ -1,5 +1,5 @@
 """
-Ensure tenant 1 has demo Satisfecho Delivery fee + postal coverage so public
+Ensure tenant 1 has demo Scanaki Delivery fee + postal coverage so public
 `/delivery/1` and Settings → Payments show a non-zero fee and reject out-of-zone
 codes after bootstrap or daily demo reset.
 

@@ -21,8 +21,8 @@ Umbrella list. **This table is the source of truth** for “is it done?” until
 | **Birthdays (“cumpleaños”)** | **Partial** | Reservation month/day (#324 / [0067](0067-guest-birthday.md)); billing-customer `birth_date`; loyalty birthday bonus once/year (#331 / [0066](0066-club-loyalty.md)). Automated outbound campaigns → [#54](https://github.com/satisfecho/pos/issues/54). |
 | **Marketing / special offers** | MVP shipped (#322) | Category %-off promotions — [0068](0068-price-promotions.md). Broader campaign automation → [#54](https://github.com/satisfecho/pos/issues/54). |
 | **Central kitchen → branches** | MVP started (#323) | Linked tenants via restaurant groups + hub kitchen; fulfillment record with prepared-at-HQ — [0069](0069-branch-hub-fulfillment.md). |
-| **Satisfecho Delivery (first-party)** | **Partial / shipped core** | Own-channel delivery (API + staff UI + courier + public `/delivery/{tenantId}`). See [0053](0053-satisfecho-delivery-order-channel.md). Not the same as aggregator integrations below. |
-| **Uber Eats interface** | Not started | Aggregator menu sync / orders — see `docs/0031-order-customizations-plan.md` (delivery integrations). Distinct from first-party Satisfecho Delivery. |
+| **Scanaki Delivery (first-party)** | **Partial / shipped core** | Own-channel delivery (API + staff UI + courier + public `/delivery/{tenantId}`). See [0053](0053-satisfecho-delivery-order-channel.md). Not the same as aggregator integrations below. |
+| **Uber Eats interface** | Not started | Aggregator menu sync / orders — see `docs/0031-order-customizations-plan.md` (delivery integrations). Distinct from first-party Scanaki Delivery. |
 
 **Dedicated issues & phased plan:** Specs (copy-paste titles/bodies), dependency graph, and filing instructions are in **[0050-github-issue-52-split-plan.md](0050-github-issue-52-split-plan.md)**. After creating the GitHub issues, add their numbers in a comment on [#52](https://github.com/satisfecho/pos/issues/52) and optionally add an **Issue** column to the table above.
 

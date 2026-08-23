@@ -64,7 +64,7 @@ class OrderChannel(str, Enum):
     """How the order was placed / fulfilled (kitchen + courier distinguish channels)."""
 
     table = "table"  # dine-in (default)
-    satisfecho_delivery = "satisfecho_delivery"  # first-party Satisfecho Delivery
+    satisfecho_delivery = "satisfecho_delivery"  # first-party Scanaki Delivery
     marketplace = "marketplace"  # third-party (Glovo/Uber); usually paired with delivery_integration_id
 
 
@@ -94,7 +94,7 @@ class Tenant(SQLModel, table=True):
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # One Table first-login setup. Platform provisioning starts new restaurants
+    # Scanaki first-login setup. Platform provisioning starts new restaurants
     # at not_started; existing and self-managed tenants remain completed.
     onboarding_status: str = Field(default="completed", max_length=32, index=True)
     onboarding_step: int = Field(default=0)
@@ -123,7 +123,7 @@ class Tenant(SQLModel, table=True):
         default=False
     )  # Require immediate payment for orders
 
-    # One Table dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
+    # Scanaki dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
     ordering_mode: str = Field(default="activation_pin", max_length=32)
     ordering_paused: bool = Field(default=False)
     ordering_pause_reason: str | None = Field(default=None, max_length=240)
@@ -223,7 +223,7 @@ class Tenant(SQLModel, table=True):
     guest_birthday_marketing_enabled: bool = Field(default=False)
     guest_birthday_consent_text: str | None = Field(default=None)  # GDPR copy when marketing enabled
 
-    # Satisfecho Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
+    # Scanaki Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
     delivery_fee_cents: int = Field(default=0)
     delivery_radius_meters: int | None = Field(default=None)
     delivery_postal_codes: str | None = Field(
@@ -292,7 +292,7 @@ class Tenant(SQLModel, table=True):
     tse_serial_number: str | None = Field(default=None, max_length=128)
     tse_signature_counter: int = Field(default=1)
 
-    # Platform SaaS subscription (Satisfecho paywall — not restaurant guest payments)
+    # Platform SaaS subscription (Scanaki paywall - not restaurant guest payments)
     # none | trialing | active | canceled | past_due | grandfathered
     saas_subscription_status: str = Field(default="grandfathered", max_length=32)
     saas_trial_ends_at: datetime | None = Field(default=None)
@@ -863,7 +863,7 @@ class Table(TenantMixin, table=True):
 
 
 class SmartPlaque(SQLModel, table=True):
-    """A reusable physical QR/NFC plaque with a permanent OneTable URL."""
+    """A reusable physical QR/NFC plaque with a permanent Scanaki URL."""
 
     __tablename__ = "smart_plaque"
     id: int | None = Field(default=None, primary_key=True)
@@ -1402,7 +1402,7 @@ class Order(TenantMixin, table=True):
     )
     external_order_ref: str | None = Field(default=None, max_length=256, index=True)
 
-    # First-party Satisfecho Delivery (no delivery_integration_id); table_id stays null
+    # First-party Scanaki Delivery (no delivery_integration_id); table_id stays null
     order_channel: OrderChannel = Field(default=OrderChannel.table, max_length=32, index=True)
     delivery_address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     customer_phone: str | None = Field(default=None, max_length=40)
@@ -1861,7 +1861,7 @@ class OrderCreate(SQLModel):
 
 
 class SatisfechoDeliveryOrderCreate(SQLModel):
-    """Staff create first-party Satisfecho Delivery order (no table, no marketplace integration)."""
+    """Staff create first-party Scanaki Delivery order (no table, no marketplace integration)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1872,7 +1872,7 @@ class SatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class PublicSatisfechoDeliveryOrderCreate(SQLModel):
-    """Public guest create for Satisfecho Delivery (address + phone required; no courier assign)."""
+    """Public guest create for Scanaki Delivery (address + phone required; no courier assign)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1885,7 +1885,7 @@ class PublicSatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class OrderDeliveryUpdate(SQLModel):
-    """Update delivery metadata on a Satisfecho Delivery order."""
+    """Update delivery metadata on a Scanaki Delivery order."""
 
     delivery_address: str | None = None
     customer_phone: str | None = None
@@ -2089,7 +2089,7 @@ class TenantUpdate(SQLModel):
     guest_birthday_marketing_enabled: bool | None = None
     guest_birthday_consent_text: str | None = None
 
-    # Satisfecho Delivery fee + coverage
+    # Scanaki Delivery fee + coverage
     delivery_fee_cents: int | None = None
     delivery_radius_meters: int | None = None
     delivery_postal_codes: str | None = None  # JSON array string or empty to clear

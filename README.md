@@ -1,6 +1,6 @@
 <div align="center">
 
-![POS2 — Restaurant POS and ordering](docs/banner.svg)
+![Scanaki restaurant ordering](docs/banner.svg)
 
 [![version](https://img.shields.io/github/v/release/satisfecho/pos?style=flat-square&label=version)](https://github.com/satisfecho/pos/releases)
 [![build](https://img.shields.io/github/check-runs/satisfecho/pos/master?style=flat-square&label=build)](https://github.com/satisfecho/pos/actions)
@@ -19,21 +19,21 @@ _A point-of-sale system with a customer-facing menu, table management, reservati
 
 **Topics:** `restaurant-pos` · `multi-tenant` · `self-hosted` · `docker` · `fastapi` · `angular` · `postgresql` · `stripe` · `kitchen-display`
 
-**[Try the live demo →](https://satisfecho.de/)**
+**[Try the live demo →](https://scanaski.uk/)**
 
 ---
 </div>
 
-# One Table
+# Scanaki
 
-One Table is Fixaki's multi-tenant QR and NFC ordering product, built from the
+Scanaki is Fixaki's multi-tenant QR and NFC ordering product, built from the
 AGPL-licensed Satisfecho POS project. This fork keeps
 [`satisfecho/pos`](https://github.com/satisfecho/pos) as a read-only `upstream`
-remote so fixes can be reviewed and incorporated without overwriting One Table
+remote so fixes can be reviewed and incorporated without overwriting Scanaki
 product work.
 
 The first pilot tenant is **The Yue Tree Pub**. Its MVP flow is reusable permanent
-OneTable QR/NFC plaque → current table assignment → mobile menu → Stripe prepayment
+Scanaki QR/NFC plaque → current table assignment → mobile menu → Stripe prepayment
 → paid-order release → strict FIFO kitchen display. Start with
 [the pilot runbook](docs/0078-yue-tree-pilot-runbook.md) and
 [smart-plaque guide](docs/0079-reusable-smart-plaques.md).
@@ -41,7 +41,7 @@ OneTable QR/NFC plaque → current table assignment → mobile menu → Stripe p
 
 ## About the Project
 
-One Table is built for restaurants, pubs, and venues that want:
+Scanaki is built for restaurants, pubs, and venues that want:
 
 - **One place for everything** — Orders, tables, reservations, menu, and payments in a single stack.
 - **Customer ordering without apps** — Guests scan a table QR code, browse the menu, place orders, and pay with Stripe or Revolut (per-tenant). Optional table PIN keeps ordering secure.
@@ -111,11 +111,11 @@ Staff dashboard, kitchen display, and customer menu — a quick visual sense of 
 | **i18n & currency** | Multiple UI languages (e.g. en, es, ca, de, zh-CN, hi); backend localized messages; per-tenant currency (EUR, USD, MXN, etc.). |
 | **Multi-tenant** | Isolated data per tenant; first user becomes owner; configurable roles (owner, admin, kitchen, bartender, waiter, receptionist, courier) and permissions (e.g. reservation read/write). |
 | **Restaurant groups** | Multi-location operators can **create**, **join**, or **leave** a restaurant group (Settings → Restaurant group) and optionally **share billing customers** and/or **product catalog** across sibling locations. See [docs/0054-restaurant-groups.md](docs/0054-restaurant-groups.md). |
-| **Satisfecho Delivery** | First-party delivery channel (not Glovo/Uber): staff **Delivery** tab on Orders, create/assign courier, public guest checkout at `/delivery/{tenantId}`. See [docs/0053-satisfecho-delivery-order-channel.md](docs/0053-satisfecho-delivery-order-channel.md). |
+| **Scanaki Delivery** | First-party delivery channel (not Glovo/Uber): staff **Delivery** tab on Orders, create/assign courier, public guest checkout at `/delivery/{tenantId}`. See [docs/0053-satisfecho-delivery-order-channel.md](docs/0053-satisfecho-delivery-order-channel.md). |
 | **Courier portal** | Couriers log in at `/courier/login` and work Mine / order actions at `/courier`. Demo credentials: `COURIER_EMAIL` / `COURIER_PASSWORD` in `config.env.example`. See [docs/0053-satisfecho-delivery-order-channel.md](docs/0053-satisfecho-delivery-order-channel.md). |
 | **SaaS signup paywall** | After guided signup (`/register` / `/signup`), new tenants may hit `/paywall` (trial or subscribe) when `SAAS_PAYWALL_ENABLED=true`. Default is `false` for local/demo. See [docs/0052-saas-signup-paywall.md](docs/0052-saas-signup-paywall.md). |
 | **Public pricing** | Hosted trial/monthly price from live `GET /saas/config` at **`/pricing`** (no login). Self-host / AGPLv3 alternative; does not imply billing when paywall is off. |
-| **Platform operator** | Satisfecho platform admins log in at `/platform/login` and oversee tenants at `/platform`. Distinct from provider and tenant staff. See [docs/0059-platform-operator-portal.md](docs/0059-platform-operator-portal.md). |
+| **Platform operator** | Scanaki platform admins log in at `/platform/login` and oversee tenants at `/platform`. Distinct from provider and tenant staff. See [docs/0059-platform-operator-portal.md](docs/0059-platform-operator-portal.md). |
 | **Products & images** | Staff manage products at `/products`. On deploy, demo products are linked to catalog provider products so the Products page shows images (beer/pizza/wine import); first load of `/products` backfills image URLs. |
 | **Provider portal** | Suppliers register at `/provider/register`, log in at `/provider/login`, and manage their catalog at `/provider` (tile/list view, search, add/edit/delete products, company details). See [docs/0014-provider-portal.md](docs/0014-provider-portal.md). |
 | **Tenant branding (public)** | Per-tenant **background colour** (hex, e.g. RAL5002 Azul) and **header background image** for book, menu, and reservation-view pages. Set in Settings → Business profile; optional dark overlay when a header image is used. See [docs/0028-tenant-public-branding.md](docs/0028-tenant-public-branding.md). |
@@ -140,7 +140,7 @@ Planned but not yet implemented: batch order operations, and stricter “must pa
 
 ## Getting Started
 
-The quickest way to try POS out is to head over to [https://satisfecho.de/](https://satisfecho.de/) and set up your restaurant.
+The quickest way to try POS out is to head over to [https://scanaski.uk/](https://scanaski.uk/) and set up your restaurant.
 
 ### Prerequisites
 
@@ -192,7 +192,7 @@ The quickest way to try POS out is to head over to [https://satisfecho.de/](http
 | **Public pricing** | http://localhost:4202/pricing |
 | **Public about** | http://localhost:4202/about |
 | **Public guest feedback** | http://localhost:4202/feedback/{tenantId} |
-| **Public Satisfecho Delivery (example tenant 1)** | http://localhost:4202/delivery/1 |
+| **Public Scanaki Delivery (example tenant 1)** | http://localhost:4202/delivery/1 |
 | **Provider login** | http://localhost:4202/provider/login |
 | **Provider dashboard** | http://localhost:4202/provider |
 | **Courier login** | http://localhost:4202/courier/login |
@@ -257,7 +257,7 @@ Key variables in `config.env` (see `config.env.example` for the full list):
 | [docs/0015-kitchen-display.md](docs/0015-kitchen-display.md) | Kitchen display: full-screen view, auto-refresh, optional sound |
 | [docs/0017-billing-customers-factura.md](docs/0017-billing-customers-factura.md) | Billing customers (Factura): register company details, search, print invoice with “Bill to” |
 | [docs/0052-saas-signup-paywall.md](docs/0052-saas-signup-paywall.md) | SaaS signup paywall: trial or subscribe before staff app (`SAAS_PAYWALL_ENABLED`) |
-| [docs/0053-satisfecho-delivery-order-channel.md](docs/0053-satisfecho-delivery-order-channel.md) | Satisfecho Delivery: staff Delivery tab, courier API, public `/delivery/{tenantId}` checkout |
+| [docs/0053-satisfecho-delivery-order-channel.md](docs/0053-satisfecho-delivery-order-channel.md) | Scanaki Delivery: staff Delivery tab, courier API, public `/delivery/{tenantId}` checkout |
 | [docs/0054-restaurant-groups.md](docs/0054-restaurant-groups.md) | Restaurant groups: multi-location sharing of billing customers and products |
 
 ---

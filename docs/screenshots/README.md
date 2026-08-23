@@ -77,7 +77,7 @@ Provider catalog management. See [docs/0014-provider-portal.md](../0014-provider
 
 ![Provider dashboard at /provider](provider.png)
 
-### Public Satisfecho Delivery
+### Public Scanaki Delivery
 
 Guest checkout at `/delivery/{tenantId}`. See [docs/0053-satisfecho-delivery-order-channel.md](../0053-satisfecho-delivery-order-channel.md).
 

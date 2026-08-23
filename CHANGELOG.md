@@ -37,6 +37,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 - **Agent loop (FEAT waiting for human):** Feature coder step skips parked **FEAT** tasks after one waiting GitHub comment until a human replies on the linked issue (`scripts/agent-feat-waiting-human-preflight.sh`).
 
+## [2.1.154] - 2026-08-23
+
+### Changed
+
+- **Scanaki rebrand:** Renamed the customer-facing One Table product to Scanaki across the public site, legal pages, staff application, onboarding, platform portal, QR/NFC plaque artwork, delivery labels, email sender defaults and all supported languages.
+- **Canonical domain:** Updated SEO metadata, canonical links, sitemap, robots, payment examples, production smoke defaults and plaque deployment guidance to `https://scanaski.uk`.
+- **Compatibility preserved:** Kept database channel values, Python module names, encryption salts, `ONETABLE_*` operations variables, script filenames and the existing `mmarzook3/OneTable` source URL unchanged to avoid breaking stored data or deployments.
+
+### Added
+
+- **Scanaki social card:** Replaced the legacy social-sharing bitmap with a 1200x630 Scanaki card displaying `scanaski.uk`.
+
 ## [2.1.153] - 2026-08-23
 
 ### Added

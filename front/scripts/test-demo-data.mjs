@@ -5,10 +5,10 @@
  * Optional: open /book/1 (or BOOK_TENANT_ID) to verify public book page (no login).
  *
  * Usage (from repo root):
- *   BASE_URL=http://satisfecho.de LOGIN_EMAIL=ralf@roeber.de LOGIN_PASSWORD=secret node front/scripts/test-demo-data.mjs
+ *   BASE_URL=https://scanaski.uk LOGIN_EMAIL=ralf@roeber.de LOGIN_PASSWORD=secret node front/scripts/test-demo-data.mjs
  *
  * Env:
- *   BASE_URL       App URL (default: auto-detect or http://satisfecho.de)
+ *   BASE_URL       App URL (default: auto-detect or https://scanaski.uk)
  *   LOGIN_EMAIL    User email (required for products/tables check)
  *   LOGIN_PASSWORD Password
  *   BOOK_TENANT_ID Tenant id for public book page check (default: 1)
@@ -42,7 +42,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

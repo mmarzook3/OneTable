@@ -1,4 +1,4 @@
-"""TTL cleanup for abandoned unpaid public Satisfecho Delivery orders."""
+"""TTL cleanup for abandoned unpaid public Scanaki Delivery orders."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone

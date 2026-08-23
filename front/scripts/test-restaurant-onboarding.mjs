@@ -28,7 +28,7 @@ async function clickAndWaitFor(page, selector, nextSelector) {
 
 async function main() {
   const stamp = Date.now();
-  const restaurantName = `One Table Onboarding Smoke ${stamp}`;
+  const restaurantName = `Scanaki Onboarding Smoke ${stamp}`;
   const ownerEmail = `onboarding-smoke-${stamp}@amvara.de`;
   let ownerPassword = '';
   let ownerLoggedIn = false;

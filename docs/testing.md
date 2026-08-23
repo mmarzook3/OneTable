@@ -14,7 +14,7 @@ Tests auto-detect the first responding port among **4203, 4202, 4200** when `BAS
 
 | Variable | Description |
 |----------|-------------|
-| `BASE_URL` | App base URL (e.g. `http://127.0.0.1:4203`, `http://satisfecho.de`). Default: auto-detect localhost port or fallback. |
+| `BASE_URL` | App base URL (e.g. `http://127.0.0.1:4203`, `https://scanaski.uk`). Default: auto-detect localhost port or fallback. |
 | `HEADLESS` | Default **headless**. Set `0`, `false`, or `no` for a visible Chrome window. |
 | `PUPPETEER_EXECUTABLE_PATH` | Path to Chrome binary; default macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. |
 | `LOGIN_EMAIL` / `LOGIN_PASSWORD` | Staff/demo user for login-required tests. Often loaded from `.env` as `DEMO_LOGIN_EMAIL` / `DEMO_LOGIN_PASSWORD`. |
@@ -57,7 +57,7 @@ Pytest sets **`RATE_LIMIT_ENABLED=false`** via `back/tests/conftest.py` (and `pg
 
 `tests/test_public_menu_order_response.py` checks that the first public menu order response is **`created`** and the next is **`updated`** (same `order_id`).
 
-`tests/test_settings_defaults.py` asserts the **`EMAIL_FROM`** settings default is **`noreply@satisfecho.de`** (not **`example.com`**).
+`tests/test_settings_defaults.py` asserts the **`EMAIL_FROM`** settings default is **`noreply@scanaski.uk`** (not **`example.com`**).
 
 **Note:** `GET /users/me` returns **200** with JSON **`null`** when there is no session (not **401**), so the SPA auth probe does not show as a failed request for guests.
 
@@ -99,7 +99,7 @@ node front/scripts/debug-reservations.mjs
 ./scripts/run-reservation-tests.sh
 # With staff test: STAFF_TEST=1 ./scripts/run-reservation-tests.sh
 # Headless: HEADLESS=1 ./scripts/run-reservation-tests.sh
-# Custom URLs: BASE_URLS="http://127.0.0.1:4203 http://satisfecho.de" ./scripts/run-reservation-tests.sh
+# Custom URLs: BASE_URLS="http://127.0.0.1:4203 https://scanaski.uk" ./scripts/run-reservation-tests.sh
 ```
 
 | Script | Purpose |
@@ -114,7 +114,7 @@ node front/scripts/debug-reservations.mjs
 ```bash
 node front/scripts/test-reservation-create.mjs
 # amvara9 headless (sends confirmation to ralf.roeber@amvara.de by default):
-#   BASE_URL=https://www.satisfecho.de HEADLESS=1 node front/scripts/test-reservation-create.mjs
+#   BASE_URL=https://scanaski.uk HEADLESS=1 node front/scripts/test-reservation-create.mjs
 # Override email: TEST_EMAIL=you@your-domain.com node front/scripts/test-reservation-create.mjs
 # Or: npm run test:reservation-create --prefix front
 ```
@@ -127,7 +127,7 @@ Checks tenant 1 has ≥10 tables, ≥10 products, and that `/book/1` loads. Uses
 
 ```bash
 npm run test:demo-data --prefix front
-# Or: BASE_URL=http://satisfecho.de LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs
+# Or: BASE_URL=https://scanaski.uk LOGIN_EMAIL=... LOGIN_PASSWORD=... node front/scripts/test-demo-data.mjs
 ```
 
 - **Env:** `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, `BOOK_TENANT_ID` (default `1`), `HEADLESS`.
@@ -161,9 +161,9 @@ npm run test:restaurant-groups --prefix front
 
 ---
 
-### 2a3. Staff Satisfecho Delivery (create + edit)
+### 2a3. Staff Scanaki Delivery (create + edit)
 
-Smoke for staff **`/staff/orders`**: open **New delivery order**, create a Satisfecho Delivery order (address, phone, one product; optional courier), assert Delivery tab channel badge / address, then **Edit delivery** and save a phone change. Does not cover public checkout (`test:delivery-checkout`) or courier portal (`test:courier-actions`).
+Smoke for staff **`/staff/orders`**: open **New delivery order**, create a Scanaki Delivery order (address, phone, one product; optional courier), assert Delivery tab channel badge / address, then **Edit delivery** and save a phone change. Does not cover public checkout (`test:delivery-checkout`) or courier portal (`test:courier-actions`).
 
 ```bash
 npm run test:staff-delivery --prefix front
@@ -175,7 +175,7 @@ npm run test:staff-delivery --prefix front
 
 ---
 
-### 2a3a. Public Satisfecho Delivery checkout
+### 2a3a. Public Scanaki Delivery checkout
 
 Smoke for public **`/delivery/:tenantId`** checkout (`docs/0053-satisfecho-delivery-order-channel.md`, shipped CLOSED-302 / #304): menu → cart → address → create order. Also asserts product `<img>` src uses **`/api/uploads/...`** (not bare `/uploads/...`, which 404s on HAProxy front — FEAT-312 / #312). Script is committed on `development` (`front/scripts/test-delivery-checkout.mjs`). Does not cover staff create/edit (`test:staff-delivery`), track page (`test:delivery-track`), or courier portal (`test:courier-actions`).
 
@@ -189,7 +189,7 @@ npm run test:delivery-checkout --prefix front
 
 ---
 
-### 2a3b. Public Satisfecho Delivery track (invalid token)
+### 2a3b. Public Scanaki Delivery track (invalid token)
 
 Smoke for the token-gated customer track page at `/delivery/:tenantId/track` (`docs/0053-satisfecho-delivery-order-channel.md`). Opens the route with a missing/invalid `public_order_token` and asserts an error / not-found state (no raw `DELIVERY_TRACK.*` i18n keys). Does not create a paid order or cover the happy-path track flow.
 
@@ -218,11 +218,11 @@ npm run test:courier-actions --prefix front
 
 ### 2a3d. Platform operator portal
 
-Smoke for the SaaS platform operator dashboard (`/platform`, login at `/platform/login`): log in, assert metric cards on the dashboard, open a tenant detail page, and confirm the public Satisfecho Delivery link for that tenant. See `docs/0059-platform-operator-portal.md`. Does not cover tenant staff login, paywall (`test:paywall`), or courier portal (`test:courier-actions`).
+Smoke for the SaaS platform operator dashboard (`/platform`, login at `/platform/login`): log in, assert metric cards on the dashboard, open a tenant detail page, and confirm the public Scanaki Delivery link for that tenant. See `docs/0059-platform-operator-portal.md`. Does not cover tenant staff login, paywall (`test:paywall`), or courier portal (`test:courier-actions`).
 
 ### 2a3e. Platform-created restaurant onboarding
 
-Full local smoke for the One Table operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
+Full local smoke for the Scanaki operator-to-owner flow. It creates a uniquely named restaurant through `/platform/restaurants/new`, reads the generated temporary credentials, verifies first-login redirect to `/onboarding`, completes every setup section, reaches `/dashboard`, and purges the exact test tenant afterward.
 
 ```bash
 PLATFORM_OPERATOR_EMAIL=onboarding-platform-test@amvara.de \
@@ -359,7 +359,7 @@ npm run test:landing-version --prefix front
 - Asserts `[data-testid="landing-version"]` or `.landing-version-bar` is visible and contains a version-like string (e.g. `1.0.1`). Skips if redirected to dashboard/login.
 - After a **`front/package.json`** version bump, run **`node front/scripts/get-commit-hash.js`** and commit **`commit-hash.ts`** with the bump so the footer semver matches (see committer / commit-changelog-version rule).
 - When `LOGIN_EMAIL`/`LOGIN_PASSWORD` or `DEMO_LOGIN_EMAIL`/`DEMO_LOGIN_PASSWORD` are set (e.g. from repo `.env`), also logs in with `TENANT_ID` (default `1`), then from `/dashboard` clicks each visible sidebar `a.nav-link` and each inventory `a.nav-sublink` (opens the inventory section when needed). Fullscreen routes (`/kitchen`, `/bar`) have no sidebar, so the test returns to `/dashboard` before each link. Without credentials, only the landing check runs (CI-friendly).
-- Set `LANDING_VERSION_ONLY=1` to force only the landing/version step even when `.env` defines demo login vars (e.g. `BASE_URL=https://satisfecho.de` smoke without a **401** from wrong credentials).
+- Set `LANDING_VERSION_ONLY=1` to force only the landing/version step even when `.env` defines demo login vars (e.g. `BASE_URL=https://scanaski.uk` smoke without a **401** from wrong credentials).
 - For **non-local** `BASE_URL`, the script runs a short HTTP reachability probe to `/` before Puppeteer so firewall/sandbox issues fail fast with a clear hint. Set `LANDING_SMOKE_NO_REACHABILITY_PROBE=1` to skip that probe. Use `SKIP_LANDING_PACKAGE_VERSION_CHECK=1` when the deployed footer semver may differ from this checkout’s `front/package.json`.
 
 **Provider login and register links:**
@@ -478,7 +478,7 @@ npm run test:guided-signup-wizard --prefix front
 
 ```bash
 npm run test:register --prefix front
-# Or: BASE_URL=http://satisfecho.de node front/scripts/test-register.mjs
+# Or: BASE_URL=https://scanaski.uk node front/scripts/test-register.mjs
 ```
 
 - **Env:** `BASE_URL`, `REGISTER_EMAIL`, `REGISTER_PASSWORD`, `REGISTER_FULL_NAME`, `REGISTER_TENANT_NAME`, `HEADLESS`. Uses unique email by default (`test-<timestamp>@amvara.de`).
@@ -542,7 +542,7 @@ Login, open `/catalog`, count cards and how many show real images vs placeholder
 
 ```bash
 npm run test:catalog --prefix front
-# Or: LOGIN_EMAIL=... LOGIN_PASSWORD=... BASE_URL=http://satisfecho.de node front/scripts/test-catalog.mjs
+# Or: LOGIN_EMAIL=... LOGIN_PASSWORD=... BASE_URL=https://scanaski.uk node front/scripts/test-catalog.mjs
 ```
 
 - **Env:** `BASE_URL`, `LOGIN_EMAIL`, `LOGIN_PASSWORD`, `HEADLESS`.
@@ -590,7 +590,7 @@ npm run test:api-docs --prefix front
 
 ### 11c. amvara9 production smoke
 
-Landing, login page, public book page, and `/api/health` against production. **Default `BASE_URL` is `https://www.satisfecho.de`** — set an explicit local `BASE_URL` if you do not intend to hit prod.
+Landing, login page, public book page, and `/api/health` against production. **Default `BASE_URL` is `https://scanaski.uk`** — set an explicit local `BASE_URL` if you do not intend to hit prod.
 
 ```bash
 npm run test:amvara9-smoke --prefix front
@@ -679,9 +679,9 @@ npm run test:settings-logo --prefix front
 
 ---
 
-### 13d. Support access (Users → Add Satisfecho support)
+### 13d. Support access (Users → Add Scanaki support)
 
-Login as admin or owner, open `/users`, use **Add Satisfecho support**, and assert the form pre-fills `support@satisfecho.de` as admin.
+Login as admin or owner, open `/users`, use **Add Scanaki support**, and assert the form pre-fills `support@scanaski.uk` as admin.
 
 ```bash
 npm run test:support-access --prefix front
@@ -775,7 +775,7 @@ From repo root: `npm run <script> --prefix front`. From `front/`: `npm run <scri
 | `test:kitchen-status-dropdown` | `scripts/test-kitchen-status-dropdown.mjs` (Kitchen display: status dropdown visible, not clipped) |
 | `test:bar-display` | `scripts/test-bar-display.mjs` (Bar display `/bar`: route + chrome + Bar title) |
 | `test:settings-logo` | `scripts/test-settings-logo-upload.mjs` (Settings logo upload; owner/admin `LOGIN_*` / `DEMO_LOGIN_*`) |
-| `test:support-access` | `scripts/test-support-access.mjs` (Users → Add Satisfecho support pre-fills `support@satisfecho.de`; admin/owner) |
+| `test:support-access` | `scripts/test-support-access.mjs` (Users → Add Scanaki support pre-fills `support@scanaski.uk`; admin/owner) |
 | `test:kitchen-timer` | `scripts/test-kitchen-timer.mjs` (Kitchen `/kitchen`: Timer settings + Waiting timer when orders exist) |
 | `test:book-whatsapp` | `scripts/test-book-whatsapp-puppeteer.mjs` (public `/book/1` WhatsApp CTA; optional `API_BASE`; no login) |
 | `test:my-shift-clock-qr` | `scripts/test-my-shift-clock-qr.mjs` (My shift venue clock QR / `.scan-cta`; waiter `LOGIN_*` + optional `OWNER_*`) |
@@ -789,10 +789,10 @@ From repo root: `npm run <script> --prefix front`. From `front/`: `npm run <scri
 | `test:courier-actions` | `scripts/test-courier-actions.mjs` (courier portal status actions; `COURIER_EMAIL` / `COURIER_PASSWORD`, defaults `courier-test-phase1@amvara.de` / `secret` — also in `config.env.example`) |
 | `test:delivery-checkout` | `scripts/test-delivery-checkout.mjs` (public `/delivery/:tenantId` menu → cart → address → create; no login; see `docs/0053`) |
 | `test:delivery-track` | `scripts/test-delivery-track.mjs` (public `/delivery/:tenantId/track` invalid-token / error-state; see `docs/0053`) |
-| `test:staff-delivery` | `scripts/test-staff-delivery.mjs` (staff `/staff/orders`: create Satisfecho Delivery + edit address/phone; needs `LOGIN_*` / `DEMO_LOGIN_*`) |
+| `test:staff-delivery` | `scripts/test-staff-delivery.mjs` (staff `/staff/orders`: create Scanaki Delivery + edit address/phone; needs `LOGIN_*` / `DEMO_LOGIN_*`) |
 | `test:api-docs` | `scripts/test-api-docs.mjs` (Swagger `/api/docs` + OpenAPI; no login) |
 | `test:websocket` | `scripts/test-websocket.mjs` (post-login WS on `/orders`; needs ws-bridge + `LOGIN_*` / `DEMO_LOGIN_*`) |
-| `test:amvara9-smoke` | `scripts/test-amvara9-smoke.mjs` (prod smoke: landing/login/book + `/api/health`; **default `BASE_URL=https://www.satisfecho.de`**) |
+| `test:amvara9-smoke` | `scripts/test-amvara9-smoke.mjs` (prod smoke: landing/login/book + `/api/health`; **default `BASE_URL=https://scanaski.uk`**) |
 | `test:menu-logo` | `scripts/test-menu-logo.mjs` (customer `/menu/:token` shows restaurant logo; needs `LOGIN_*` or `TABLE_TOKEN`) |
 | `test:settings-contact-tax` | `scripts/test-settings-contact-tax-dropdown.mjs` (Settings → Contact default tax IVA options; needs `LOGIN_*` / `DEMO_LOGIN_*`) |
 | `test:staff-menu-link` | `scripts/test-staff-menu-link-puppeteer.mjs` (staff Open menu → place order without PIN modal; needs open order + `LOGIN_*`) |
@@ -810,7 +810,7 @@ From repo root: `npm run <script> --prefix front`. From `front/`: `npm run <scri
 - **Link demo products to catalog (images on /products):** `docker compose exec back python -m app.seeds.link_demo_products_to_catalog` — links products without images to provider products that have images; deploy runs this after catalog imports.
 - **Clear orphan provider product images:** `docker compose exec back python -m app.seeds.clear_orphan_provider_product_images` — sets `ProviderProduct.image_filename` (and Product `providers/...` refs) to null when the file is missing under `uploads/providers/`, so catalog stops requesting 404 URLs.
 - **Demo courier user:** `docker compose exec back python -m app.seeds.seed_demo_courier_user` — ensures tenant 1 has one `courier` role user when missing (`COURIER_EMAIL` / `COURIER_PASSWORD`, defaults `courier-test-phase1@amvara.de` / `secret`). Bootstrap / `reset_demo_data` run this **before** demo orders so Delivery samples can assign courier / `out_for_delivery`.
-- **Demo orders (Reports + Delivery):** `docker compose exec back python -m app.seeds.seed_demo_orders` — seeds tenant 1 with paid/active **table** orders over ±90 days plus a small Satisfecho Delivery mix; idempotent (skips if orders exist). Bootstrap / `reset_demo_data` run this. Optional: `./run_seeds.sh --demo-orders` from `back/`.
+- **Demo orders (Reports + Delivery):** `docker compose exec back python -m app.seeds.seed_demo_orders` — seeds tenant 1 with paid/active **table** orders over ±90 days plus a small Scanaki Delivery mix; idempotent (skips if orders exist). Bootstrap / `reset_demo_data` run this. Optional: `./run_seeds.sh --demo-orders` from `back/`.
 - **Demo delivery orders check:** `docker compose exec back python -m app.seeds.check_demo_delivery_orders` (exit 0 = tenant 1 has ≥1 `order_channel=satisfecho_delivery` row; soft-warns if none have `courier_user_id`).
 - **Demo waiting list:** `docker compose exec back python -m app.seeds.seed_demo_waiting_list` — seeds tenant 1 with a few `waiting` + one `notified` entry for staff Waitlist / public `/waitlist/1`; idempotent (skips if entries exist). Bootstrap / `reset_demo_data` run this.
 - **Demo waiting list check:** `docker compose exec back python -m app.seeds.check_demo_waiting_list` (exit 0 = tenant 1 has ≥1 `waiting` and ≥1 `notified` row).

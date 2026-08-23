@@ -1,4 +1,4 @@
-"""Cancel abandoned unpaid public Satisfecho Delivery orders past a TTL.
+"""Cancel abandoned unpaid public Scanaki Delivery orders past a TTL.
 
 Public checkout (`notify_kitchen=False`) tags orders with
 ``PUBLIC_SATISFECHO_DELIVERY_SESSION_ID``. Staff creates are never tagged and
@@ -28,7 +28,7 @@ def cleanup_unpaid_public_delivery_orders(
     now: datetime | None = None,
 ) -> dict:
     """
-    Soft-cancel public Satisfecho Delivery orders that stayed unpaid past TTL.
+    Soft-cancel public Scanaki Delivery orders that stayed unpaid past TTL.
 
     Criteria (all required):
     - order_channel = satisfecho_delivery

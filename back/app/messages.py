@@ -69,7 +69,7 @@ MESSAGES = {
         "customer_verification_resent": "If an unverified account exists for this email, you will receive a verification link shortly.",
         "email_customer_verify_subject": "Verify your email",
         "email_customer_verify_heading": "Verify your email",
-        "email_customer_verify_intro": "Thanks for creating a Satisfecho customer account. Click the button below to verify your email address:",
+        "email_customer_verify_intro": "Thanks for creating a Scanaki customer account. Click the button below to verify your email address:",
         "email_customer_verify_button": "Verify email",
         "email_customer_verify_copy_link": "Or copy and paste this link into your browser:",
         "email_customer_verify_disclaimer": "If you did not create this account, you can ignore this email.",

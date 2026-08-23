@@ -4,7 +4,7 @@ demo courier (when missing), orders, reservations, waiting-list samples, and
 delivery fee/zone settings.
 Use this to refresh demo data on a server (e.g. amvara9) so Informes show meaningful data.
 Re-seed includes a demo courier user when missing (see seed_demo_courier_user),
-table orders plus Satisfecho Delivery samples (see seed_demo_orders), a small
+table orders plus Scanaki Delivery samples (see seed_demo_orders), a small
 waiting-list queue (see seed_demo_waiting_list), and demo delivery fee/zone
 coverage when unset (see seed_demo_delivery_settings).
 

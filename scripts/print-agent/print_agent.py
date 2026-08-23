@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-LAN print agent for Satisfecho POS (#317).
+LAN print agent for Scanaki (#317).
 
 Polls the cloud backend for pending print jobs and sends ESC/POS text to a
 network thermal printer (JetDirect :9100) or writes to a dry-run file.
 
 Environment:
   PRINT_AGENT_API_BASE   Base URL including /api if behind HAProxy
-                         (e.g. http://127.0.0.1:4202/api or https://satisfecho.de/api)
+                         (e.g. http://127.0.0.1:4202/api or https://scanaski.uk/api)
   PRINT_AGENT_TOKEN      Agent token from Settings → Printing (shown once at create)
   PRINT_AGENT_POLL_SEC   Poll interval seconds (default 2)
   KITCHEN_PRINTER_HOST   Host/IP for kitchen role (default 127.0.0.1)

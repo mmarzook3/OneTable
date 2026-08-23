@@ -1,4 +1,4 @@
-"""One Table unattended-ordering policy and kitchen device API."""
+"""Scanaki unattended-ordering policy and kitchen device API."""
 
 from __future__ import annotations
 
