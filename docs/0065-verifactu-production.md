@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Extends **`docs/0018-verifactu-fiscal-invoicing.md`**. Documents the **build-vs-buy** decision for AEAT wire protocol, what Satisfecho implements in-product today, and what is **not** certified for `fiscal_mode: live`.
+Extends **`docs/0018-verifactu-fiscal-invoicing.md`**. Documents the **build-vs-buy** decision for AEAT wire protocol, what Scanaki implements in-product today, and what is **not** certified for `fiscal_mode: live`.
 
 Related: GitHub **#326** (complete VeriFactu), **#203** (initial stub).
 
@@ -10,7 +10,7 @@ Related: GitHub **#326** (complete VeriFactu), **#203** (initial stub).
 
 ### Context
 
-Spanish anti-fraud rules (RD 1007/2023, Orden HAC/1177/2024, developer FAQs) require invoicing systems (SIF) to provide integrity, unalterability, hash chaining, a verification QR, and (in VERI\*FACTU mode) remisión of registros to AEAT. Software vendors already face adaptation obligations; end-user mandatory dates were deferred into **2027**, but Satisfecho must not market a false “live AEAT” capability.
+Spanish anti-fraud rules (RD 1007/2023, Orden HAC/1177/2024, developer FAQs) require invoicing systems (SIF) to provide integrity, unalterability, hash chaining, a verification QR, and (in VERI\*FACTU mode) remisión of registros to AEAT. Software vendors already face adaptation obligations; end-user mandatory dates were deferred into **2027**, but Scanaki must not market a false “live AEAT” capability.
 
 Inventing SOAP/XML payloads or hash “huella” fields without the official AEAT technical packs is high risk (wrong cotejo, silent non-compliance, vendor fines).
 
@@ -59,7 +59,7 @@ Middleware (chosen provider) owns:
 | Order immutability after fiscal alta; anulación (credit-note) path | **Yes** (#326) |
 | Official AEAT huella algorithm / SOAP remisión | **Via middleware** (Fiskaly SIGN ES adapter wired; needs commercial credentials) |
 | `fiscal_mode: live` production remisión | **Gated** — unlock + provider credentials; mock OK only non-prod |
-| Software-vendor `declaración responsable` for Satisfecho as SIF | **Not claimed** in this doc; legal/ops follow-up |
+| Software-vendor `declaración responsable` for Scanaki as SIF | **Not claimed** in this doc; legal/ops follow-up |
 
 ## Configuration
 

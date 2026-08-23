@@ -1663,7 +1663,7 @@ export interface Order {
   payment_state?: string | null;
 }
 
-/** Staff create first-party Satisfecho Delivery order (no table). */
+/** Staff create first-party Scanaki Delivery order (no table). */
 export interface SatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -1694,7 +1694,7 @@ export interface SatisfechoDeliveryOrderResponse {
   created_at?: string | null;
 }
 
-/** Public guest Satisfecho Delivery create (no auth). */
+/** Public guest Scanaki Delivery create (no auth). */
 export interface PublicSatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -3025,7 +3025,7 @@ export class ApiService {
     );
   }
 
-  /** Tenant users with courier role (for Satisfecho Delivery assign). Uses ORDER_READ-scoped endpoint. */
+  /** Tenant users with courier role (for Scanaki Delivery assign). Uses ORDER_READ-scoped endpoint. */
   getCouriers(): Observable<User[]> {
     return this.http.get<User[]>(`${this.apiUrl}/users/couriers`).pipe(
       catchError(() => of([]))
@@ -3044,7 +3044,7 @@ export class ApiService {
     return this.http.post<SatisfechoDeliveryOrderResponse>(`${this.apiUrl}/orders/satisfecho-delivery`, body);
   }
 
-  /** Public guest: create Satisfecho Delivery order (address + phone required). */
+  /** Public guest: create Scanaki Delivery order (address + phone required). */
   createPublicSatisfechoDeliveryOrder(
     tenantId: number,
     body: PublicSatisfechoDeliveryOrderCreate,

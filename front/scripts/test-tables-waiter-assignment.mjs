@@ -70,7 +70,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

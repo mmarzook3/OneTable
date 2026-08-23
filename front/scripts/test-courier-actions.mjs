@@ -120,7 +120,7 @@ async function ensureReadyAssignedOrder(baseUrl, cookieHeader) {
   }
 
   throw new Error(
-    'No open delivery order for courier smoke. Create a Satisfecho Delivery order (ready) first.'
+    'No open delivery order for courier smoke. Create a Scanaki Delivery order (ready) first.'
   );
 }
 

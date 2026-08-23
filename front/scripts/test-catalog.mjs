@@ -6,10 +6,10 @@
  *
  * Usage (from repo root):
  *   LOGIN_EMAIL=u@x.com LOGIN_PASSWORD=secret node front/scripts/test-catalog.mjs
- *   BASE_URL=http://satisfecho.de LOGIN_EMAIL=ralf@roeber.de LOGIN_PASSWORD=secret node front/scripts/test-catalog.mjs
+ *   BASE_URL=https://scanaski.uk LOGIN_EMAIL=ralf@roeber.de LOGIN_PASSWORD=secret node front/scripts/test-catalog.mjs
  *
  * Env:
- *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or https://scanaski.uk)
  *   LOGIN_EMAIL    Required for /catalog
  *   LOGIN_PASSWORD Required
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
@@ -39,7 +39,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Documents **German Technical Security Device (TSE)** support for Satisfecho tenants: Phase 0 build-vs-buy ADR, tenant `tse_mode`, signed transaction records, receipt fields, and DSFinV-K export stub.
+Documents **German Technical Security Device (TSE)** support for Scanaki tenants: Phase 0 build-vs-buy ADR, tenant `tse_mode`, signed transaction records, receipt fields, and DSFinV-K export stub.
 
 Related: GitHub **#316**. Spain VeriFactu remains separate (`docs/0018-verifactu-fiscal-invoicing.md`, `docs/0065-verifactu-production.md`). **Do not conflate** the two regimes; a tenant may use VeriFactu (`fiscal_mode`) and/or TSE (`tse_mode`) independently.
 
@@ -10,7 +10,7 @@ Related: GitHub **#316**. Spain VeriFactu remains separate (`docs/0018-verifactu
 
 - Enabling **`tse_mode: live`** does **not** by itself satisfy KassenSichV / §146a AO. Real cloud TSE credentials, BSI TR-03153 certified integration, DSFinV-K completeness, and **Kassenmeldepflicht** filing must follow **official specs** and **German tax-advisor review**.
 - This product’s **test** path uses a **local signed stub** (`pos.tse.stub.v1`) and an optional HTTP hook to a cloud TSE provider. That is **not** a claim of BSI certification or Finanzamt acceptance.
-- Do **not** market Satisfecho as “TSE certified live” until provider credentials + certified path are verified.
+- Do **not** market Scanaki as “TSE certified live” until provider credentials + certified path are verified.
 
 ## Phase 0 — ADR: cloud TSE vs local hardware
 

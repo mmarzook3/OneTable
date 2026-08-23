@@ -179,7 +179,7 @@ def tse_transaction_public_dict(row: models.TseTransaction) -> dict[str, Any]:
         "submission_status": row.submission_status,
         "storno_of_tse_transaction_id": row.storno_of_tse_transaction_id,
         "disclaimer": (
-            "TSE record via configured provider — not a claim of BSI certification by Satisfecho alone. "
+            "TSE record via configured provider - not a claim of BSI certification by Scanaki alone. "
             "See docs/0072-tse-fiscal-compliance.md and docs/0074-fiscal-certified-middleware.md"
         ),
     }

@@ -43,12 +43,16 @@ async function main() {
   console.log('Headless:', headless);
   console.log('---');
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless,
-    defaultViewport: headless ? { width: 1280, height: 720 } : null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = process.env.PUPPETEER_WS_ENDPOINT
+    ? await puppeteer.connect({ browserWSEndpoint: process.env.PUPPETEER_WS_ENDPOINT })
+    : process.env.PUPPETEER_CONNECT_URL
+      ? await puppeteer.connect({ browserURL: process.env.PUPPETEER_CONNECT_URL })
+      : await puppeteer.launch({
+          executablePath: CHROME_PATH,
+          headless,
+          defaultViewport: headless ? { width: 1280, height: 720 } : null,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
 
   const page = await browser.newPage();
   const pageErrors = [];
@@ -98,12 +102,20 @@ async function main() {
       const rawKeyDump =
         title.includes('FEATURES_PAGE.') ||
         (document.body?.innerText || '').includes('FEATURES_PAGE.TITLE');
+      const scanakiDelivery = document.querySelector(
+        'a.features-card__link[href="/features/scanaki-delivery"]',
+      );
+      const legacyDelivery = document.querySelector(
+        'a.features-card__link[href="/features/satisfecho-delivery"]',
+      );
       return {
         title,
         categories,
         brandHref,
         registerOk,
         rawKeyDump,
+        scanakiDelivery: !!scanakiDelivery,
+        legacyDelivery: !!legacyDelivery,
       };
     });
 
@@ -115,6 +127,10 @@ async function main() {
       process.exit(1);
     }
     console.log('   Hero title:', shell.title);
+    if (!shell.title.includes('Scanaki') || !shell.scanakiDelivery || shell.legacyDelivery) {
+      console.error('FAIL: Scanaki brand or delivery feature slug is incorrect.', shell);
+      process.exit(1);
+    }
 
     if (shell.categories < 1) {
       console.error('FAIL: Expected at least one .features-category section.');
@@ -185,6 +201,35 @@ async function main() {
     }
     console.log('   Detail hero:', detailShell.title);
     console.log('   Benefit bullets:', detailShell.benefits);
+
+    console.log('4. Checking Scanaki Delivery canonical slug and legacy alias...');
+    await page.goto(new URL('/features/scanaki-delivery', baseUrl).href, {
+      waitUntil: 'networkidle2',
+      timeout: 20000,
+    });
+    await page.waitForSelector('[data-testid="feature-detail-title"]', { timeout: 10000 });
+    const deliveryTitle = await page.$eval(
+      '[data-testid="feature-detail-title"]',
+      (element) => (element.textContent || '').trim(),
+    );
+    if (!deliveryTitle.includes('Scanaki')) {
+      console.error('FAIL: Scanaki Delivery detail title is incorrect:', deliveryTitle);
+      process.exit(1);
+    }
+    await page.goto(new URL('/features/satisfecho-delivery', baseUrl).href, {
+      waitUntil: 'networkidle2',
+      timeout: 20000,
+    });
+    await page.waitForSelector('[data-testid="feature-detail-title"]', { timeout: 10000 });
+    const legacyCanonical = await page.$eval(
+      'link[rel="canonical"]',
+      (element) => element.getAttribute('href') || '',
+    );
+    if (!legacyCanonical.endsWith('/features/scanaki-delivery')) {
+      console.error('FAIL: Legacy delivery URL does not canonicalize to Scanaki:', legacyCanonical);
+      process.exit(1);
+    }
+    console.log('   Scanaki Delivery slug and legacy alias: OK');
 
     if (badResponses.length) {
       console.error('FAIL: Bad HTTP for /features document:', badResponses);

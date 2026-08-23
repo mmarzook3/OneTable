@@ -15,7 +15,7 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
       <div class="paywall-card">
         <div class="paywall-header">
           <div>
-            <p class="brand">One Table</p>
+            <p class="brand">Scanaki</p>
             <h1>{{ 'PAYWALL.TITLE' | translate }}</h1>
             <p class="lead">{{ 'PAYWALL.LEAD' | translate }}</p>
           </div>

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke: public Satisfecho Delivery track page loads (missing/invalid token shows error).
+ * Smoke: public Scanaki Delivery track page loads (missing/invalid token shows error).
  *
  * Usage:
  *   BASE_URL=http://127.0.0.1:4202 TENANT_ID=1 node front/scripts/test-delivery-track.mjs

@@ -8,7 +8,7 @@
 # MARKETING_VERIFY_NO_PLACEHOLDERS=1 fails the job if a manifest site is still a placeholder (often
 # expired Actions artifacts — refresh with scripts/refresh-expired-marketing-artifacts.sh).
 # CI rsync runs after git reset so bundles are not wiped (--delete removes dropped slugs).
-# Smoke test uses SMOKE_TEST_BASE_URL (default https://www.satisfecho.de) so SSL validates.
+# Smoke test uses SMOKE_TEST_BASE_URL (default https://scanaski.uk) so SSL validates.
 
 name: Deploy to amvara9
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Smoke test (landing, version, API health)
         env:
-          SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://www.satisfecho.de' }}
+          SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://scanaski.uk' }}
         run: |
           BASE="${SMOKE_TEST_BASE_URL}"
           echo "Smoke test: $BASE (landing), version in footer, $BASE/api/health"

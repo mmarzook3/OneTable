@@ -2,7 +2,7 @@
 Seed demo orders for tenant 1 on clean deployment so Reports (Informes) show meaningful data.
 
 Creates a mix of **table** orders (pending, preparing, ready, completed, paid) plus a small
-set of **Satisfecho Delivery** samples (`order_channel=satisfecho_delivery`, no table) so the
+set of **Scanaki Delivery** samples (`order_channel=satisfecho_delivery`, no table) so the
 staff Delivery tab, kitchen cards, and courier Mine list are non-empty after bootstrap /
 `reset_demo_data`.
 
@@ -43,7 +43,7 @@ DAYS_BACK = 90
 # Approximate count: paid orders (for reports) + a few active orders (pending/preparing/ready/completed)
 NUM_PAID_ORDERS = 35
 NUM_ACTIVE_ORDERS = 5
-# Satisfecho Delivery samples (staff Delivery tab / courier / kitchen demo)
+# Scanaki Delivery samples (staff Delivery tab / courier / kitchen demo)
 NUM_PAID_DELIVERY_ORDERS = 5
 NUM_ACTIVE_DELIVERY_ORDERS = 4
 
@@ -120,7 +120,7 @@ def _seed_demo_delivery_orders(
     tenant_id: int,
     products_for_orders: list[Product],
 ) -> int:
-    """Create Satisfecho Delivery demo orders (no table). Returns count created."""
+    """Create Scanaki Delivery demo orders (no table). Returns count created."""
     courier_user_id = _existing_courier_user_id(session, tenant_id)
     created = 0
 
@@ -278,7 +278,7 @@ def run() -> None:
             session.commit()
             print(
                 f"Tenant {DEMO_TENANT_ID}: created {n} demo orders "
-                f"(table + Satisfecho Delivery paid/active) for Reports, Orders, and Delivery."
+                f"(table + Scanaki Delivery paid/active) for Reports, Orders, and Delivery."
             )
         else:
             print("Tenant 1: no tables or products found. Run seed_demo_tables and seed_demo_products first.")

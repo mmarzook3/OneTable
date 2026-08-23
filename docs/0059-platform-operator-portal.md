@@ -1,6 +1,6 @@
 # Platform operator portal – Documentation
 
-This document describes the **platform operator portal**: login and SaaS oversight for Satisfecho platform administrators. It is distinct from the **provider portal** (`/provider`) and **tenant staff** login (`/login`).
+This document describes the **platform operator portal**: login and SaaS oversight for Scanaki platform administrators. It is distinct from the **provider portal** (`/provider`) and **tenant staff** login (`/login`).
 
 ---
 
@@ -23,8 +23,8 @@ Platform operators can:
     - `/public-menu/{id}` — guest menu
     - `/book/{id}` — reservations / booking
     - `/waitlist/{id}` — waitlist
-    - `/delivery/{id}` — Satisfecho Delivery checkout
-- Create a restaurant account at `/platform/restaurants/new`. The operator enters the restaurant name, owner name, and owner email. One Table creates the tenant and owner, then shows a one-time temporary password and password-creation link.
+    - `/delivery/{id}` — Scanaki Delivery checkout
+- Create a restaurant account at `/platform/restaurants/new`. The operator enters the restaurant name, owner name, and owner email. Scanaki creates the tenant and owner, then shows a one-time temporary password and password-creation link.
 
 Platform-created owners are sent to `/onboarding` on their first sign-in. The resumable wizard covers account security, restaurant details, ordering hours, table/QR/NFC allocation, a starter menu, and a final readiness check. Existing tenants are marked complete by the migration and are not redirected.
 

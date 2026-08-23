@@ -1,28 +1,28 @@
-# Satisfecho Delivery order channel (first-party)
+# Scanaki Delivery order channel (first-party)
 
-Staff can mark orders as **Satisfecho Delivery** (own channel, not Glovo/Uber). Staff UI on `/staff/orders` can create these orders, filter the **Delivery** tab, and update address/courier. Guests can place delivery orders on the public checkout at `/delivery/{tenantId}` (menu → cart → address → pay).
+Staff can mark orders as **Scanaki Delivery** (own channel, not Glovo/Uber). Staff UI on `/staff/orders` can create these orders, filter the **Delivery** tab, and update address/courier. Guests can place delivery orders on the public checkout at `/delivery/{tenantId}` (menu → cart → address → pay).
 
 ## Order fields
 
 | Field | Meaning |
 |-------|---------|
 | `order_channel` | `table` (default), `satisfecho_delivery`, or `marketplace` |
-| `delivery_address` | Drop-off address (nullable; required for Satisfecho create) |
+| `delivery_address` | Drop-off address (nullable; required for Scanaki create) |
 | `customer_phone` | E.164 phone (nullable; **required** on public create) |
 | `courier_user_id` | Optional FK to a `courier` user on the same tenant |
 | `notes` | Reused as delivery notes (courier `delivery_notes`) |
 
-Marketplace orders still use `delivery_integration_id` / `external_order_ref`; create path sets `order_channel=marketplace`. Satisfecho Delivery does **not** set `delivery_integration_id`; `table_id` is null.
+Marketplace orders still use `delivery_integration_id` / `external_order_ref`; create path sets `order_channel=marketplace`. Scanaki Delivery does **not** set `delivery_integration_id`; `table_id` is null.
 
 ## API
 
 - `POST /orders/satisfecho-delivery` — staff (`order:update_status`): create with items + address (+ optional phone/name/notes/courier). Kitchen is notified immediately.
 - `POST /public/tenants/{tenant_id}/satisfecho-delivery` — **public** (rate-limited): create with items + **required** address and phone (+ optional name/notes). No courier assign. Returns `public_order_token`, `total_cents`, and payment hints (`stripe_publishable_key`, `revolut_configured`). Kitchen/inventory notify is deferred until payment succeeds. Public creates set `session_id=public_satisfecho_delivery` so ops can TTL-clean abandoned unpaid rows (see below).
-- **Item `product_id` (#304):** On both staff and public Satisfecho Delivery create, each line `product_id` may be a tenant-scoped public-menu **`TenantProduct.id`** (resolved to the linked `Product` via `_resolve_product_lines` in `delivery_order_service`) or a legacy **`Product.id`**. Cross-tenant IDs must not resolve. Regression: `back/tests/test_public_satisfecho_delivery.py::test_public_create_accepts_tenant_product_menu_ids`; UI smoke: `npm run test:delivery-checkout` (see `docs/testing.md`).
-- `PUT /orders/{id}/delivery` — update delivery metadata on Satisfecho Delivery orders only.
-- `GET /orders` — includes `order_channel`, `delivery_address`, `customer_phone`, `courier_user_id`; `table_name` is `"Satisfecho Delivery"` for that channel.
+- **Item `product_id` (#304):** On both staff and public Scanaki Delivery create, each line `product_id` may be a tenant-scoped public-menu **`TenantProduct.id`** (resolved to the linked `Product` via `_resolve_product_lines` in `delivery_order_service`) or a legacy **`Product.id`**. Cross-tenant IDs must not resolve. Regression: `back/tests/test_public_satisfecho_delivery.py::test_public_create_accepts_tenant_product_menu_ids`; UI smoke: `npm run test:delivery-checkout` (see `docs/testing.md`).
+- `PUT /orders/{id}/delivery` — update delivery metadata on Scanaki Delivery orders only.
+- `GET /orders` — includes `order_channel`, `delivery_address`, `customer_phone`, `courier_user_id`; `table_name` is `"Scanaki Delivery"` for that channel.
 - `GET /users/couriers` — staff (`order:read`): list courier-role users for assign UI.
-- `GET /courier/orders` / `GET /courier/orders/{id}` — lists marketplace **and** Satisfecho Delivery; list rows include `courier_user_id`, `delivery_address`, `customer_phone`, and `total_cents` so the courier **Mine** tab can show staff-assigned deliveries; detail returns the same address/phone fields plus `allowed_actions`.
+- `GET /courier/orders` / `GET /courier/orders/{id}` — lists marketplace **and** Scanaki Delivery; list rows include `courier_user_id`, `delivery_address`, `customer_phone`, and `total_cents` so the courier **Mine** tab can show staff-assigned deliveries; detail returns the same address/phone fields plus `allowed_actions`.
 - `POST /courier/orders/{id}/actions` — courier fulfillment mutations (`accept` | `reject` | `picked_up` | `delivered`). See **Courier status actions** below.
 
 ### Guest payment (table or public delivery)
@@ -30,7 +30,7 @@ Marketplace orders still use `delivery_integration_id` / `external_order_ref`; c
 Stripe/Revolut guest endpoints accept **exactly one** of:
 
 - `table_token` — existing table / take-away menu checkout, or
-- `public_order_token` — public Satisfecho Delivery checkout (signed, ~1h).
+- `public_order_token` — public Scanaki Delivery checkout (signed, ~1h).
 
 Endpoints: `POST /orders/{id}/create-payment-intent`, `confirm-payment`, `create-revolut-order`, `confirm-revolut-payment`.
 
@@ -45,11 +45,11 @@ Revolut success redirect for delivery: `{PUBLIC_APP_BASE_URL}/delivery/{tenantId
 
 ## Delivery fee and coverage (tenant settings)
 
-Staff configure under **Settings → Payments → Satisfecho Delivery** (also via `PUT /tenant/settings`):
+Staff configure under **Settings → Payments → Scanaki Delivery** (also via `PUT /tenant/settings`):
 
 | Field | Meaning |
 |-------|---------|
-| `delivery_fee_cents` | Flat fee added to public (and staff) Satisfecho Delivery create totals / payment intents (default `0`) |
+| `delivery_fee_cents` | Flat fee added to public (and staff) Scanaki Delivery create totals / payment intents (default `0`) |
 | `delivery_postal_codes` | Optional JSON array of allowed postal codes; when set, public create requires a matching `postal_code` |
 | `delivery_radius_meters` | Optional max distance from tenant `latitude`/`longitude`; when set with coords, public create requires `delivery_latitude`/`delivery_longitude` |
 
@@ -68,7 +68,7 @@ Maps UI and automatic courier matching remain out of scope.
 
 ## Courier status actions
 
-Courier-only; tenant-scoped. Mutations require the order to be a delivery order (marketplace or Satisfecho Delivery). Responses return the updated courier order detail (including `allowed_actions`).
+Courier-only; tenant-scoped. Mutations require the order to be a delivery order (marketplace or Scanaki Delivery). Responses return the updated courier order detail (including `allowed_actions`).
 
 | Action | Who | Preconditions | Effect |
 |--------|-----|---------------|--------|
@@ -83,11 +83,11 @@ Kitchen semantics: item-level statuses remain the source of truth for pending �
 
 ## Staff UI
 
-- `/staff/orders`: **New delivery order**, **Delivery** filter tab (Satisfecho + marketplace, with channel badges), **Edit delivery** for address/phone/name/notes/courier.
+- `/staff/orders`: **New delivery order**, **Delivery** filter tab (Scanaki + marketplace, with channel badges), **Edit delivery** for address/phone/name/notes/courier.
 
 ## Unpaid public checkout cleanup (TTL)
 
-Guests who abandon checkout leave **pending unpaid** public Satisfecho Delivery orders (kitchen never notified). Cleanup is idempotent and **does not** touch staff-created Satisfecho Delivery orders.
+Guests who abandon checkout leave **pending unpaid** public Scanaki Delivery orders (kitchen never notified). Cleanup is idempotent and **does not** touch staff-created Scanaki Delivery orders.
 
 | Rule | Value |
 |------|--------|
@@ -103,7 +103,7 @@ docker compose exec back python -m app.seeds.cleanup_unpaid_public_delivery --dr
 docker compose exec back python -m app.seeds.cleanup_unpaid_public_delivery --ttl-hours 4 --tenant-id 1
 ```
 
-Optional ops: schedule on amvara9 host cron via `./scripts/cleanup-unpaid-public-delivery-on-server.sh` (hourly UTC). Install steps and copy-paste crontab: **`docs/0001-ci-cd-amvara9.md`** § Unpaid public Satisfecho Delivery cleanup. Separate from tenant-1 demo reset — demo reset already wipes tenant 1 orders, so it does not need this hook.
+Optional ops: schedule on amvara9 host cron via `./scripts/cleanup-unpaid-public-delivery-on-server.sh` (hourly UTC). Install steps and copy-paste crontab: **`docs/0001-ci-cd-amvara9.md`** § Unpaid public Scanaki Delivery cleanup. Separate from tenant-1 demo reset — demo reset already wipes tenant 1 orders, so it does not need this hook.
 
 Tests: `back/tests/test_cleanup_unpaid_public_delivery.py`.
 
@@ -111,7 +111,7 @@ Tests: `back/tests/test_cleanup_unpaid_public_delivery.py`.
 
 `seed_demo_courier_user` (also run by `reset_demo_data` / `bootstrap_demo` before orders) ensures tenant 1 has one courier-role user when missing. Defaults: `COURIER_EMAIL=courier-test-phase1@amvara.de` / `COURIER_PASSWORD=secret` (same as `front/scripts/test-courier-actions.mjs`). Idempotent; does not create couriers on other tenants.
 
-`seed_demo_orders` (also run by `reset_demo_data`) includes a small mix of Satisfecho Delivery samples (`order_channel=satisfecho_delivery`, `table_id` null, address/phone) so the Delivery tab, kitchen cards, and courier Mine list stay populated after daily demo reset. Assigns `courier_user_id` when a courier exists (after the courier seed above).
+`seed_demo_orders` (also run by `reset_demo_data`) includes a small mix of Scanaki Delivery samples (`order_channel=satisfecho_delivery`, `table_id` null, address/phone) so the Delivery tab, kitchen cards, and courier Mine list stay populated after daily demo reset. Assigns `courier_user_id` when a courier exists (after the courier seed above).
 
 `seed_demo_delivery_settings` (also run by `reset_demo_data` / `bootstrap_demo`) sets tenant 1 `delivery_fee_cents=250` and postal codes `28001` / `28013` when fee and zone are still unset, so public `/delivery/1` shows a fee and rejects out-of-zone codes. Idempotent; does not overwrite operator-customized fee/zone. Check: `python -m app.seeds.check_demo_delivery_settings`.
 

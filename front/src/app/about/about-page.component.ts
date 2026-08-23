@@ -59,7 +59,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
           <h2 id="about-contact-heading" class="about-section__title">{{ 'ABOUT_PAGE.CONTACT_TITLE' | translate }}</h2>
           <p class="about-section__body">
             {{ 'ABOUT_PAGE.CONTACT_BODY' | translate }}
-            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="about-section__link">One Table support</a>
+            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="about-section__link">Scanaki support</a>
           </p>
         </section>
       </main>

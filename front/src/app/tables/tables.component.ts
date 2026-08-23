@@ -1874,7 +1874,7 @@ export class TablesComponent implements OnInit {
       });
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `${table.name.replace(/[^A-Za-z0-9_-]+/g, '-')}-one-table-qr.png`;
+      link.download = `${table.name.replace(/[^A-Za-z0-9_-]+/g, '-')}-scanaki-qr.png`;
       link.click();
       if (table.id && !table.smart_plaque_id) {
         this.api.updateTablePlaqueStatus(table.id, { status: 'printed' }).subscribe({
@@ -1902,7 +1902,7 @@ export class TablesComponent implements OnInit {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'one-table-plaques.pdf';
+        link.download = 'scanaki-plaques.pdf';
         link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       },

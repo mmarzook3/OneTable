@@ -11,7 +11,7 @@
  * Loads .env from repo root if LOGIN_EMAIL/LOGIN_PASSWORD are not set (uses DEMO_LOGIN_EMAIL/DEMO_LOGIN_PASSWORD).
  *
  * Env:
- *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL       App URL (default: auto-detect 4203, 4202, 4200 or https://scanaski.uk)
  *   LOGIN_EMAIL    Owner/admin email (or set DEMO_LOGIN_EMAIL in .env)
  *   LOGIN_PASSWORD Password (or set DEMO_LOGIN_PASSWORD in .env)
  *   TENANT_ID      Tenant for login URL (default 1); use so login uses /login?tenant=1 and user is Owner
@@ -68,7 +68,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

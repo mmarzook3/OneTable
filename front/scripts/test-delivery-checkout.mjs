@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke: public Satisfecho Delivery checkout (menu → cart → address → create order).
+ * Smoke: public Scanaki Delivery checkout (menu → cart → address → create order).
  *
  * Usage:
  *   BASE_URL=http://127.0.0.1:4202 TENANT_ID=1 node front/scripts/test-delivery-checkout.mjs

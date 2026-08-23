@@ -7,7 +7,7 @@
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/test-landing-provider-links.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaski.uk)
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
  */
 
@@ -35,7 +35,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaski.uk';
   }
 
   const headless = isHeadless();

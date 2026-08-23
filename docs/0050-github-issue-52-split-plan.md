@@ -303,7 +303,7 @@ One **production kitchen** fulfils items for **multiple branches** (sucursales):
 Interface to **aggregators** (Uber Eats, …): menu sync, order ingestion, status callbacks (within API constraints).
 
 ## Context
-[#52](https://github.com/satisfecho/pos/issues/52). See `docs/0031-order-customizations-plan.md` (delivery integrations). First-party **Satisfecho Delivery** is already in product — [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md); this issue is aggregators only.
+[#52](https://github.com/satisfecho/pos/issues/52). See `docs/0031-order-customizations-plan.md` (delivery integrations). First-party **Scanaki Delivery** is already in product — [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md); this issue is aggregators only.
 
 ## Scope (proposal)
 - Phase 0: vendor API review + sandbox credentials pattern (env, secrets).

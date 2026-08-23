@@ -1,9 +1,9 @@
 """
-Cancel abandoned unpaid public Satisfecho Delivery orders past TTL.
+Cancel abandoned unpaid public Scanaki Delivery orders past TTL.
 
 Public checkout tags orders with session_id ``public_satisfecho_delivery``.
 Default TTL is 2 hours (past ``public_order_token`` ~1h lifetime). Staff-created
-Satisfecho Delivery orders are never tagged and are never cleaned.
+Scanaki Delivery orders are never tagged and are never cleaned.
 
 Usage (from repo root with backend in Docker):
   docker compose exec back python -m app.seeds.cleanup_unpaid_public_delivery
@@ -47,7 +47,7 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Cancel unpaid public Satisfecho Delivery orders past TTL."
+        description="Cancel unpaid public Scanaki Delivery orders past TTL."
     )
     parser.add_argument(
         "--ttl-hours",
