@@ -24,10 +24,22 @@ _A point-of-sale system with a customer-facing menu, table management, reservati
 ---
 </div>
 
+# One Table
+
+One Table is Fixaki's multi-tenant QR and NFC ordering product, built from the
+AGPL-licensed Satisfecho POS project. This fork keeps
+[`satisfecho/pos`](https://github.com/satisfecho/pos) as a read-only `upstream`
+remote so fixes can be reviewed and incorporated without overwriting One Table
+product work.
+
+The first pilot tenant is **The Yue Tree Pub**. Its MVP flow is permanent table
+QR/NFC plaque → mobile menu → Stripe prepayment → paid-order release → strict
+FIFO kitchen display. Start with [the pilot runbook](docs/0078-yue-tree-pilot-runbook.md).
+
 
 ## About the Project
 
-POS2 is built for restaurants and venues that want:
+One Table is built for restaurants, pubs, and venues that want:
 
 - **One place for everything** — Orders, tables, reservations, menu, and payments in a single stack.
 - **Customer ordering without apps** — Guests scan a table QR code, browse the menu, place orders, and pay with Stripe or Revolut (per-tenant). Optional table PIN keeps ordering secure.

@@ -38,6 +38,8 @@ back/uploads/
 
 # Pre-deploy database backups (created on server by deploy script)
 backups/
+# Locally generated acceptance artifacts (for example rendered plaque proof PDFs)
+output/
 
 # Certbot webroot and HAProxy combined PEM (host-specific; certbot/README.md is tracked)
 certbot/www/

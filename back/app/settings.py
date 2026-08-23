@@ -62,6 +62,11 @@ class Settings(BaseSettings):
         default="", validation_alias="STRIPE_PUBLISHABLE_KEY"
     )
     stripe_currency: str = Field(default="eur", validation_alias="STRIPE_CURRENCY")
+    stripe_guest_webhook_secret: str = Field(
+        default="",
+        validation_alias="STRIPE_GUEST_WEBHOOK_SECRET",
+        description="Signing secret for guest-order Stripe or Connect webhook events",
+    )
 
     # Platform SaaS paywall (restaurant signup monetization — not guest order Stripe keys)
     saas_paywall_enabled: bool = Field(

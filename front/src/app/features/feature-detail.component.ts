@@ -387,7 +387,7 @@ export class FeatureDetailComponent {
     this.feature$.subscribe((feature) => {
       this.feature = feature;
       if (!feature) {
-        this.seo.applyFeatureDetail('/features', 'Features — Satisfecho', 'Feature not found.');
+        this.seo.applyFeatureDetail('/features', 'Features — One Table', 'Feature not found.');
         return;
       }
       const slug = feature.slug;

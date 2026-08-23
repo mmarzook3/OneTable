@@ -12,7 +12,7 @@ export interface SeoPageConfig {
   noindex?: boolean;
 }
 
-const BRAND = 'Satisfecho';
+const BRAND = 'One Table';
 const DEFAULT_DESCRIPTION =
   'Open-source restaurant platform — QR menus, ordering, reservations, payments, kitchen & bar displays, shifts, inventory, and reports.';
 const OG_IMAGE_PATH = '/og-image.png';
@@ -26,12 +26,12 @@ const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   '/features': {
     title: `Features — ${BRAND}`,
     description:
-      'Everything Satisfecho offers: QR menus, online payments, kitchen displays, shift planning, inventory, and more — one platform for guests, staff, and owners.',
+      'Everything One Table offers: QR and NFC menus, online payments, kitchen displays, shift planning, inventory, and more — one platform for guests, staff, and owners.',
   },
   '/about': {
     title: `About us — ${BRAND}`,
     description:
-      'Satisfecho is an open-source restaurant platform operated by Amvara Consulting S.L. Learn who we are and how the product helps restaurants.',
+      'One Table is an open-source Fixaki restaurant platform. Learn how it helps pubs and restaurants serve guests with less manual work.',
   },
   '/register': {
     title: `Create your restaurant — ${BRAND}`,

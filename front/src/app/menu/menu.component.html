@@ -140,6 +140,13 @@
     }
   </nav>
 
+  @if (!orderingAllowed()) {
+  <div class="ordering-unavailable-banner" role="status">
+    <strong>Menu browsing is available.</strong>
+    <span>{{ orderingMessage() }}</span>
+  </div>
+  }
+
   <main class="menu-content">
     <!-- Current order & status (always show this section so client sees ordered/processed state) -->
     <section class="customer-orders-section" aria-label="Your orders">
@@ -203,7 +210,7 @@
                 @if (formatCustomizationSummary(item.customization_answers, item.customization_summary)) {
                 <span class="item-customization">{{ formatCustomizationSummary(item.customization_answers, item.customization_summary) }}</span>
                 }
-                @if (item.notes?.trim()) {
+                @if (item.notes.trim()) {
                 <span class="item-comment">{{ item.notes }}</span>
                 }
               </div>
@@ -223,7 +230,7 @@
             </div>
             }
           </div>
-          @if (order.notes?.trim()) {
+          @if (order.notes.trim()) {
           <div class="order-notes-row">{{ 'MENU.ORDER_NOTES' | translate }}: {{ order.notes }}</div>
           }
 
@@ -451,7 +458,9 @@
           </div>
 
           <!-- Add Button -->
-          <button class="add-to-cart-btn" (click)="addToCartWithQuestions(product); $event.stopPropagation()">
+          <button type="button" class="add-to-cart-btn"
+            [attr.aria-label]="'Add ' + product.name + ' to order'"
+            (click)="addToCartWithQuestions(product); $event.stopPropagation()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
@@ -521,7 +530,7 @@
             @if (formatCustomizationSummary(item.customization_answers, item.customization_summary)) {
             <span class="cart-item-customization">{{ formatCustomizationSummary(item.customization_answers, item.customization_summary) }}</span>
             }
-            @if (item.notes?.trim()) {
+            @if (item.notes.trim()) {
             <span class="cart-item-comment">{{ item.notes }}</span>
             }
             <span class="cart-item-price">{{ formatPrice(item.product.price_cents * item.quantity) }}</span>
@@ -530,7 +539,7 @@
             @if (isMyCartItem(item)) {
             <button type="button" class="comment-toggle-btn" (click)="toggleCartItemComment(item)"
               [attr.aria-expanded]="isCartItemCommentExpanded(item)">
-              {{ (isCartItemCommentExpanded(item) || item.notes?.trim()) ? ('MENU.HIDE_COMMENT' | translate) : ('MENU.ADD_COMMENT' | translate) }}
+              {{ (isCartItemCommentExpanded(item) || item.notes.trim()) ? ('MENU.HIDE_COMMENT' | translate) : ('MENU.ADD_COMMENT' | translate) }}
             </button>
             <button class="qty-control-btn minus" (click)="decrementItem(item)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -576,7 +585,16 @@
         </div>
       </div>
 
-      <button class="place-order-btn" (click)="submitOrder()" [disabled]="submitting()">
+      @if (automaticMode()) {
+      <label class="table-confirmation">
+        <input type="checkbox" [checked]="tableConfirmed()"
+          (change)="tableConfirmed.set($any($event.target).checked)" />
+        <span>{{ 'MENU.CONFIRM_TABLE' | translate: { table: tableName() } }}</span>
+      </label>
+      }
+
+      <button class="place-order-btn" (click)="submitOrder()"
+        [disabled]="submitting() || !orderingAllowed() || (automaticMode() && !tableConfirmed())">
         @if (submitting()) {
         <span class="btn-loading">
           <span class="spinner-small"></span>
@@ -925,6 +943,7 @@
             }
           </button>
 
+          @if (!automaticMode()) {
           @if (tenantRevolutConfigured()) {
           <button class="payment-option-btn" (click)="selectPayRevolut()" [disabled]="paymentRequestSending()">
             <div class="payment-option-icon">
@@ -982,6 +1001,7 @@
               <polyline points="9,18 15,12 9,6" />
             </svg>
           </button>
+          }
 
           <div class="payment-options-divider"></div>
 

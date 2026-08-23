@@ -79,6 +79,11 @@ export class MenuComponent implements OnInit, OnDestroy {
   tenantPublicBackgroundColor = signal<string | null>(null);
   tenantRevolutConfigured = signal(false);
   tenantHeaderBackgroundFilename = signal<string | null>(null);
+  orderingMode = signal<'activation_pin' | 'automatic' | 'menu_only'>('activation_pin');
+  orderingAllowed = signal(true);
+  orderingMessage = signal('');
+  automaticMode = computed(() => this.orderingMode() === 'automatic');
+  tableConfirmed = signal(false);
 
   // Cart & Orders
   cart = signal<CartItem[]>([]);
@@ -157,6 +162,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private clientSecret = '';
   private currentOrderId = 0;
   private paymentIntentId = '';
+  private stripeConnectedAccountId: string | null = null;
 
   // Internal
   private tableToken = '';
@@ -165,6 +171,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private sessionId = '';
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
+  private pendingOrderIdempotencyKey: string | null = null;
 
   // Computed
   tableGreeting = computed(() => {
@@ -304,12 +311,16 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.tenantCurrencyCode.set(code);
         this.tenantCurrency.set(data.tenant_currency || '€');
         this.immediatePaymentRequired.set(data.tenant_immediate_payment_required || false);
+        this.orderingMode.set(data.ordering_mode || 'activation_pin');
+        this.orderingAllowed.set(data.ordering_availability?.allowed !== false);
+        this.orderingMessage.set(data.ordering_availability?.customer_message || '');
         this.tenantPublicBackgroundColor.set(data.tenant_public_background_color ?? null);
         this.tenantHeaderBackgroundFilename.set(data.tenant_header_background_filename ?? null);
 
         if (data.tenant_stripe_publishable_key) {
           this.api.setTenantStripeKey(data.tenant_stripe_publishable_key);
         }
+        this.stripeConnectedAccountId = data.tenant_stripe_connected_account_id || null;
         this.tenantRevolutConfigured.set(!!data.tenant_revolut_configured);
 
         // Table session status
@@ -1137,6 +1148,14 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ORDER SUBMISSION
   // ============================================
   submitOrder() {
+    if (!this.orderingAllowed()) {
+      alert(this.orderingMessage() || 'Ordering is unavailable right now.');
+      return;
+    }
+    if (this.automaticMode() && !this.tableConfirmed()) {
+      alert(this.translate.instant('MENU.CONFIRM_TABLE_REQUIRED', { table: this.tableName() }));
+      return;
+    }
     // Check if table is active
     if (!this.tableIsActive()) {
       alert('This table is not accepting orders. Please ask staff for assistance.');
@@ -1208,6 +1227,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     this.submitting.set(true);
+    this.pendingOrderIdempotencyKey ??= this.generateUUID();
     this.api.submitOrder(this.tableToken, {
       items,
       notes: this.orderNotes.trim() || undefined,
@@ -1216,10 +1236,12 @@ export class MenuComponent implements OnInit, OnDestroy {
       pin: this.currentPin || undefined,
       staff_access: this.staffAccess ?? undefined,
       latitude,
-      longitude
+      longitude,
+      idempotency_key: this.pendingOrderIdempotencyKey,
     }).subscribe({
       next: (response: any) => {
         const orderId = response.order_id;
+        this.pendingOrderIdempotencyKey = null;
 
         if (response.session_id && response.session_id !== this.sessionId) {
           console.warn('Session ID mismatch - order may belong to different session');
@@ -1231,6 +1253,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         }
 
         this.orderNotes = '';
+        this.tableConfirmed.set(false);
         this.expandedCommentKeys.set(new Set());
         this.lastOrderId.set(orderId);
         this.showSuccessToast.set(true);
@@ -1249,7 +1272,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.loadStoredOrders();
 
         // Auto-trigger payment if immediate payment is required
-        if (this.immediatePaymentRequired()) {
+        if (response.payment_required || this.immediatePaymentRequired()) {
           setTimeout(() => {
             const currentOrder = this.placedOrders().find(o => o.id === orderId);
             if (currentOrder) {
@@ -1261,7 +1284,9 @@ export class MenuComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.submitting.set(false);
         const detail = err.error?.detail;
-        const errorMsg = typeof detail === 'string' ? detail : 'Failed to place order.';
+        const errorMsg = typeof detail === 'string'
+          ? detail
+          : detail?.customer_message || 'Failed to place order.';
 
         if (err.status === 429) {
           this.currentPin = '';
@@ -1618,7 +1643,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Reset stale state from previous attempts
     this.paymentSuccess.set(false);
     this.cardError.set('');
-    this.api.createPaymentIntent(this.currentOrderId, this.tableToken).subscribe({
+    this.api.createPaymentIntent(this.currentOrderId, this.tableToken, null, this.sessionId).subscribe({
       next: async (response: any) => {
         this.clientSecret = response.client_secret;
         this.paymentIntentId = response.payment_intent_id;
@@ -1645,14 +1670,20 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
     // Check if Stripe.js is already available globally
     if ((window as any).Stripe) {
-      this.stripe = (window as any).Stripe(this.api.getStripePublishableKey());
+      this.stripe = (window as any).Stripe(
+        this.api.getStripePublishableKey(),
+        this.stripeConnectedAccountId ? { stripeAccount: this.stripeConnectedAccountId } : undefined,
+      );
       this.mountCard();
       return;
     }
     const script = document.createElement('script');
     script.src = 'https://js.stripe.com/v3/';
     script.onload = () => {
-      this.stripe = (window as any).Stripe(this.api.getStripePublishableKey());
+      this.stripe = (window as any).Stripe(
+        this.api.getStripePublishableKey(),
+        this.stripeConnectedAccountId ? { stripeAccount: this.stripeConnectedAccountId } : undefined,
+      );
       this.mountCard();
     };
     script.onerror = () => {
@@ -1700,7 +1731,13 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.cardError.set(error.message);
       this.processingPayment.set(false);
     } else if (paymentIntent.status === 'succeeded') {
-      this.api.confirmPayment(this.currentOrderId, this.tableToken, this.paymentIntentId).subscribe({
+      this.api.confirmPayment(
+        this.currentOrderId,
+        this.tableToken,
+        this.paymentIntentId,
+        null,
+        this.sessionId,
+      ).subscribe({
         next: () => {
           this.processingPayment.set(false);
           this.paymentSuccess.set(true);
