@@ -41,7 +41,7 @@ Moving a plaque rotates the affected tables' hidden menu tokens and invalidates 
 Use **Settings → Scanaki ordering** to select either tenant keys or Stripe Connect and save the publishable key, secret key, connected-account ID (Connect only), and webhook signing secret. Register this exact HTTPS endpoint in Stripe:
 
 ```text
-https://scanaski.uk/api/payments/stripe/webhook/<tenant-id>
+https://scanaki.uk/api/payments/stripe/webhook/<tenant-id>
 ```
 
 Subscribe to `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`, `payment_intent.processing`, and `charge.refunded`. An unpaid checkout is never released to the kitchen; the signed webhook is the payment source of truth.
@@ -79,10 +79,10 @@ Subscribe to `payment_intent.succeeded`, `payment_intent.payment_failed`, `payme
 The production overlay serves the application through HAProxy on ports 80/443. Before running it, set these production values in ignored `config.env`:
 
 ```text
-PUBLIC_APP_BASE_URL=https://scanaski.uk
+PUBLIC_APP_BASE_URL=https://scanaki.uk
 API_URL=/api
 WS_URL=
-CORS_ORIGINS=https://scanaski.uk
+CORS_ORIGINS=https://scanaki.uk
 SECRET_KEY=<32+ random characters>
 REFRESH_SECRET_KEY=<different 32+ random characters>
 YUE_TREE_*=<real pilot account values>
@@ -90,7 +90,7 @@ YUE_TREE_*=<real pilot account values>
 
 Install the combined TLS PEM under `certbot/haproxy-certs/`, export a 20+ character `ONETABLE_BACKUP_PASSPHRASE`, and run `scripts/deploy-onetable-vps.sh`. The deployment refuses local URLs, weak/default secrets, missing TLS, a failed pre-deploy backup, failed migrations, or an unhealthy result.
 
-The `ONETABLE_*` environment names and `onetable-*.sh` script filenames are retained as compatibility identifiers. They do not change the public Scanaki branding or `scanaski.uk` customer URLs.
+The `ONETABLE_*` environment names and `onetable-*.sh` script filenames are retained as compatibility identifiers. They do not change the public Scanaki branding or `scanaki.uk` customer URLs.
 
 The core backup command is `ONETABLE_BACKUP_PASSPHRASE=... scripts/onetable-backup.sh`. It writes AES-256-CBC/PBKDF2 encrypted dumps and SHA-256 sidecars under `backups/onetable`, retaining 14 by default. After the first backup and after material database changes, run `ONETABLE_BACKUP_PASSPHRASE=... scripts/onetable-restore-check.sh <backup>`; it restores into a uniquely named temporary database, verifies the schema and Yue Tree tenant, and drops only that temporary database.
 

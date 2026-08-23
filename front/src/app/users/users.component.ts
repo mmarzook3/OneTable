@@ -9,7 +9,7 @@ import { FocusFirstInputDirective } from '../shared/focus-first-input.directive'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 /** Scanaki support login for owner-granted temporary admin access (issue #257). */
-export const SUPPORT_USER_EMAIL = 'support@scanaski.uk';
+export const SUPPORT_USER_EMAIL = 'support@scanaki.uk';
 const LEGACY_SUPPORT_USER_EMAIL = 'support@satisfecho.de';
 
 @Component({

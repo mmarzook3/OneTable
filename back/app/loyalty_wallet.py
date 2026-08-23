@@ -362,7 +362,7 @@ def _ensure_google_class(
         "programName": (program.program_name or "Loyalty")[:60],
         "programLogo": {
             "sourceUri": {
-                "uri": "https://scanaski.uk/favicon.ico",
+                "uri": "https://scanaki.uk/favicon.ico",
             },
             "contentDescription": {
                 "defaultValue": {"language": "en-US", "value": "Logo"},
