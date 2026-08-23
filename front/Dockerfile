@@ -14,14 +14,18 @@ RUN npm ci --ignore-scripts
 # Copy source code
 COPY . .
 
-# Entrypoint under /app so the ./front bind-mount picks up host edits without an image rebuild.
-RUN chmod +x /app/docker-entrypoint.sh
+# Keep the executable entrypoint outside /app because the development bind mount
+# replaces /app with the Windows checkout at runtime. Normalising it here makes
+# the container reliable even when the host checkout uses CRLF line endings.
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh \
+    && cp /app/docker-entrypoint.sh /usr/local/bin/pos-front-entrypoint \
+    && chmod +x /usr/local/bin/pos-front-entrypoint
 
 # Expose port
 EXPOSE 80
 
 # Use entrypoint to inject environment variables
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/pos-front-entrypoint"]
 
 # Start dev server with host binding for Docker (no SSR in dev mode).
 # --poll 2000: use polling for file watch so volume-mounted source changes are detected immediately
