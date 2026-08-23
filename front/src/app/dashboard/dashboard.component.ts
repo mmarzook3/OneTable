@@ -219,10 +219,10 @@ import {
           <p class="help-desc">{{ 'DASHBOARD.HELP_DESC' | translate }}</p>
           <p class="help-invite">{{ 'DASHBOARD.HELP_INVITE' | translate }}</p>
           <div class="help-links">
-            <a href="https://github.com/satisfecho/pos/issues" target="_blank" rel="noopener noreferrer" class="help-link">
+            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="help-link">
               {{ 'DASHBOARD.HELP_ISSUES' | translate }}
             </a>
-            <a href="https://github.com/satisfecho/pos/discussions" target="_blank" rel="noopener noreferrer" class="help-link">
+            <a href="https://github.com/mmarzook3/OneTable/discussions" target="_blank" rel="noopener noreferrer" class="help-link">
               {{ 'DASHBOARD.HELP_DISCUSSIONS' | translate }}
             </a>
           </div>

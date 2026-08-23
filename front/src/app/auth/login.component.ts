@@ -126,7 +126,7 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
           <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
           <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a href="mailto:hello@satisfecho.de" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
+          <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
             <span class="auth-foot-sep" aria-hidden="true">·</span>
             <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />

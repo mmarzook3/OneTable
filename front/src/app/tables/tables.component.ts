@@ -16,6 +16,9 @@ import { findNonOverlappingDefaultPosition } from './table-floor-layout.util';
 
 const TABLES_VIEW_STORAGE_KEY = 'pos.tables.viewMode';
 
+type NdefWriter = { write(message: { records: Array<{ recordType: 'url'; data: string }> }): Promise<void> };
+type NdefReaderConstructor = new () => NdefWriter;
+
 /** One combined list row per joined group, or one row per ungrouped table. */
 type TablesListRow =
   | { kind: 'group'; groupId: number; floorId: number; members: Table[]; label: string; seatTotal: number }
@@ -72,12 +75,20 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
             }
           </div>
           @if (!showForm() && floors().length > 0) {
+            <div class="header-table-actions">
+            <button class="btn btn-secondary" (click)="showBulkForm.set(!showBulkForm())">
+              Bulk tables
+            </button>
+            <button class="btn btn-secondary" (click)="downloadPlaqueSheet()" [disabled]="tables().length === 0">
+              Plaque PDF
+            </button>
             <button class="btn btn-primary" (click)="showForm.set(true)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               {{ 'TABLES.ADD_TABLE' | translate }}
             </button>
+            </div>
           }
           </div>
         </div>
@@ -103,6 +114,28 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     <button type="submit" class="btn btn-primary">{{ 'COMMON.ADD' | translate }}</button>
                     <button type="button" class="btn btn-secondary" (click)="showForm.set(false)">{{ 'COMMON.CANCEL' | translate }}</button>
                   </div>
+                </div>
+              </form>
+            </div>
+          }
+
+          @if (showBulkForm()) {
+            <div class="form-card plaque-tool-card">
+              <h2>Bulk table setup</h2>
+              <p>Create numbered tables, then download one printable QR proof sheet for plaque production.</p>
+              <form (submit)="bulkCreateTables($event)" class="bulk-table-form">
+                <label>Prefix <input type="text" [(ngModel)]="bulkPrefix" name="bulkPrefix" maxlength="40" required></label>
+                <label>First number <input type="number" [(ngModel)]="bulkStartNumber" name="bulkStartNumber" min="0" max="9999" required></label>
+                <label>How many <input type="number" [(ngModel)]="bulkCount" name="bulkCount" min="1" max="100" required></label>
+                <label>Seats <input type="number" [(ngModel)]="bulkSeatCount" name="bulkSeatCount" min="1" max="50" required></label>
+                <label>Floor
+                  <select [(ngModel)]="bulkFloorId" name="bulkFloorId" required>
+                    @for (floor of floors(); track floor.id) { <option [ngValue]="floor.id">{{ floor.name }}</option> }
+                  </select>
+                </label>
+                <div class="form-actions-inline">
+                  <button type="submit" class="btn btn-primary" [disabled]="bulkCreating()">{{ bulkCreating() ? 'Creating...' : 'Create tables' }}</button>
+                  <button type="button" class="btn btn-secondary" (click)="showBulkForm.set(false)">Cancel</button>
                 </div>
               </form>
             </div>
@@ -554,15 +587,27 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                     </div>
                   }
                   <div class="qr-code-wrapper">
-                    <qrcode [qrdata]="getMenuUrl(table)" [width]="compact ? 96 : 180" [errorCorrectionLevel]="'M'" cssClass="qr-code"></qrcode>
+                    <qrcode [qrdata]="getMenuUrl(table)" [width]="compact ? 96 : 180" [errorCorrectionLevel]="'H'" cssClass="qr-code"></qrcode>
                   </div>
                   <div class="qr-footer">
                     <div class="table-number">{{ table.name }}</div>
                   </div>
                 </div>
+                @if (!compact) {
+                  <div class="plaque-controls">
+                    <span class="plaque-status plaque-status--{{ table.plaque_status || 'not_created' }}">
+                      {{ formatPlaqueStatus(table.plaque_status) }}
+                    </span>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="downloadTableQr(table)">Download QR</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="writeTableNfc(table)">Write NFC</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="markPlaqueTested(table)">Mark tested</button>
+                    <button type="button" class="btn btn-ghost btn-sm danger" (click)="rotateTableToken(table)">Rotate token</button>
+                  </div>
+                }
               </div>
 
               <!-- Session Control Actions -->
+              @if (tenantSettings()?.ordering_mode === 'activation_pin') {
               <div
                 class="session-actions"
                 [class.session-actions--inactive]="!table.is_active"
@@ -611,6 +656,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                   </button>
                 }
               </div>
+              }
 
               <div class="table-actions">
                 <button type="button" class="btn btn-secondary btn-sm" (click)="openStaffMenu(table)"
@@ -1141,6 +1187,16 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
     .tables-data-table .edit-input-inline.edit-seats { width: 56px; }
     .tables-data-table .edit-select-inline { min-width: 100px; background: var(--color-bg); }
     .tables-data-table .td-actions { display: flex; gap: var(--space-1); justify-content: flex-end; flex-wrap: wrap; }
+    .header-table-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+    .plaque-tool-card h2 { margin-top: 0; }
+    .bulk-table-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); align-items: end; }
+    .bulk-table-form label { display: grid; gap: var(--space-1); font-weight: 600; }
+    .bulk-table-form input, .bulk-table-form select { padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+    .plaque-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); padding: 0 var(--space-3) var(--space-3); }
+    .plaque-status { width: 100%; text-align: center; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+    .plaque-status--installed, .plaque-status--tested { color: #166534; }
+    .plaque-status--needs_reprint { color: #b91c1c; }
+    .danger { color: #b91c1c; }
 
     @media (max-width: 768px) {
       .table-grid { grid-template-columns: 1fr; }
@@ -1163,8 +1219,15 @@ export class TablesComponent implements OnInit {
   loading = signal(true);
   error = signal('');
   showForm = signal(false);
+  showBulkForm = signal(false);
+  bulkCreating = signal(false);
   viewMode = signal<'tiles' | 'table'>(getInitialTablesViewMode());
   newTableName = '';
+  bulkPrefix = 'Table ';
+  bulkStartNumber = 1;
+  bulkCount = 10;
+  bulkSeatCount = 4;
+  bulkFloorId: number | null = null;
   selectedFloorId: number | null = null;
   tenantSettings = signal<TenantSettings | null>(null);
 
@@ -1371,6 +1434,7 @@ export class TablesComponent implements OnInit {
         this.floors.set(floors);
         if (floors.length > 0) {
           this.selectedFloorId = floors[0].id!;
+          this.bulkFloorId ??= floors[0].id!;
         }
         this.api.getTables().subscribe({
           next: tables => { this.tables.set(tables); this.loading.set(false); },
@@ -1392,8 +1456,15 @@ export class TablesComponent implements OnInit {
   }
 
   /** Sorted member names for a joined group (matches backend display). */
+  private compareTableNames(a: string, b: string): number {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
   private groupLabelFromMembers(members: Table[]): string {
-    const names = members.map(m => m.name ?? '').filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const names = members
+      .map(m => m.name ?? '')
+      .filter(Boolean)
+      .sort((a, b) => this.compareTableNames(a, b));
     return names.join(' + ');
   }
 
@@ -1435,7 +1506,7 @@ export class TablesComponent implements OnInit {
       }
     }
     for (const [, arr] of byGroup) {
-      arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+      arr.sort((a, b) => this.compareTableNames(a.name ?? '', b.name ?? ''));
     }
 
     const seenGroup = new Set<number>();
@@ -1468,7 +1539,7 @@ export class TablesComponent implements OnInit {
       if (floorA !== floorB) return floorA.localeCompare(floorB);
       const nameA = a.kind === 'group' ? a.label : (a.table.name ?? '');
       const nameB = b.kind === 'group' ? b.label : (b.table.name ?? '');
-      return nameA.localeCompare(nameB);
+      return this.compareTableNames(nameA, nameB);
     });
   }
 
@@ -1488,7 +1559,7 @@ export class TablesComponent implements OnInit {
       }
     }
     for (const [, arr] of byGroup) {
-      arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+      arr.sort((a, b) => this.compareTableNames(a.name ?? '', b.name ?? ''));
     }
     const seen = new Set<number>();
     const blocks: TablesTileBlock[] = [];
@@ -1510,7 +1581,7 @@ export class TablesComponent implements OnInit {
     return blocks.sort((a, b) => {
       const nameA = a.kind === 'group' ? a.label : (a.table.name ?? '');
       const nameB = b.kind === 'group' ? b.label : (b.table.name ?? '');
-      return nameA.localeCompare(nameB);
+      return this.compareTableNames(nameA, nameB);
     });
   }
 
@@ -1613,6 +1684,30 @@ export class TablesComponent implements OnInit {
           });
       },
       error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED'))
+    });
+  }
+
+  bulkCreateTables(e: Event) {
+    e.preventDefault();
+    if (!this.bulkFloorId || this.bulkCount < 1) return;
+    this.bulkCreating.set(true);
+    this.api.bulkCreateTables({
+      prefix: this.bulkPrefix,
+      start_number: this.bulkStartNumber,
+      count: this.bulkCount,
+      floor_id: this.bulkFloorId,
+      seat_count: this.bulkSeatCount,
+    }).subscribe({
+      next: rows => {
+        this.tables.update(current => [...current, ...rows]);
+        this.bulkCreating.set(false);
+        this.showBulkForm.set(false);
+        this.showToast('Tables created', 'success');
+      },
+      error: err => {
+        this.bulkCreating.set(false);
+        this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED'));
+      },
     });
   }
 
@@ -1735,7 +1830,94 @@ export class TablesComponent implements OnInit {
 
   /** Public customer URL (QR code, copy link). Staff should use {@link openStaffMenu} to skip the table PIN. */
   getMenuUrl(table: Table): string {
-    return `${window.location.origin}/menu/${table.token}`;
+    return table.menu_url || `${window.location.origin}/menu/${table.token}`;
+  }
+
+  formatPlaqueStatus(status: string | null | undefined): string {
+    return (status || 'not_created').replaceAll('_', ' ');
+  }
+
+  async downloadTableQr(table: Table): Promise<void> {
+    try {
+      const QRCode = (await import('qrcode')).default;
+      const dataUrl = await QRCode.toDataURL(this.getMenuUrl(table), {
+        errorCorrectionLevel: 'H',
+        width: 1024,
+        margin: 4,
+      });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `${table.name.replace(/[^A-Za-z0-9_-]+/g, '-')}-one-table-qr.png`;
+      link.click();
+      if (table.id) {
+        this.api.updateTablePlaqueStatus(table.id, { status: 'printed' }).subscribe({
+          next: updated => this.mergeUpdatedTable(table.id!, updated),
+          error: () => {},
+        });
+      }
+    } catch {
+      this.error.set('Could not generate the QR image.');
+    }
+  }
+
+  writeTableNfc(table: Table): void {
+    const NDEFReader = (window as unknown as { NDEFReader?: NdefReaderConstructor }).NDEFReader;
+    if (!NDEFReader) {
+      this.copyLink(table);
+      this.error.set('Web NFC is not available in this browser. The menu URL was copied for an NFC writer app.');
+      return;
+    }
+    const writer = new NDEFReader();
+    writer.write({ records: [{ recordType: 'url', data: this.getMenuUrl(table) }] }).then(() => {
+      if (!table.id) return;
+      this.api.updateTablePlaqueStatus(table.id, {
+        status: 'nfc_written',
+        nfc_written: true,
+      }).subscribe({
+        next: updated => {
+          this.mergeUpdatedTable(table.id!, updated);
+          this.showToast('NFC tag written', 'success');
+        },
+        error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+      });
+    }).catch(() => {
+      this.error.set('NFC write was cancelled or failed. Hold the tag against the back of the Android device and try again.');
+    });
+  }
+
+  markPlaqueTested(table: Table): void {
+    if (!table.id) return;
+    this.api.updateTablePlaqueStatus(table.id, { status: 'tested', tested: true }).subscribe({
+      next: updated => this.mergeUpdatedTable(table.id!, updated),
+      error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+    });
+  }
+
+  rotateTableToken(table: Table): void {
+    if (!table.id) return;
+    if (!window.confirm(`Rotate the token for ${table.name}? The existing QR and NFC tag will stop working.`)) return;
+    this.api.rotateTableToken(table.id).subscribe({
+      next: updated => this.mergeUpdatedTable(table.id!, updated),
+      error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+    });
+  }
+
+  downloadPlaqueSheet(): void {
+    this.api.downloadTablePlaqueContactSheet().subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'one-table-plaques.pdf';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+    });
+  }
+
+  private mergeUpdatedTable(tableId: number, updated: Table): void {
+    this.tables.update(rows => rows.map(row => row.id === tableId ? { ...row, ...updated } : row));
   }
 
   openStaffMenu(table: Table) {

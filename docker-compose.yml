@@ -38,6 +38,12 @@ services:
       - SAAS_PLAN_CURRENCY=${SAAS_PLAN_CURRENCY:-eur}
       - SAAS_STRIPE_PRICE_ID=${SAAS_STRIPE_PRICE_ID:-}
       - SAAS_STRIPE_WEBHOOK_SECRET=${SAAS_STRIPE_WEBHOOK_SECRET:-}
+      # Idempotent first-tenant provisioning; credentials stay in ignored config.env.
+      - YUE_TREE_TABLE_COUNT=${YUE_TREE_TABLE_COUNT:-12}
+      - YUE_TREE_OWNER_EMAIL=${YUE_TREE_OWNER_EMAIL:-}
+      - YUE_TREE_OWNER_PASSWORD=${YUE_TREE_OWNER_PASSWORD:-}
+      - YUE_TREE_KITCHEN_EMAIL=${YUE_TREE_KITCHEN_EMAIL:-}
+      - YUE_TREE_KITCHEN_PASSWORD=${YUE_TREE_KITCHEN_PASSWORD:-}
     volumes:
       - ./back:/app
       - ./back/uploads:/app/uploads

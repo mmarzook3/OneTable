@@ -20,7 +20,10 @@ import { FocusFirstInputDirective } from '../shared/focus-first-input.directive'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
+const HEARTBEAT_INTERVAL_MS = 30000;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
+const DEVICE_KEY_STORAGE_KEY = 'one-table-kds-device-key';
+const STATION_STORAGE_PREFIX = 'one-table-kds-station';
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -148,6 +151,12 @@ const VIEW_CATEGORY: Record<string, string> = {
         </div>
       </header>
 
+      @if (!kdsOnline()) {
+        <div class="kds-connection-banner" role="status">
+          Kitchen connection lost - retrying automatically. Customer ordering may be paused.
+        </div>
+      }
+
       <main class="kitchen-main">
         @if (loading()) {
           <div class="empty-state">
@@ -166,10 +175,11 @@ const VIEW_CATEGORY: Record<string, string> = {
           </div>
         } @else {
           <div class="order-grid">
-            @for (order of activeOrders(); track order.id) {
+            @for (order of activeOrders(); track order.id; let position = $index) {
               <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
                 <div class="order-header">
                   <div class="order-meta">
+                    <span class="fifo-position">FIFO {{ position + 1 }}</span>
                     <span class="order-id">#{{ order.id }}</span>
                     <span class="order-table">{{ order.table_name }}</span>
                     @if (order.staff_urgent) {
@@ -178,8 +188,8 @@ const VIEW_CATEGORY: Record<string, string> = {
                     @if (order.customer_name) {
                       <span class="order-customer">{{ 'ORDERS.CUSTOMER' | translate }}: {{ order.customer_name }}</span>
                     }
-                    <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
-                    <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
+                    <span class="order-time" [title]="formatExactTime(getKitchenStart(order))">{{ formatOrderTime(getKitchenStart(order)) }}</span>
+                    <span class="order-waiting" [title]="formatExactTime(getKitchenStart(order))">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(getKitchenStart(order)) }}</span>
                   </div>
                   <span class="status-badge status-{{ order.status }}">{{ getStatusLabel(order.status) }}</span>
                 </div>
@@ -202,42 +212,19 @@ const VIEW_CATEGORY: Record<string, string> = {
                         }
                         @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
                           <div class="item-status-control">
-                            <button
-                              type="button"
-                              class="item-status-badge clickable"
-                              [class]="'status-' + (item.status || 'pending')"
-                              (click)="toggleItemStatusDropdown(order.id, item.id!)"
-                              [title]="'ORDERS.CLICK_TO_CHANGE_STATUS' | translate">
+                            <span class="item-status-badge" [class]="'status-' + (item.status || 'pending')">
                               {{ getItemStatusLabel(item.status || 'pending') }}
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6,9 12,15 18,9"/>
-                              </svg>
-                            </button>
-                            @if (itemStatusDropdownOpen() === order.id + '-' + item.id) {
-                              <div class="status-dropdown item-status-dropdown" data-testid="kitchen-item-status-dropdown" (click)="$event.stopPropagation()">
-                                @if (getItemStatusTransitions(item.status || 'pending').backward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.GO_BACK' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').backward; track status) {
-                                      <button type="button" class="dropdown-item backward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
-                                        {{ getItemStatusLabel(status) }}
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                                @if (getItemStatusTransitions(item.status || 'pending').forward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.MOVE_FORWARD' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').forward; track status) {
-                                      <button type="button" class="dropdown-item forward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        {{ getItemStatusLabel(status) }}
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                              </div>
+                            </span>
+                            @if (getPreviousItemStatus(item.status || 'pending'); as previousStatus) {
+                              <button type="button" class="item-action item-action-back"
+                                (click)="updateItemStatus(order.id, item.id!, previousStatus)"
+                                [attr.aria-label]="'ORDERS.GO_BACK' | translate">↶</button>
+                            }
+                            @if (getNextItemStatus(item.status || 'pending'); as nextStatus) {
+                              <button type="button" class="item-action item-action-forward"
+                                (click)="updateItemStatus(order.id, item.id!, nextStatus)">
+                                {{ getKitchenActionLabel(nextStatus) | translate }}
+                              </button>
                             }
                           </div>
                         } @else {
@@ -299,6 +286,13 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: var(--color-surface);
       border-bottom: 2px solid var(--color-border);
       box-shadow: var(--shadow-sm);
+    }
+    .kds-connection-banner {
+      padding: 12px 24px;
+      background: #7f1d1d;
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
     }
     .back-link {
       display: inline-flex;
@@ -374,6 +368,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       flex: 1;
       padding: var(--space-5) var(--space-6);
       overflow: auto;
+      background: #090b10;
     }
     .empty-state {
       text-align: center;
@@ -392,8 +387,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       align-items: start;
     }
     .order-card {
-      background: var(--color-surface);
-      border: 2px solid var(--color-border);
+      background: #292e39;
+      border: 2px solid #414959;
       border-left: 6px solid var(--color-warning);
       border-radius: var(--radius-lg);
       overflow: visible;
@@ -413,6 +408,16 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: var(--radius-sm);
       background: rgba(220, 38, 38, 0.15);
       color: #b91c1c;
+    }
+    .fifo-position {
+      align-self: flex-start;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #111827;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
     }
     .order-timer-bar-wrap {
       padding: 0 var(--space-5) var(--space-3);
@@ -442,8 +447,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       justify-content: space-between;
       align-items: flex-start;
       padding: var(--space-4) var(--space-5);
-      border-bottom: 2px solid var(--color-border);
-      background: var(--color-bg);
+      border-bottom: 2px solid #414959;
+      background: #20242d;
     }
     .order-meta {
       display: flex;
@@ -453,26 +458,29 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-id {
       font-size: 1.5rem;
       font-weight: 700;
-      color: var(--color-text);
+      color: #f8fafc;
     }
     .order-table {
       font-size: 1.25rem;
       font-weight: 600;
-      color: var(--color-primary);
+      color: #fbbf24;
     }
-    .order-customer { font-size: 1rem; color: var(--color-text-muted); }
-    .order-time { font-size: 1rem; color: var(--color-text-muted); }
-    .order-waiting { font-size: 1.125rem; font-weight: 700; color: var(--color-text); }
+    .order-customer { font-size: 1rem; color: #cbd5e1; }
+    .order-time { font-size: 1rem; color: #cbd5e1; }
+    .order-waiting { font-size: 1.125rem; font-weight: 700; color: #f8fafc; }
     .status-badge {
       padding: var(--space-2) var(--space-4);
       border-radius: 20px;
       font-size: 0.9375rem;
       font-weight: 700;
+      color: #f8fafc;
+      background: #374151;
     }
-    .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
-    .status-badge.preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
-    .status-badge.ready { background: var(--color-success-light); color: var(--color-success); }
-    .status-badge.partially_delivered { background: var(--color-success-light); color: var(--color-success); }
+    .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .status-badge.status-paid { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+    .status-badge.status-preparing { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .status-badge.status-ready,
+    .status-badge.status-partially_delivered { background: rgba(34, 197, 94, 0.22); color: #86efac; }
     .order-items {
       list-style: none;
       margin: 0;
@@ -486,7 +494,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       padding: var(--space-3) 0;
       font-size: 1.125rem;
       line-height: 1.4;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid #414959;
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
@@ -494,7 +502,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: var(--color-primary);
       font-size: 1.25rem;
     }
-    .item-name { font-weight: 600; color: var(--color-text); }
+    .item-name { font-weight: 650; color: #f8fafc; }
     .item-notes {
       grid-column: 1 / -1;
       font-size: 1rem;
@@ -511,7 +519,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     .item-customization {
       grid-column: 2 / 4;
       font-size: 0.8125rem;
-      color: var(--color-text-muted);
+      color: #cbd5e1;
     }
     .item-status {
       font-size: 0.8125rem;
@@ -524,97 +532,39 @@ const VIEW_CATEGORY: Record<string, string> = {
     .item-status.status-ready { background: var(--color-success-light); color: var(--color-success); }
     .item-status.status-delivered { background: var(--color-bg); color: var(--color-text-muted); }
     .item-status-control {
-      position: relative;
-      display: inline-flex;
-      z-index: 10;
-    }
-    .order-item:hover .item-status-control {
-      z-index: 50;
-    }
-    .item-status-badge.clickable {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
-      min-height: 44px;
-      padding: var(--space-2) var(--space-3);
-      font-size: 0.875rem;
-      font-weight: 600;
-      border-radius: 14px;
-      border: 1px solid var(--color-border);
-      cursor: pointer;
-      background: inherit;
-      transition: all 0.15s;
+      justify-content: flex-end;
+      gap: 8px;
+      grid-column: 3 / -1;
     }
-    .item-status-badge.clickable:hover {
-      filter: brightness(0.95);
-      transform: scale(1.05);
-    }
-    .item-status-badge.status-pending.clickable { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
-    .item-status-badge.status-preparing.clickable { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
-    .item-status-badge.status-ready.clickable { background: var(--color-success-light); color: var(--color-success); }
-    .status-dropdown {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      left: auto;
-      margin-top: 6px;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 100;
-      min-width: 160px;
-      overflow: hidden;
-    }
-    .dropdown-section {
-      padding: 8px 0;
-    }
-    .dropdown-section:not(:last-child) {
-      border-bottom: 1px solid var(--color-border);
-    }
-    .dropdown-label {
-      padding: 6px 12px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .dropdown-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      width: 100%;
-      min-height: 48px;
-      padding: var(--space-3) var(--space-4);
-      background: none;
-      border: none;
-      text-align: left;
+    .item-action {
+      min-height: 52px;
+      border-radius: 8px;
+      border: 1px solid #64748b;
       font-size: 1rem;
-      font-weight: 500;
-      color: var(--color-text);
+      font-weight: 800;
       cursor: pointer;
-      transition: background 0.15s;
+      touch-action: manipulation;
     }
-    .dropdown-item:hover {
-      background: var(--color-bg);
+    .item-action-forward {
+      min-width: 116px;
+      padding: 0 18px;
+      color: #07120b;
+      background: #4ade80;
+      border-color: #4ade80;
     }
-    .dropdown-item.forward {
-      color: var(--color-primary);
-    }
-    .dropdown-item.backward {
-      color: var(--color-text-muted);
-    }
-    .dropdown-item svg {
-      flex-shrink: 0;
+    .item-action-back {
+      width: 52px;
+      color: #e2e8f0;
+      background: #343b49;
     }
     .order-notes {
       padding: var(--space-3) var(--space-5);
       background: rgba(245, 158, 11, 0.12);
       font-size: 1rem;
       font-weight: 600;
-      color: var(--color-text);
+      color: #f8fafc;
       border-top: 1px solid var(--color-border);
       border-left: 4px solid var(--color-warning);
       white-space: pre-wrap;
@@ -727,6 +677,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     red_minutes: 15,
   });
   private tickIntervalId: ReturnType<typeof setInterval> | null = null;
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+  private deviceKey = '';
+  private wakeLock: { release: () => Promise<void> } | null = null;
+  kdsOnline = signal(true);
+  strictFifo = signal(true);
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
@@ -781,11 +736,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       items: (o.items ?? []).filter(itemVisible),
     }));
     return mapped.sort((a, b) => {
-      if (!!a.staff_urgent !== !!b.staff_urgent) {
+      if (!this.strictFifo() && !!a.staff_urgent !== !!b.staff_urgent) {
         return a.staff_urgent ? -1 : 1;
       }
-      const ta = new Date(a.created_at).getTime();
-      const tb = new Date(b.created_at).getTime();
+      const ta = new Date(a.kitchen_released_at || a.created_at).getTime();
+      const tb = new Date(b.kitchen_released_at || b.created_at).getTime();
       return ta - tb;
     });
   });
@@ -806,6 +761,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   });
 
   ngOnInit(): void {
+    this.deviceKey = this.getOrCreateDeviceKey();
     const stored = localStorage.getItem(SOUND_STORAGE_KEY);
     this.soundEnabled.set(stored !== 'false');
     this.audio.setEnabled(this.soundEnabled());
@@ -820,7 +776,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.queryParamSub = this.route.queryParamMap.subscribe((qm) => {
       const s = qm.get('station');
       if (s == null || s === '' || s === 'all') {
-        this.stationSelection.set('all');
+        const stored = localStorage.getItem(`${STATION_STORAGE_PREFIX}-${this.viewMode()}`);
+        const storedNumber = stored ? Number.parseInt(stored, 10) : Number.NaN;
+        this.stationSelection.set(Number.isFinite(storedNumber) ? storedNumber : 'all');
       } else {
         const n = Number.parseInt(s, 10);
         if (Number.isFinite(n)) {
@@ -835,6 +793,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     });
 
     this.loadTimerSettings();
+    this.sendHeartbeat();
+    this.heartbeatIntervalId = setInterval(() => this.sendHeartbeat(), HEARTBEAT_INTERVAL_MS);
     this.loadOrders({ initial: true });
     this.refreshIntervalId = setInterval(
       () => this.loadOrders({ background: true }),
@@ -863,10 +823,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.addEventListener('webkitfullscreenchange', this.onFullscreenChange);
     document.addEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.addEventListener('MSFullscreenChange', this.onFullscreenChange);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   ngAfterViewInit(): void {
     this.syncFullscreenState();
+    void this.requestScreenWakeLock();
   }
 
   ngOnDestroy(): void {
@@ -878,6 +840,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearInterval(this.tickIntervalId);
       this.tickIntervalId = null;
     }
+    if (this.heartbeatIntervalId) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
     this.wsSub?.unsubscribe();
     this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
@@ -886,16 +852,52 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('webkitfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('MSFullscreenChange', this.onFullscreenChange);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    void this.releaseScreenWakeLock();
     void this.exitFullscreenIfActive();
   }
 
   onStationSelectChange(value: number | 'all'): void {
     this.stationSelection.set(value);
+    const storageKey = `${STATION_STORAGE_PREFIX}-${this.viewMode()}`;
+    if (value === 'all') localStorage.removeItem(storageKey);
+    else localStorage.setItem(storageKey, String(value));
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { station: value === 'all' ? undefined : value },
       queryParamsHandling: 'merge',
       replaceUrl: true,
+    });
+    this.sendHeartbeat();
+  }
+
+  private getOrCreateDeviceKey(): string {
+    const existing = localStorage.getItem(DEVICE_KEY_STORAGE_KEY)?.trim();
+    if (existing && existing.length >= 16) return existing;
+    const generated =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replaceAll('-', '')
+        : `${Date.now()}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DEVICE_KEY_STORAGE_KEY, generated);
+    return generated;
+  }
+
+  private sendHeartbeat(): void {
+    const selection = this.stationSelection();
+    this.api.heartbeatKitchenDevice({
+      device_key: this.deviceKey,
+      name: this.viewMode() === 'bar' ? 'Bar tablet' : 'Kitchen tablet',
+      display_route: this.viewMode(),
+      station_id: selection === 'all' ? null : selection,
+    }).subscribe({
+      next: () => {
+        this.kdsOnline.set(true);
+        this.api.getOrderingStatus().subscribe({
+          next: (status) => this.strictFifo.set(status.strict_fifo_kds !== false),
+          error: () => {},
+        });
+      },
+      error: () => this.kdsOnline.set(false),
     });
   }
 
@@ -906,7 +908,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
-  /** Elapsed minutes since order created_at (uses live now() for updates). */
+  /** Kitchen time starts only when a paid order is released to production. */
+  getKitchenStart(order: Order): string {
+    return order.kitchen_released_at || order.created_at;
+  }
+
+  /** Elapsed minutes since the supplied queue timestamp (uses live now() for updates). */
   getElapsedMinutes(createdAt: string): number {
     const created = this.parseOrderDate(createdAt);
     if (!created) return 0;
@@ -915,7 +922,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   /** CSS class for timer-based card color: timer-green, timer-yellow, timer-orange, timer-red. */
   getTimerColorClass(order: Order): string {
-    const min = this.getElapsedMinutes(order.created_at);
+    const min = this.getElapsedMinutes(this.getKitchenStart(order));
     const s = this.timerSettings();
     if (min >= (s.red_minutes ?? 15)) return 'timer-red';
     if (min >= (s.orange_minutes ?? 10)) return 'timer-orange';
@@ -925,7 +932,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   /** Fill width 0–100% toward red threshold (visual progress of wait time). */
   getTimerBarPercent(order: Order): number {
-    const min = this.getElapsedMinutes(order.created_at);
+    const min = this.getElapsedMinutes(this.getKitchenStart(order));
     const cap = this.timerSettings().red_minutes ?? 15;
     if (cap <= 0) return 0;
     return Math.min(100, (min / cap) * 100);
@@ -1001,7 +1008,36 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   private onFullscreenChange = (): void => {
     this.syncFullscreenState();
+    if (this.isFullscreen()) void this.requestScreenWakeLock();
   };
+
+  private onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') void this.requestScreenWakeLock();
+  };
+
+  private async requestScreenWakeLock(): Promise<void> {
+    if (this.wakeLock || document.visibilityState !== 'visible') return;
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> };
+    };
+    if (!nav.wakeLock) return;
+    try {
+      this.wakeLock = await nav.wakeLock.request('screen');
+    } catch {
+      this.wakeLock = null;
+    }
+  }
+
+  private async releaseScreenWakeLock(): Promise<void> {
+    const lock = this.wakeLock;
+    this.wakeLock = null;
+    if (!lock) return;
+    try {
+      await lock.release();
+    } catch {
+      // Browser already released it while the page was hidden.
+    }
+  }
 
   private syncFullscreenState(): void {
     const root = this.kitchenRootRef?.nativeElement;
@@ -1017,6 +1053,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const root = this.kitchenRootRef?.nativeElement;
     const target = root ?? document.documentElement;
     const p = requestFullscreenOnElement(target);
+    void this.requestScreenWakeLock();
     if (p && typeof (p as Promise<void>).catch === 'function') {
       (p as Promise<void>).catch(() => {});
     }
@@ -1045,7 +1082,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.loading.set(true);
     }
 
-    this.api.getOrders(false).subscribe({
+    this.api.getOrders(false, true).subscribe({
       next: (list) => {
         this.orders.set(list);
         this.lastRefreshAt.set(new Date());
@@ -1185,6 +1222,23 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     };
     const key = (currentStatus ?? '').toString().toLowerCase();
     return transitions[key] ?? { forward: [], backward: [] };
+  }
+
+  getNextItemStatus(currentStatus: string): string | null {
+    return this.getItemStatusTransitions(currentStatus).forward[0] ?? null;
+  }
+
+  getPreviousItemStatus(currentStatus: string): string | null {
+    return this.getItemStatusTransitions(currentStatus).backward[0] ?? null;
+  }
+
+  getKitchenActionLabel(nextStatus: string): string {
+    const labels: Record<string, string> = {
+      preparing: 'KITCHEN_DISPLAY.ACTION_START',
+      ready: 'KITCHEN_DISPLAY.ACTION_READY',
+      delivered: 'KITCHEN_DISPLAY.ACTION_COMPLETE',
+    };
+    return labels[nextStatus] ?? `ITEM_STATUS.${nextStatus}`;
   }
 
   toggleItemStatusDropdown(orderId: number, itemId: number): void {
