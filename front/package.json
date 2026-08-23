@@ -57,6 +57,8 @@
     "test:staff-delivery": "node scripts/test-staff-delivery.mjs",
     "test:paywall": "node scripts/test-paywall.mjs",
     "test:platform-operator": "node scripts/test-platform-operator.mjs",
+    "test:restaurant-onboarding": "node scripts/test-restaurant-onboarding.mjs",
+    "test:smart-plaques": "node scripts/test-smart-plaque-setup.mjs",
     "test:waiting-list": "node scripts/test-waiting-list.mjs",
     "test:restaurant-groups": "node scripts/test-restaurant-groups.mjs",
     "test:order-comments": "node scripts/test-order-comments.mjs",

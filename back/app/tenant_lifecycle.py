@@ -105,6 +105,11 @@ def export_tenant_bundle(session: Session, tenant_id: int) -> dict[str, Any]:
 
     floors = list(session.exec(select(models.Floor).where(models.Floor.tenant_id == tenant_id)).all())
     tables = list(session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all())
+    smart_plaques = list(
+        session.exec(
+            select(models.SmartPlaque).where(models.SmartPlaque.assigned_tenant_id == tenant_id)
+        ).all()
+    )
     reservations = list(
         session.exec(select(models.Reservation).where(models.Reservation.tenant_id == tenant_id)).all()
     )
@@ -211,6 +216,7 @@ def export_tenant_bundle(session: Session, tenant_id: int) -> dict[str, Any]:
         "product_questions": [_model_dump_safe(q) for q in questions],
         "floors": [_model_dump_safe(f) for f in floors],
         "tables": [_model_dump_safe(t) for t in tables],
+        "smart_plaques": [_model_dump_safe(p) for p in smart_plaques],
         "reservations": [_model_dump_safe(r) for r in reservations],
         "guest_feedback": [_model_dump_safe(g) for g in guest_feedback],
         "billing_customers": [_model_dump_safe(b) for b in billing_customers],
@@ -349,8 +355,16 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
     for fl in session.exec(select(models.Floor).where(models.Floor.tenant_id == tenant_id)).all():
         fl.default_waiter_id = None
         session.add(fl)
+    from .smart_plaque_routes import release_smart_plaque_for_deleted_table
+
     for tbl in session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all():
         tbl.assigned_waiter_id = None
+        release_smart_plaque_for_deleted_table(
+            session,
+            tbl,
+            actor_user_id=None,
+            action="tenant_purged",
+        )
         session.add(tbl)
     session.flush()
 
