@@ -1189,6 +1189,7 @@ All customer-facing order modification endpoints require and validate `session_i
 - ✅ `DELETE /menu/{table_token}/order/{order_id}/items/{item_id}` - **Requires** `session_id` query param
 - ✅ `PUT /menu/{table_token}/order/{order_id}/items/{item_id}` - **Requires** `session_id` query param
 - ✅ `DELETE /menu/{table_token}/order/{order_id}` - **Requires** `session_id` query param
+- ✅ `GET /menu/{table_token}/order-history` - **Requires** `session_id` query param; returns paid/completed orders scoped to that browser session (`OrderItem.added_by_session`) or, when the end-user customer cookie is present, orders linked via `Order.customer_id` at the same tenant (#350). Staff/back-office table views are unchanged.
 
 **Security Logic**:
 - Backend validates that `order.session_id == provided_session_id`

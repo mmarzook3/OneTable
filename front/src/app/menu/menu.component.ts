@@ -1397,8 +1397,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   loadOrderHistory() {
-    if (!this.tableToken) return;
-    this.api.getOrderHistory(this.tableToken, 10).subscribe({
+    if (!this.tableToken || !this.sessionId) return;
+    this.api.getOrderHistory(this.tableToken, this.sessionId, 10).subscribe({
       next: (orders) => this.orderHistory.set(orders),
       error: () => this.orderHistory.set([])
     });

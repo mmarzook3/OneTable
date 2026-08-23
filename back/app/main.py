@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as _BaseModel, Field
-from sqlalchemy import event, or_
+from sqlalchemy import event, exists, or_
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, StatementError
 from sqlmodel import Session, select
 
@@ -12794,6 +12794,44 @@ def get_current_order(
     return JSONResponse(content=payload)
 
 
+def _menu_order_history_session_scope(session_id: str):
+    """Orders where this browser session contributed items (shared table model)."""
+    sid = session_id.strip()
+    return or_(
+        models.Order.session_id == sid,
+        exists(
+            select(models.OrderItem.id).where(
+                models.OrderItem.order_id == models.Order.id,
+                models.OrderItem.added_by_session == sid,
+                models.OrderItem.removed_by_customer == False,
+            )
+        ),
+    )
+
+
+def _menu_order_history_items_for_viewer(
+    session: Session,
+    order: models.Order,
+    session_id: str,
+    customer: models.Customer | None,
+) -> list[models.OrderItem]:
+    items = session.exec(
+        select(models.OrderItem).where(
+            models.OrderItem.order_id == order.id,
+            models.OrderItem.removed_by_customer == False,
+        )
+    ).all()
+    if customer and order.customer_id == customer.id:
+        return items
+    sid = session_id.strip()
+    scoped = [
+        item
+        for item in items
+        if item.added_by_session == sid or (item.added_by_session is None and order.session_id == sid)
+    ]
+    return scoped
+
+
 @app.get("/menu/{table_token}/order-history")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
@@ -12801,35 +12839,53 @@ def get_current_order(
 def get_table_order_history(
     request: Request,
     table_token: str,
+    session_id: str = Query(..., min_length=8, max_length=128),
     limit: int = Query(10, ge=1, le=50),
+    customer: Annotated[
+        models.Customer | None, Depends(security.get_current_customer_optional)
+    ] = None,
     session: Session = Depends(get_session),
 ) -> list[dict]:
-    """Public endpoint - recent paid/completed orders for this table (for customer order history)."""
+    """Public endpoint — paid/completed orders scoped to session or logged-in customer (#350)."""
     table = session.exec(
         select(models.Table).where(models.Table.token == table_token)
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    orders = session.exec(
-        select(models.Order)
-        .where(
+    sid = session_id.strip()
+    session_scope = _menu_order_history_session_scope(sid)
+    if customer:
+        scope_filter = or_(
+            models.Order.customer_id == customer.id,
+            session_scope,
+        )
+        base_filters = [
+            models.Order.tenant_id == table.tenant_id,
+            models.Order.deleted_at.is_(None),
+            models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.completed]),
+            scope_filter,
+        ]
+    else:
+        base_filters = [
             models.Order.table_id == table.id,
             models.Order.deleted_at.is_(None),
             models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.completed]),
-        )
+            session_scope,
+        ]
+
+    orders = session.exec(
+        select(models.Order)
+        .where(*base_filters)
         .order_by(models.Order.created_at.desc())
         .limit(limit)
     ).all()
 
     result = []
     for order in orders:
-        items = session.exec(
-            select(models.OrderItem).where(
-                models.OrderItem.order_id == order.id,
-                models.OrderItem.removed_by_customer == False,
-            )
-        ).all()
+        items = _menu_order_history_items_for_viewer(session, order, sid, customer)
+        if not items:
+            continue
         total_cents = sum(item.price_cents * item.quantity for item in items)
         result.append({
             "id": order.id,
@@ -13000,6 +13056,9 @@ def create_order(
     table_token: str,
     order_data: models.OrderCreate,
     request: Request,
+    customer: Annotated[
+        models.Customer | None, Depends(security.get_current_customer_optional)
+    ] = None,
     session: Session = Depends(get_session),
 ) -> dict:
     """Public endpoint - add items to the table's shared order."""
@@ -13144,6 +13203,9 @@ def create_order(
     # Update customer name if provided (for display purposes)
     if order_data.customer_name and not order.customer_name:
         order.customer_name = order_data.customer_name
+
+    if customer and not order.customer_id:
+        order.customer_id = customer.id
 
     # Append notes if provided
     order_note = normalize_order_note(order_data.notes)

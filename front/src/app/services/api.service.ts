@@ -3295,7 +3295,9 @@ export class ApiService {
   }
 
   submitOrder(tableToken: string, order: OrderCreate): Observable<any> {
-    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order);
+    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order, {
+      withCredentials: true,
+    });
   }
 
   getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
@@ -3348,9 +3350,15 @@ export class ApiService {
     );
   }
 
-  getOrderHistory(tableToken: string, limit = 10): Observable<OrderHistoryItem[]> {
+  getOrderHistory(
+    tableToken: string,
+    sessionId: string,
+    limit = 10,
+  ): Observable<OrderHistoryItem[]> {
+    const params = new HttpParams().set('limit', String(limit)).set('session_id', sessionId);
     return this.http.get<OrderHistoryItem[]>(`${this.apiUrl}/menu/${tableToken}/order-history`, {
-      params: { limit }
+      params,
+      withCredentials: true,
     });
   }
 
