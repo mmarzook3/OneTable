@@ -117,13 +117,13 @@ export class SeoService {
 
   /** Public /features/:slug detail pages (fixed English meta for crawlers). */
   applyFeatureDetail(path: string, title: string, description: string): void {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaski.uk';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk';
     this.applyTags({ title, description, path }, origin);
   }
 
   applyForUrl(rawUrl: string): void {
     const path = this.normalizePath(rawUrl);
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaski.uk';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk';
 
     if (this.isNoindexPath(path)) {
       this.applyTags({
@@ -178,7 +178,7 @@ export class SeoService {
 
   private setOgBasics(opts: { title: string; description: string; url: string }): void {
     const image = this.absoluteUrl(
-      typeof window !== 'undefined' ? window.location.origin : 'https://scanaski.uk',
+      typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk',
       OG_IMAGE_PATH,
     );
     this.meta.updateTag({ property: 'og:type', content: 'website' });

@@ -7,7 +7,7 @@
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/test-landing-version.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaski.uk)
+ *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaki.uk)
  *   HEADLESS   Default headless; set 0, false, or no for a visible browser.
  *   TENANT_ID  Login tenant (default 1). Used with DEMO_LOGIN_* / LOGIN_*.
  *   SKIP_LANDING_PACKAGE_VERSION_CHECK  Set to 1 to skip comparing footer semver to front/package.json
@@ -218,7 +218,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'https://scanaski.uk';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const tenantId = process.env.TENANT_ID != null ? String(process.env.TENANT_ID) : '1';

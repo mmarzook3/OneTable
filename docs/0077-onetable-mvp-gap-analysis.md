@@ -172,12 +172,12 @@ The repository includes Docker Compose configurations for development and produc
 
 #### Scanaki modifications
 
-- Use the Scanaki production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://scanaski.uk/p/{code}`.
+- Use the Scanaki production host rather than `window.location.origin` as the canonical plaque host. Reusable plaques use `https://scanaki.uk/p/{code}`.
 - Add an access-source marker:
 
   ```text
-  QR:  https://scanaski.uk/p/{permanent-code}
-  NFC: https://scanaski.uk/p/{permanent-code}
+  QR:  https://scanaki.uk/p/{permanent-code}
+  NFC: https://scanaki.uk/p/{permanent-code}
   ```
 
 - Generate downloadable PNG and SVG files per table.

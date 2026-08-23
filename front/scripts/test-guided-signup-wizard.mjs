@@ -11,7 +11,7 @@
  *   HEADLESS=0 BASE_URL=http://127.0.0.1:4202 node front/scripts/test-guided-signup-wizard.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect 4203, 4202, 4200 or https://scanaski.uk)
+ *   BASE_URL   App URL (default: auto-detect 4203, 4202, 4200 or https://scanaki.uk)
  *   HEADLESS   Default headless; set 0, false, or no for a visible browser.
  */
 
@@ -35,7 +35,7 @@ async function detectBaseUrl() {
       if (res.ok || res.status < 500) return `http://127.0.0.1:${port}`;
     } catch (_) {}
   }
-  return 'https://scanaski.uk';
+  return 'https://scanaki.uk';
 }
 
 async function main() {
