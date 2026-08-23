@@ -28,7 +28,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
           <span></span>
         </button>
         <div class="mobile-brand" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-          <span class="header-title">Scanaki</span>
+          <span class="header-title">One Table</span>
           @if (tenantOrgName()) {
             <span class="header-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
               tenantOrgName()
@@ -40,7 +40,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
       <aside class="sidebar">
         <div class="sidebar-header">
           <div class="logo-container" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-            <span class="logo">Scanaki</span>
+            <span class="logo">One Table</span>
             <span class="version">{{ version }} <span class="commit-hash">{{ commitHash }}</span></span>
             @if (tenantOrgName()) {
               <span class="sidebar-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
@@ -407,7 +407,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
 
   brandTitle = computed(() => {
     const org = this.tenantOrgName();
-    return org ? `Scanaki (${org})` : 'Scanaki';
+    return org ? `One Table (${org})` : 'One Table';
   });
 
   ngOnInit() {

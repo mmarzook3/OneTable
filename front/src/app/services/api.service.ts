@@ -48,7 +48,6 @@ export interface User {
   tenant_id?: number | null;
   provider_id?: number | null;
   role: UserRole;
-  must_change_password?: boolean;
 }
 
 export interface UserCreate {
@@ -417,76 +416,6 @@ export interface PlatformTenantSummary {
   user_count: number;
   order_count: number;
   reservation_count: number;
-  onboarding_status: 'not_started' | 'in_progress' | 'completed' | string;
-  onboarding_step: number;
-}
-
-export interface PlatformRestaurantCreate {
-  restaurant_name: string;
-  owner_email: string;
-  owner_name?: string | null;
-}
-
-export interface PlatformRestaurantCredentials {
-  tenant_id: number;
-  restaurant_name: string;
-  username: string;
-  temporary_password: string;
-  password_setup_url?: string | null;
-}
-
-export interface SmartPlaque {
-  id: number;
-  public_code: string;
-  public_url: string;
-  batch_label?: string | null;
-  status: 'available' | 'assigned' | 'disabled' | 'retired' | string;
-  assigned_tenant_id?: number | null;
-  table_id?: number | null;
-  table_name?: string | null;
-  table_token?: string | null;
-  assigned_at?: string | null;
-  nfc_written_at?: string | null;
-  nfc_verified_at?: string | null;
-  nfc_locked_at?: string | null;
-}
-
-export interface SmartPlaqueLookup extends SmartPlaque {
-  assignment_state:
-    | 'available'
-    | 'assigned_here'
-    | 'assigned_other_restaurant'
-    | 'disabled'
-    | 'retired'
-    | string;
-}
-
-export interface PublicSmartPlaqueResolution {
-  public_code: string;
-  menu_path: string;
-  tenant_name: string;
-  table_name: string;
-}
-
-export interface RestaurantOnboardingState {
-  status: 'not_started' | 'in_progress' | 'completed' | string;
-  current_step: number;
-  must_change_password: boolean;
-  restaurant_name: string;
-  business_type?: string | null;
-  owner_name?: string | null;
-  owner_email: string;
-  business_email?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  currency_code: string;
-  timezone: string;
-  ordering_mode: string;
-  ordering_service_hours?: Record<string, { open?: string; close?: string; closed?: boolean }> | null;
-  floor_count: number;
-  table_count: number;
-  product_count: number;
-  payment_configured: boolean;
 }
 
 export interface PlatformStaffContact {
@@ -749,8 +678,6 @@ export interface TenantSummary {
   guest_birthday_capture_enabled?: boolean;
   guest_birthday_marketing_enabled?: boolean;
   guest_birthday_consent_text?: string | null;
-  /** Whether this restaurant currently accepts new delivery orders. */
-  delivery_enabled?: boolean;
 }
 
 /** Planned opening-hours baselines and date overrides (issue #194). */
@@ -1291,13 +1218,6 @@ export interface Table {
   nfc_written_at?: string | null;
   nfc_locked_at?: string | null;
   token_rotated_at?: string | null;
-  smart_plaque_id?: number | null;
-  smart_plaque_code?: string | null;
-  smart_plaque_url?: string | null;
-  smart_plaque_status?: string | null;
-  smart_plaque_nfc_written_at?: string | null;
-  smart_plaque_nfc_verified_at?: string | null;
-  smart_plaque_nfc_locked_at?: string | null;
 }
 
 export interface TableActivateResponse {
@@ -1665,7 +1585,7 @@ export interface Order {
   payment_state?: string | null;
 }
 
-/** Staff create first-party Scanaki Delivery order (no table). */
+/** Staff create first-party Satisfecho Delivery order (no table). */
 export interface SatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -1696,7 +1616,7 @@ export interface SatisfechoDeliveryOrderResponse {
   created_at?: string | null;
 }
 
-/** Public guest Scanaki Delivery create (no auth). */
+/** Public guest Satisfecho Delivery create (no auth). */
 export interface PublicSatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -1727,7 +1647,6 @@ export interface PublicSatisfechoDeliveryOrderResponse {
 }
 
 export interface PublicSatisfechoDeliveryConfig {
-  delivery_enabled: boolean;
   delivery_fee_cents: number;
   delivery_radius_meters: number | null;
   postal_codes_required: boolean;
@@ -1894,7 +1813,6 @@ export interface TenantSettings {
   longitude?: number | null;
   location_radius_meters?: number | null;
   location_check_enabled?: boolean;
-  delivery_enabled?: boolean;
   delivery_fee_cents?: number | null;
   /** Max delivery distance from restaurant lat/lng; null/0 = no radius check */
   delivery_radius_meters?: number | null;
@@ -2446,49 +2364,8 @@ export class ApiService {
     return this.http.get<PlatformTenantSummary[]>(`${this.apiUrl}/platform/tenants`);
   }
 
-  createPlatformRestaurant(
-    body: PlatformRestaurantCreate,
-  ): Observable<PlatformRestaurantCredentials> {
-    return this.http.post<PlatformRestaurantCredentials>(`${this.apiUrl}/platform/tenants`, body);
-  }
-
   getPlatformTenant(tenantId: number): Observable<PlatformTenantDetail> {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
-  }
-
-  createPlatformSmartPlaques(count: number, batchLabel?: string): Observable<SmartPlaque[]> {
-    return this.http.post<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques/batch`, {
-      count,
-      batch_label: batchLabel?.trim() || null,
-    });
-  }
-
-  getPlatformSmartPlaques(batchLabel?: string): Observable<SmartPlaque[]> {
-    let params = new HttpParams();
-    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
-    return this.http.get<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques`, { params });
-  }
-
-  downloadPlatformSmartPlaqueSheet(batchLabel?: string): Observable<Blob> {
-    let params = new HttpParams();
-    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
-    return this.http.get(`${this.apiUrl}/platform/smart-plaques/contact-sheet.pdf`, {
-      params,
-      responseType: 'blob',
-    });
-  }
-
-  releasePlatformSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
-    return this.http.post<SmartPlaque>(
-      `${this.apiUrl}/platform/smart-plaques/${plaqueId}/release`,
-      {},
-    );
-  }
-
-  deletePlatformSmartPlaque(plaqueId: number): Observable<{ status: string; id: number }> {
-    return this.http.delete<{ status: string; id: number }>(
-      `${this.apiUrl}/platform/smart-plaques/${plaqueId}`,
-    );
   }
 
   getCourierOrders(): Observable<CourierOrderSummary[]> {
@@ -2935,38 +2812,6 @@ export class ApiService {
     return this.http.put<Table>(`${this.apiUrl}/tables/${tableId}/plaque-status`, body);
   }
 
-  lookupSmartPlaque(value: string): Observable<SmartPlaqueLookup> {
-    return this.http.get<SmartPlaqueLookup>(`${this.apiUrl}/smart-plaques/lookup`, {
-      params: { value },
-    });
-  }
-
-  assignSmartPlaque(body: {
-    table_id: number;
-    plaque_code: string;
-    confirm_reassignment?: boolean;
-    replace_existing?: boolean;
-  }): Observable<SmartPlaque> {
-    return this.http.post<SmartPlaque>(`${this.apiUrl}/smart-plaques/assign`, body);
-  }
-
-  updateSmartPlaqueNfc(
-    plaqueId: number,
-    body: { written?: boolean; verified?: boolean; locked?: boolean },
-  ): Observable<SmartPlaque> {
-    return this.http.put<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/nfc`, body);
-  }
-
-  releaseSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
-    return this.http.delete<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/assignment`);
-  }
-
-  resolvePublicSmartPlaque(publicCode: string): Observable<PublicSmartPlaqueResolution> {
-    return this.http.get<PublicSmartPlaqueResolution>(
-      `${this.apiUrl}/public/smart-plaques/${encodeURIComponent(publicCode)}`,
-    );
-  }
-
   getTablePlaqueContactSheetUrl(): string {
     return `${this.apiUrl}/tables/plaque-contact-sheet.pdf`;
   }
@@ -3029,7 +2874,7 @@ export class ApiService {
     );
   }
 
-  /** Tenant users with courier role (for Scanaki Delivery assign). Uses ORDER_READ-scoped endpoint. */
+  /** Tenant users with courier role (for Satisfecho Delivery assign). Uses ORDER_READ-scoped endpoint. */
   getCouriers(): Observable<User[]> {
     return this.http.get<User[]>(`${this.apiUrl}/users/couriers`).pipe(
       catchError(() => of([]))
@@ -3048,7 +2893,7 @@ export class ApiService {
     return this.http.post<SatisfechoDeliveryOrderResponse>(`${this.apiUrl}/orders/satisfecho-delivery`, body);
   }
 
-  /** Public guest: create Scanaki Delivery order (address + phone required). */
+  /** Public guest: create Satisfecho Delivery order (address + phone required). */
   createPublicSatisfechoDeliveryOrder(
     tenantId: number,
     body: PublicSatisfechoDeliveryOrderCreate,
@@ -3529,9 +3374,7 @@ export class ApiService {
   }
 
   submitOrder(tableToken: string, order: OrderCreate): Observable<any> {
-    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order, {
-      withCredentials: true,
-    });
+    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order);
   }
 
   getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
@@ -3584,15 +3427,9 @@ export class ApiService {
     );
   }
 
-  getOrderHistory(
-    tableToken: string,
-    sessionId: string,
-    limit = 10,
-  ): Observable<OrderHistoryItem[]> {
-    const params = new HttpParams().set('limit', String(limit)).set('session_id', sessionId);
+  getOrderHistory(tableToken: string, limit = 10): Observable<OrderHistoryItem[]> {
     return this.http.get<OrderHistoryItem[]>(`${this.apiUrl}/menu/${tableToken}/order-history`, {
-      params,
-      withCredentials: true,
+      params: { limit }
     });
   }
 
@@ -3750,54 +3587,6 @@ export class ApiService {
         this.tenantDisplayName.set(n || null);
       })
     );
-  }
-
-  getRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
-    return this.http.get<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/status`);
-  }
-
-  setRestaurantOnboardingPassword(newPassword: string): Observable<RestaurantOnboardingState> {
-    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/password`, {
-      new_password: newPassword,
-    });
-  }
-
-  saveRestaurantOnboardingBusiness(body: {
-    restaurant_name: string;
-    business_type: string;
-    owner_name?: string | null;
-    business_email?: string | null;
-    phone?: string | null;
-    address?: string | null;
-  }): Observable<RestaurantOnboardingState> {
-    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/business`, body);
-  }
-
-  saveRestaurantOnboardingOperations(body: {
-    days_open: string[];
-    opening_time: string;
-    closing_time: string;
-  }): Observable<RestaurantOnboardingState> {
-    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/operations`, body);
-  }
-
-  createRestaurantOnboardingTables(body: {
-    floor_name: string;
-    table_prefix: string;
-    table_count: number;
-    seats_per_table: number;
-  }): Observable<RestaurantOnboardingState> {
-    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/tables`, body);
-  }
-
-  saveRestaurantOnboardingProgress(currentStep: number): Observable<RestaurantOnboardingState> {
-    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/progress`, {
-      current_step: currentStep,
-    });
-  }
-
-  completeRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
-    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/complete`, {});
   }
 
   getOrderingStatus(): Observable<OrderingAvailability> {

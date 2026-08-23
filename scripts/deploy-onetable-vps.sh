@@ -32,7 +32,7 @@ export COMMIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || true)"
 for attempt in {1..30}; do
   if curl --fail --silent --max-time 5 "$PUBLIC_URL/api/health" >/dev/null; then
     "$ROOT_DIR/scripts/onetable-health-check.sh"
-    echo "Scanaki deployed at $PUBLIC_URL"
+    echo "One Table deployed at $PUBLIC_URL"
     exit 0
   fi
   sleep 2

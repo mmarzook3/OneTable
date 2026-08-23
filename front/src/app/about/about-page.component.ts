@@ -55,21 +55,11 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
           <p class="about-section__body">{{ 'ABOUT_PAGE.OPEN_SOURCE_BODY' | translate }}</p>
         </section>
 
-        <section class="about-section" aria-labelledby="about-manual-heading" data-testid="about-user-manual">
-          <h2 id="about-manual-heading" class="about-section__title">{{ 'ABOUT_PAGE.MANUAL_TITLE' | translate }}</h2>
-          <p class="about-section__body">
-            {{ 'ABOUT_PAGE.MANUAL_BODY' | translate }}
-            <a routerLink="/manual-usuario" class="about-section__link" data-testid="about-manual-link">{{
-              'LANDING.USER_MANUAL' | translate
-            }}</a>
-          </p>
-        </section>
-
         <section class="about-section" aria-labelledby="about-contact-heading">
           <h2 id="about-contact-heading" class="about-section__title">{{ 'ABOUT_PAGE.CONTACT_TITLE' | translate }}</h2>
           <p class="about-section__body">
             {{ 'ABOUT_PAGE.CONTACT_BODY' | translate }}
-            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="about-section__link">Scanaki support</a>
+            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="about-section__link">One Table support</a>
           </p>
         </section>
       </main>

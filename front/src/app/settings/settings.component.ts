@@ -1335,7 +1335,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   
                   <div class="divider"></div>
 
-                  <h3>Scanaki ordering</h3>
+                  <h3>One Table ordering</h3>
                   <p class="hint">Automatic mode lets guests order without staff activating a table. Orders reach the kitchen only after Stripe confirms payment.</p>
                   <div class="form-group">
                     <label for="ordering_mode">Ordering mode</label>
@@ -1613,18 +1613,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   <div class="divider"></div>
                   <h3>{{ 'SETTINGS.SATISFECHO_DELIVERY_TITLE' | translate }}</h3>
                   <p class="section-desc">{{ 'SETTINGS.SATISFECHO_DELIVERY_DESC' | translate }}</p>
-                  <div class="form-group checkbox-row">
-                    <label class="switch">
-                      <input type="checkbox" [(ngModel)]="formData.delivery_enabled" name="delivery_enabled" />
-                      <span class="slider round"></span>
-                    </label>
-                    <div>
-                      <label class="check-label">{{ 'SETTINGS.DELIVERY_ENABLED' | translate }}</label>
-                      <p class="hint">{{ 'SETTINGS.DELIVERY_ENABLED_HINT' | translate }}</p>
-                    </div>
-                  </div>
-                  @if (formData.delivery_enabled) {
-                    <div class="form-group">
+                  <div class="form-group">
                     <label for="delivery_fee_cents">{{ 'SETTINGS.DELIVERY_FEE_CENTS' | translate }}</label>
                     <input
                       type="number"
@@ -1636,8 +1625,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       placeholder="0"
                     />
                     <p class="hint">{{ 'SETTINGS.DELIVERY_FEE_HINT' | translate }}</p>
-                    </div>
-                    <div class="form-group">
+                  </div>
+                  <div class="form-group">
                     <label for="delivery_radius_meters">{{ 'SETTINGS.DELIVERY_RADIUS' | translate }}</label>
                     <input
                       type="number"
@@ -1649,8 +1638,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       placeholder="0"
                     />
                     <p class="hint">{{ 'SETTINGS.DELIVERY_RADIUS_HINT' | translate }}</p>
-                    </div>
-                    <div class="form-group">
+                  </div>
+                  <div class="form-group">
                     <label for="delivery_postal_codes">{{ 'SETTINGS.DELIVERY_POSTAL_CODES' | translate }}</label>
                     <textarea
                       id="delivery_postal_codes"
@@ -1660,8 +1649,7 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       [placeholder]="'SETTINGS.DELIVERY_POSTAL_CODES_PH' | translate"
                     ></textarea>
                     <p class="hint">{{ 'SETTINGS.DELIVERY_POSTAL_CODES_HINT' | translate }}</p>
-                    </div>
-                  }
+                  </div>
                 </div>
               }
 
@@ -3381,7 +3369,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     guest_birthday_capture_enabled: true,
     guest_birthday_marketing_enabled: false,
     guest_birthday_consent_text: null,
-    delivery_enabled: true,
     delivery_fee_cents: 0,
     delivery_radius_meters: null,
     delivery_postal_codes: null,
@@ -3518,7 +3505,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
           guest_birthday_capture_enabled: settings.guest_birthday_capture_enabled ?? true,
           guest_birthday_marketing_enabled: settings.guest_birthday_marketing_enabled ?? false,
           guest_birthday_consent_text: settings.guest_birthday_consent_text ?? null,
-          delivery_enabled: settings.delivery_enabled ?? true,
           delivery_fee_cents: settings.delivery_fee_cents ?? 0,
           delivery_radius_meters: settings.delivery_radius_meters ?? null,
           delivery_postal_codes: this.formatDeliveryPostalCodesForForm(settings.delivery_postal_codes),

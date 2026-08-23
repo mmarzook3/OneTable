@@ -9,13 +9,15 @@ import { StaffPosToolbarComponent } from '../shared/staff-pos-toolbar.component'
 import { TablesAreaPreferenceService } from '../services/tables-area-preference.service';
 import { ConfirmationModalComponent } from '../shared/confirmation-modal.component';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
-import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { TranslateModule } from '@ngx-translate/core';
 import { CommonModule } from '@angular/common';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { findNonOverlappingDefaultPosition } from './table-floor-layout.util';
-import { SmartPlaqueAssignmentComponent } from './smart-plaque-assignment.component';
 
 const TABLES_VIEW_STORAGE_KEY = 'pos.tables.viewMode';
+
+type NdefWriter = { write(message: { records: Array<{ recordType: 'url'; data: string }> }): Promise<void> };
+type NdefReaderConstructor = new () => NdefWriter;
 
 /** One combined list row per joined group, or one row per ungrouped table. */
 type TablesListRow =
@@ -36,7 +38,7 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
 @Component({
   selector: 'app-tables',
   standalone: true,
-  imports: [CommonModule, FormsModule, QRCodeComponent, SidebarComponent, StaffPosToolbarComponent, RouterLink, TranslateModule, ConfirmationModalComponent, FocusFirstInputDirective, SmartPlaqueAssignmentComponent],
+  imports: [CommonModule, FormsModule, QRCodeComponent, SidebarComponent, StaffPosToolbarComponent, RouterLink, TranslateModule, ConfirmationModalComponent, FocusFirstInputDirective],
   template: `
     <app-sidebar>
         <div class="page-header page-header--staff-flow">
@@ -594,15 +596,12 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
                 @if (!compact) {
                   <div class="plaque-controls">
                     <span class="plaque-status plaque-status--{{ table.plaque_status || 'not_created' }}">
-                      {{ formatPlaqueStatus(table.smart_plaque_status || table.plaque_status) }}
+                      {{ formatPlaqueStatus(table.plaque_status) }}
                     </span>
-                    <button type="button" class="btn btn-primary btn-sm" (click)="openSmartPlaqueSetup(table)" data-testid="setup-smart-plaque">
-                      {{ (table.smart_plaque_id ? 'SMART_PLAQUES.MANAGE' : 'SMART_PLAQUES.ASSIGN') | translate }}
-                    </button>
-                    @if (table.smart_plaque_id) {
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="downloadTableQr(table)">{{ 'SMART_PLAQUES.DOWNLOAD_QR' | translate }}</button>
-                      <button type="button" class="btn btn-ghost btn-sm danger" (click)="rotateTableToken(table)">{{ 'SMART_PLAQUES.ROTATE_ACCESS' | translate }}</button>
-                    }
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="downloadTableQr(table)">Download QR</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="writeTableNfc(table)">Write NFC</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="markPlaqueTested(table)">Mark tested</button>
+                    <button type="button" class="btn btn-ghost btn-sm danger" (click)="rotateTableToken(table)">Rotate token</button>
                   </div>
                 }
               </div>
@@ -685,14 +684,6 @@ function getInitialTablesViewMode(): 'tiles' | 'table' {
             </ng-template>
           }
         </div>
-
-        @if (plaqueSetupTable(); as setupTable) {
-          <app-smart-plaque-assignment
-            [table]="setupTable"
-            (closed)="closeSmartPlaqueSetup()"
-            (tableUpdated)="onSmartPlaqueTableUpdated($event)"
-          />
-        }
 
         <!-- Confirmation Modal -->
         @if (confirmationModal().show) {
@@ -1219,7 +1210,6 @@ export class TablesComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private tablesArea = inject(TablesAreaPreferenceService);
   private apiErr = inject(ApiErrorMessageService);
-  private translate = inject(TranslateService);
 
   /** When true, skip restoring view mode from localStorage (URL ?view= had priority). */
   private viewResolvedFromQuery = false;
@@ -1279,7 +1269,6 @@ export class TablesComponent implements OnInit {
   /** When set, show modal to reassign this table's orders to another table before delete. */
   reassignTableModal = signal<Table | null>(null);
   reassignTargetTableId = signal<number | null>(null);
-  plaqueSetupTable = signal<Table | null>(null);
 
   otherTablesForReassign = computed(() => {
     const table = this.reassignTableModal();
@@ -1685,13 +1674,11 @@ export class TablesComponent implements OnInit {
               this.tables.update(t => [...t, updated]);
               this.newTableName = '';
               this.showForm.set(false);
-              this.plaqueSetupTable.set(updated);
             },
             error: err => {
               this.tables.update(t => [...t, table]);
               this.newTableName = '';
               this.showForm.set(false);
-              this.plaqueSetupTable.set(table);
               this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED'));
             },
           });
@@ -1843,21 +1830,7 @@ export class TablesComponent implements OnInit {
 
   /** Public customer URL (QR code, copy link). Staff should use {@link openStaffMenu} to skip the table PIN. */
   getMenuUrl(table: Table): string {
-    return table.smart_plaque_url || table.menu_url || `${window.location.origin}/menu/${table.token}`;
-  }
-
-  openSmartPlaqueSetup(table: Table): void {
-    this.plaqueSetupTable.set(table);
-  }
-
-  closeSmartPlaqueSetup(): void {
-    this.plaqueSetupTable.set(null);
-  }
-
-  onSmartPlaqueTableUpdated(updated: Table): void {
-    if (updated.id == null) return;
-    this.tables.update((rows) => rows.map((row) => row.id === updated.id ? { ...row, ...updated } : row));
-    this.plaqueSetupTable.set(updated);
+    return table.menu_url || `${window.location.origin}/menu/${table.token}`;
   }
 
   formatPlaqueStatus(status: string | null | undefined): string {
@@ -1874,22 +1847,55 @@ export class TablesComponent implements OnInit {
       });
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `${table.name.replace(/[^A-Za-z0-9_-]+/g, '-')}-scanaki-qr.png`;
+      link.download = `${table.name.replace(/[^A-Za-z0-9_-]+/g, '-')}-one-table-qr.png`;
       link.click();
-      if (table.id && !table.smart_plaque_id) {
+      if (table.id) {
         this.api.updateTablePlaqueStatus(table.id, { status: 'printed' }).subscribe({
           next: updated => this.mergeUpdatedTable(table.id!, updated),
           error: () => {},
         });
       }
     } catch {
-      this.error.set(this.translate.instant('SMART_PLAQUES.QR_GENERATION_ERROR'));
+      this.error.set('Could not generate the QR image.');
     }
+  }
+
+  writeTableNfc(table: Table): void {
+    const NDEFReader = (window as unknown as { NDEFReader?: NdefReaderConstructor }).NDEFReader;
+    if (!NDEFReader) {
+      this.copyLink(table);
+      this.error.set('Web NFC is not available in this browser. The menu URL was copied for an NFC writer app.');
+      return;
+    }
+    const writer = new NDEFReader();
+    writer.write({ records: [{ recordType: 'url', data: this.getMenuUrl(table) }] }).then(() => {
+      if (!table.id) return;
+      this.api.updateTablePlaqueStatus(table.id, {
+        status: 'nfc_written',
+        nfc_written: true,
+      }).subscribe({
+        next: updated => {
+          this.mergeUpdatedTable(table.id!, updated);
+          this.showToast('NFC tag written', 'success');
+        },
+        error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+      });
+    }).catch(() => {
+      this.error.set('NFC write was cancelled or failed. Hold the tag against the back of the Android device and try again.');
+    });
+  }
+
+  markPlaqueTested(table: Table): void {
+    if (!table.id) return;
+    this.api.updateTablePlaqueStatus(table.id, { status: 'tested', tested: true }).subscribe({
+      next: updated => this.mergeUpdatedTable(table.id!, updated),
+      error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
+    });
   }
 
   rotateTableToken(table: Table): void {
     if (!table.id) return;
-    if (!window.confirm(this.translate.instant('SMART_PLAQUES.ROTATE_CONFIRM', { table: table.name }))) return;
+    if (!window.confirm(`Rotate the token for ${table.name}? The existing QR and NFC tag will stop working.`)) return;
     this.api.rotateTableToken(table.id).subscribe({
       next: updated => this.mergeUpdatedTable(table.id!, updated),
       error: err => this.error.set(this.apiErr.fromHttpError(err, 'COMMON.API_REQUEST_FAILED')),
@@ -1902,7 +1908,7 @@ export class TablesComponent implements OnInit {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'scanaki-plaques.pdf';
+        link.download = 'one-table-plaques.pdf';
         link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       },

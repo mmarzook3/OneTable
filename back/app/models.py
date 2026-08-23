@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, ForeignKey, Text, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.ext.compiler import compiles
 from sqlmodel import Field, Relationship, SQLModel
@@ -64,7 +64,7 @@ class OrderChannel(str, Enum):
     """How the order was placed / fulfilled (kitchen + courier distinguish channels)."""
 
     table = "table"  # dine-in (default)
-    satisfecho_delivery = "satisfecho_delivery"  # first-party Scanaki Delivery
+    satisfecho_delivery = "satisfecho_delivery"  # first-party Satisfecho Delivery
     marketplace = "marketplace"  # third-party (Glovo/Uber); usually paired with delivery_integration_id
 
 
@@ -94,13 +94,6 @@ class Tenant(SQLModel, table=True):
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # Scanaki first-login setup. Platform provisioning starts new restaurants
-    # at not_started; existing and self-managed tenants remain completed.
-    onboarding_status: str = Field(default="completed", max_length=32, index=True)
-    onboarding_step: int = Field(default=0)
-    onboarding_started_at: datetime | None = None
-    onboarding_completed_at: datetime | None = None
-
     # Business Profile Fields
     business_type: BusinessType | None = Field(default=None)
     description: str | None = None
@@ -123,7 +116,7 @@ class Tenant(SQLModel, table=True):
         default=False
     )  # Require immediate payment for orders
 
-    # Scanaki dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
+    # One Table dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
     ordering_mode: str = Field(default="activation_pin", max_length=32)
     ordering_paused: bool = Field(default=False)
     ordering_pause_reason: str | None = Field(default=None, max_length=240)
@@ -223,8 +216,7 @@ class Tenant(SQLModel, table=True):
     guest_birthday_marketing_enabled: bool = Field(default=False)
     guest_birthday_consent_text: str | None = Field(default=None)  # GDPR copy when marketing enabled
 
-    # Scanaki Delivery: tenant switch, flat fee, and coverage (postal list and/or radius from lat/lng)
-    delivery_enabled: bool = Field(default=True)
+    # Satisfecho Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
     delivery_fee_cents: int = Field(default=0)
     delivery_radius_meters: int | None = Field(default=None)
     delivery_postal_codes: str | None = Field(
@@ -293,7 +285,7 @@ class Tenant(SQLModel, table=True):
     tse_serial_number: str | None = Field(default=None, max_length=128)
     tse_signature_counter: int = Field(default=1)
 
-    # Platform SaaS subscription (Scanaki paywall - not restaurant guest payments)
+    # Platform SaaS subscription (Satisfecho paywall — not restaurant guest payments)
     # none | trialing | active | canceled | past_due | grandfathered
     saas_subscription_status: str = Field(default="grandfathered", max_length=32)
     saas_trial_ends_at: datetime | None = Field(default=None)
@@ -335,8 +327,6 @@ class User(SQLModel, table=True):
     otp_secret: str | None = Field(default=None, exclude=True)  # Never serialized in API responses
     otp_enabled: bool = Field(default=False)
     employee_number: str | None = Field(default=None, max_length=64)
-    must_change_password: bool = Field(default=False)
-    temporary_password_issued_at: datetime | None = None
 
 
 class PasswordResetToken(SQLModel, table=True):
@@ -456,73 +446,6 @@ class PlatformTenantSummary(SQLModel):
     user_count: int = 0
     order_count: int = 0
     reservation_count: int = 0
-    onboarding_status: str = "completed"
-    onboarding_step: int = 0
-
-
-class PlatformRestaurantCreate(SQLModel):
-    restaurant_name: str = Field(min_length=2, max_length=200)
-    owner_email: str = Field(min_length=3, max_length=320)
-    owner_name: str | None = Field(default=None, max_length=200)
-
-
-class PlatformRestaurantCredentials(SQLModel):
-    tenant_id: int
-    restaurant_name: str
-    username: str
-    temporary_password: str
-    password_setup_url: str | None = None
-
-
-class RestaurantOnboardingState(SQLModel):
-    status: str
-    current_step: int
-    must_change_password: bool
-    restaurant_name: str
-    business_type: str | None = None
-    owner_name: str | None = None
-    owner_email: str
-    business_email: str | None = None
-    phone: str | None = None
-    address: str | None = None
-    currency_code: str
-    timezone: str
-    ordering_mode: str
-    ordering_service_hours: dict | None = None
-    floor_count: int = 0
-    table_count: int = 0
-    product_count: int = 0
-    payment_configured: bool = False
-
-
-class RestaurantOnboardingPassword(SQLModel):
-    new_password: str = Field(min_length=8, max_length=128)
-
-
-class RestaurantOnboardingBusiness(SQLModel):
-    restaurant_name: str = Field(min_length=2, max_length=200)
-    business_type: BusinessType = BusinessType.restaurant
-    owner_name: str | None = Field(default=None, max_length=200)
-    business_email: str | None = Field(default=None, max_length=320)
-    phone: str | None = Field(default=None, max_length=64)
-    address: str | None = Field(default=None, max_length=500)
-
-
-class RestaurantOnboardingOperations(SQLModel):
-    days_open: list[str]
-    opening_time: str = Field(min_length=5, max_length=5)
-    closing_time: str = Field(min_length=5, max_length=5)
-
-
-class RestaurantOnboardingTables(SQLModel):
-    floor_name: str = Field(default="Main", min_length=1, max_length=100)
-    table_prefix: str = Field(default="Table ", min_length=1, max_length=40)
-    table_count: int = Field(default=10, ge=1, le=100)
-    seats_per_table: int = Field(default=4, ge=1, le=50)
-
-
-class RestaurantOnboardingProgress(SQLModel):
-    current_step: int = Field(ge=0, le=5)
 
 
 class PlatformStaffContact(SQLModel):
@@ -861,62 +784,6 @@ class Table(TenantMixin, table=True):
     nfc_written_at: datetime | None = None
     nfc_locked_at: datetime | None = None
     token_rotated_at: datetime | None = None
-
-
-class SmartPlaque(SQLModel, table=True):
-    """A reusable physical QR/NFC plaque with a permanent Scanaki URL."""
-
-    __tablename__ = "smart_plaque"
-    id: int | None = Field(default=None, primary_key=True)
-    public_code: str = Field(max_length=64, unique=True, index=True)
-    batch_label: str | None = Field(default=None, max_length=100, index=True)
-    status: str = Field(default="available", max_length=24, index=True)
-    assigned_tenant_id: int | None = Field(
-        default=None,
-        sa_column=Column(ForeignKey("tenant.id", ondelete="SET NULL"), nullable=True, index=True),
-    )
-    table_id: int | None = Field(
-        default=None,
-        sa_column=Column(ForeignKey("table.id", ondelete="SET NULL"), nullable=True, unique=True),
-    )
-    created_by_user_id: int | None = Field(
-        default=None,
-        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
-    )
-    assigned_by_user_id: int | None = Field(
-        default=None,
-        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
-    )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    assigned_at: datetime | None = None
-    nfc_written_at: datetime | None = None
-    nfc_verified_at: datetime | None = None
-    nfc_locked_at: datetime | None = None
-
-
-class SmartPlaqueAssignmentEvent(SQLModel, table=True):
-    """Tenant-safe audit history for plaque assignment and release actions."""
-
-    __tablename__ = "smart_plaque_assignment_event"
-    id: int | None = Field(default=None, primary_key=True)
-    plaque_id: int = Field(
-        sa_column=Column(
-            ForeignKey("smart_plaque.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
-    )
-    action: str = Field(max_length=32)
-    from_tenant_id: int | None = None
-    from_table_id: int | None = None
-    to_tenant_id: int | None = None
-    to_table_id: int | None = None
-    actor_user_id: int | None = Field(
-        default=None,
-        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
-    )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 
 class Shift(TenantMixin, table=True):
@@ -1403,7 +1270,7 @@ class Order(TenantMixin, table=True):
     )
     external_order_ref: str | None = Field(default=None, max_length=256, index=True)
 
-    # First-party Scanaki Delivery (no delivery_integration_id); table_id stays null
+    # First-party Satisfecho Delivery (no delivery_integration_id); table_id stays null
     order_channel: OrderChannel = Field(default=OrderChannel.table, max_length=32, index=True)
     delivery_address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     customer_phone: str | None = Field(default=None, max_length=40)
@@ -1862,7 +1729,7 @@ class OrderCreate(SQLModel):
 
 
 class SatisfechoDeliveryOrderCreate(SQLModel):
-    """Staff create first-party Scanaki Delivery order (no table, no marketplace integration)."""
+    """Staff create first-party Satisfecho Delivery order (no table, no marketplace integration)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1873,7 +1740,7 @@ class SatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class PublicSatisfechoDeliveryOrderCreate(SQLModel):
-    """Public guest create for Scanaki Delivery (address + phone required; no courier assign)."""
+    """Public guest create for Satisfecho Delivery (address + phone required; no courier assign)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1886,7 +1753,7 @@ class PublicSatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class OrderDeliveryUpdate(SQLModel):
-    """Update delivery metadata on a Scanaki Delivery order."""
+    """Update delivery metadata on a Satisfecho Delivery order."""
 
     delivery_address: str | None = None
     customer_phone: str | None = None
@@ -2090,8 +1957,7 @@ class TenantUpdate(SQLModel):
     guest_birthday_marketing_enabled: bool | None = None
     guest_birthday_consent_text: str | None = None
 
-    # Scanaki Delivery availability, fee + coverage
-    delivery_enabled: bool | None = None
+    # Satisfecho Delivery fee + coverage
     delivery_fee_cents: int | None = None
     delivery_radius_meters: int | None = None
     delivery_postal_codes: str | None = None  # JSON array string or empty to clear

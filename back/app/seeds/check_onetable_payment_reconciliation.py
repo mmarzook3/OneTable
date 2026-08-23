@@ -1,4 +1,4 @@
-"""Read-only Scanaki payment/kitchen integrity check for monitoring and deploys."""
+"""Read-only One Table payment/kitchen integrity check for monitoring and deploys."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Provision the idempotent Scanaki pilot tenant for The Yue Tree Pub.
+"""Provision the idempotent One Table pilot tenant for The Yue Tree Pub.
 
 This seed is safe to rerun: it updates the pilot policy, creates only missing
 tables/products/stations, and creates or resets the two pilot accounts only when
@@ -43,7 +43,7 @@ SERVICE_HOURS = {
 
 # Acceptance-test data only. Replace it with the venue's approved menu before launch.
 PILOT_PRODUCTS = (
-    ("Fish & Chips", 1395, "Mains", "crispy battered fish, chips, peas, tartare sauce"),
+    ("Fish & Chips", 1395, "Mains", "beer-battered fish, chips, peas, tartare sauce"),
     ("Classic Beef Burger", 1295, "Mains", "beef patty, cheese, lettuce, tomato, chips"),
     ("Plant Burger", 1250, "Mains", "plant-based patty, lettuce, tomato, chips"),
     ("Chicken Wings", 795, "Small Plates", "chicken wings, house sauce"),
@@ -52,15 +52,8 @@ PILOT_PRODUCTS = (
     ("Sticky Toffee Pudding", 650, "Desserts", "dates, toffee sauce, ice cream"),
     ("House Lemonade", 325, "Soft Drinks", None),
     ("Cola", 300, "Soft Drinks", None),
-    (
-        "Traditional Sausage Roll",
-        495,
-        "Small Plates",
-        "pork sausage, puff pastry, English mustard",
-    ),
+    ("Alcohol-free Lager", 425, "Beer", None),
 )
-
-PILOT_DESCRIPTION = "Pilot menu item — confirm before live launch"
 
 
 def _upsert_account(
@@ -109,7 +102,7 @@ def run() -> None:
         if not tenant:
             tenant = Tenant(name=TENANT_NAME)
         tenant.business_type = BusinessType.bar
-        tenant.description = "Scanaki pilot venue"
+        tenant.description = "One Table pilot venue"
         tenant.country_code = "GB"
         tenant.currency_code = "GBP"
         tenant.currency = "£"
@@ -192,45 +185,11 @@ def run() -> None:
             )
 
         existing_products = {
-            product.name: product
+            product.name
             for product in session.exec(
                 select(Product).where(Product.tenant_id == tenant.id)
             ).all()
         }
-
-        # Migrate the original pilot menu without introducing any restriction logic:
-        # Scanaki simply does not promote alcohol-related demo content.
-        fish_and_chips = existing_products.get("Fish & Chips")
-        if (
-            fish_and_chips
-            and fish_and_chips.ingredients
-            == "beer-battered fish, chips, peas, tartare sauce"
-        ):
-            fish_and_chips.ingredients = "crispy battered fish, chips, peas, tartare sauce"
-            session.add(fish_and_chips)
-
-        legacy_lager = existing_products.pop("Alcohol-free Lager", None)
-        if legacy_lager:
-            if "Traditional Sausage Roll" not in existing_products:
-                legacy_lager.name = "Traditional Sausage Roll"
-                legacy_lager.price_cents = 495
-                legacy_lager.category = "Small Plates"
-                legacy_lager.subcategory = None
-                legacy_lager.ingredients = "pork sausage, puff pastry, English mustard"
-                legacy_lager.description = PILOT_DESCRIPTION
-                legacy_lager.kitchen_station_id = station.id
-                existing_products[legacy_lager.name] = legacy_lager
-            else:
-                legacy_lager.name = "Traditional Pork Pie"
-                legacy_lager.price_cents = 495
-                legacy_lager.category = "Small Plates"
-                legacy_lager.subcategory = None
-                legacy_lager.ingredients = "seasoned pork, hot-water crust pastry"
-                legacy_lager.description = PILOT_DESCRIPTION
-                legacy_lager.kitchen_station_id = station.id
-                existing_products[legacy_lager.name] = legacy_lager
-            session.add(legacy_lager)
-
         for name, price_cents, category, ingredients in PILOT_PRODUCTS:
             if name not in existing_products:
                 session.add(
@@ -240,7 +199,7 @@ def run() -> None:
                         price_cents=price_cents,
                         category=category,
                         ingredients=ingredients,
-                        description=PILOT_DESCRIPTION,
+                        description="Pilot menu item — confirm before live launch",
                         kitchen_station_id=station.id,
                     )
                 )
