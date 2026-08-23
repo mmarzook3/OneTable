@@ -37,6 +37,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./auth/paywall.component').then(m => m.PaywallComponent),
   },
+  {
+    path: 'onboarding',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./onboarding/restaurant-onboarding.component').then(
+        (m) => m.RestaurantOnboardingComponent,
+      ),
+  },
   // Provider portal (public auth pages)
   { path: 'provider/login', loadComponent: () => import('./provider/provider-login.component').then(m => m.ProviderLoginComponent) },
   { path: 'provider/register', loadComponent: () => import('./provider/provider-register.component').then(m => m.ProviderRegisterComponent) },
@@ -58,6 +66,7 @@ export const routes: Routes = [
   { path: 'customer', canActivate: [customerGuard], loadComponent: () => import('./customer/customer-home.component').then(m => m.CustomerHomeComponent) },
   // Platform operator portal (public auth + protected dashboard)
   { path: 'platform/login', loadComponent: () => import('./platform/platform-login.component').then(m => m.PlatformLoginComponent) },
+  { path: 'platform/restaurants/new', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-create-restaurant.component').then(m => m.PlatformCreateRestaurantComponent) },
   { path: 'platform/tenants/:tenantId', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
   { path: 'platform', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
   { path: 'menu/:token', loadComponent: () => import('./menu/menu.component').then(m => m.MenuComponent) },

@@ -61,6 +61,7 @@ from .product_bulk_import_routes import router as product_bulk_import_router
 from .tenant_subcategory_routes import router as tenant_subcategory_router
 from .reports_routes import router as reports_router
 from .platform_routes import router as platform_router
+from .restaurant_onboarding_routes import router as restaurant_onboarding_router
 from .saas_routes import router as saas_router
 from .attendance_routes import router as attendance_router
 from .tenant_lifecycle_routes import router as tenant_lifecycle_router
@@ -590,6 +591,11 @@ app.include_router(
 app.include_router(reports_router, prefix="/reports", tags=["Reports"])
 app.include_router(attendance_router, prefix="/reports", tags=["Reports"])
 app.include_router(platform_router, prefix="/platform", tags=["Platform"])
+app.include_router(
+    restaurant_onboarding_router,
+    prefix="/onboarding",
+    tags=["Restaurant onboarding"],
+)
 app.include_router(saas_router, prefix="/saas", tags=["SaaS billing"])
 # Owner-only data export & tenant purge (GitHub #96)
 app.include_router(tenant_lifecycle_router, prefix="/tenant", tags=["Tenant lifecycle"])
@@ -3113,6 +3119,8 @@ def password_reset_confirm(
         )
     row.used_at = now
     user.hashed_password = security.get_password_hash(body.new_password)
+    user.must_change_password = False
+    user.temporary_password_issued_at = None
     user.token_version = (user.token_version or 0) + 1
     session.add(row)
     session.add(user)

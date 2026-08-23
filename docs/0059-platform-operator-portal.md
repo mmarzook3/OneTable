@@ -24,6 +24,9 @@ Platform operators can:
     - `/book/{id}` — reservations / booking
     - `/waitlist/{id}` — waitlist
     - `/delivery/{id}` — Satisfecho Delivery checkout
+- Create a restaurant account at `/platform/restaurants/new`. The operator enters the restaurant name, owner name, and owner email. One Table creates the tenant and owner, then shows a one-time temporary password and password-creation link.
+
+Platform-created owners are sent to `/onboarding` on their first sign-in. The resumable wizard covers account security, restaurant details, ordering hours, table/QR/NFC allocation, a starter menu, and a final readiness check. Existing tenants are marked complete by the migration and are not redirected.
 
 Operator users live in the same `User` table with `role=platform_operator`, `tenant_id=NULL`, and `provider_id=NULL`.
 
@@ -36,6 +39,8 @@ Operator users live in the same `User` table with `role=platform_operator`, `ten
 | Operator login | `/platform/login` |
 | Operator dashboard | `/platform` |
 | Tenant detail | `/platform/tenants/{tenantId}` |
+| Create restaurant | `/platform/restaurants/new` |
+| Restaurant owner onboarding | `/onboarding` |
 | Guest menu (review) | `/public-menu/{tenantId}` |
 | Guest booking | `/book/{tenantId}` |
 | Guest waitlist | `/waitlist/{tenantId}` |
@@ -53,7 +58,10 @@ All endpoints require a JWT from login with `?scope=platform`.
 | `GET` | `/platform/me` | Current operator profile. |
 | `GET` | `/platform/metrics` | Aggregated metrics + recent tenants/logins. |
 | `GET` | `/platform/tenants` | All tenants (up to 100) with owner contact and counts. |
+| `POST` | `/platform/tenants` | Create a tenant and owner; return the one-time temporary credentials and password-creation URL. |
 | `GET` | `/platform/tenants/{id}` | Tenant detail + staff contacts. |
+
+Owner onboarding uses authenticated `/onboarding/status`, `/onboarding/password`, `/onboarding/business`, `/onboarding/operations`, `/onboarding/tables`, `/onboarding/progress`, and `/onboarding/complete` endpoints. Every read and write derives the tenant from the owner session.
 
 Successful logins (all scopes) append a row to `login_event` for operator metrics.
 
@@ -84,3 +92,5 @@ The seed is idempotent: re-running updates the password and ensures role/tenant 
 - Customer/guest PII (reservation guest emails, order customer data) is not shown on the platform dashboard.
 - Use a dedicated operator account; do not reuse tenant staff or provider credentials.
 - Protect `PLATFORM_OPERATOR_PASSWORD` like any admin secret (deployment env / secrets manager).
+- The readable temporary restaurant password is returned only in the create response. It is never logged or stored in plaintext. Operators must share it through a secure channel.
+- Onboarding remains in browse-only mode when a menu or tenant Stripe credentials are missing. This prevents a restaurant accepting table orders before the launch essentials are ready.

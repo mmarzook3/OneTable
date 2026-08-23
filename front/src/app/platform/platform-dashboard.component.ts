@@ -16,9 +16,14 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
             <p class="platform-subtitle">{{ 'PLATFORM_DASHBOARD.SIGNED_IN_AS' | translate }} {{ profile()!.email }}</p>
           }
         </div>
-        <button type="button" class="btn-logout" (click)="logout()">
-          {{ 'PLATFORM_DASHBOARD.LOGOUT' | translate }}
-        </button>
+        <div class="header-actions">
+          <a routerLink="/platform/restaurants/new" class="btn-create" data-testid="platform-create-restaurant-link">
+            {{ 'PLATFORM_DASHBOARD.CREATE_RESTAURANT' | translate }}
+          </a>
+          <button type="button" class="btn-logout" (click)="logout()">
+            {{ 'PLATFORM_DASHBOARD.LOGOUT' | translate }}
+          </button>
+        </div>
       </header>
 
       @if (loading()) {
@@ -73,6 +78,7 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
                     <th>{{ 'PLATFORM_DASHBOARD.COL_NAME' | translate }}</th>
                     <th>{{ 'PLATFORM_DASHBOARD.OWNER_CONTACT' | translate }}</th>
                     <th>{{ 'PLATFORM_DASHBOARD.COL_PRODUCTS' | translate }}</th>
+                    <th>{{ 'PLATFORM_DASHBOARD.COL_ONBOARDING' | translate }}</th>
                     <th>{{ 'PLATFORM_DASHBOARD.COL_CREATED' | translate }}</th>
                     <th>{{ 'PLATFORM_DASHBOARD.COL_ACTIONS' | translate }}</th>
                   </tr>
@@ -92,6 +98,7 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
                         }
                       </td>
                       <td>{{ t.product_count }}</td>
+                      <td><span class="status-pill" [attr.data-status]="t.onboarding_status">{{ t.onboarding_status }}</span></td>
                       <td>{{ formatDate(t.created_at) }}</td>
                       <td class="actions-cell">
                         <a [href]="publicUrl('public-menu', t.id)" target="_blank" rel="noopener noreferrer" class="action-link">
@@ -176,6 +183,11 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
       background: var(--color-surface);
       cursor: pointer;
     }
+    .header-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; }
+    .btn-create {
+      display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--space-4);
+      border-radius: var(--radius-md); color: white; background: var(--color-primary); text-decoration: none; font-weight: 600;
+    }
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -225,6 +237,9 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
     }
     .platform-muted { color: var(--color-text-muted); }
     .platform-error { color: var(--color-error); }
+    .status-pill { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--color-bg); font-size: 0.75rem; text-transform: capitalize; white-space: nowrap; }
+    .status-pill[data-status='completed'] { background: #e8f7ee; color: #18794e; }
+    .status-pill[data-status='in_progress'] { background: #fff4d8; color: #8a5a00; }
   `]
 })
 export class PlatformDashboardComponent implements OnInit {

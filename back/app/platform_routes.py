@@ -1,15 +1,22 @@
 """Platform operator portal — SaaS metrics and tenant oversight for platform admins."""
 
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from . import models
+from . import models, security
+from .contact_validation import normalize_email_address
 from .db import get_session
+from .saas_billing import initial_status_for_new_tenant
 from .security import get_current_user
+from .settings import settings
+from .tenant_ui_modules import new_tenant_ui_modules_stored
 
 router = APIRouter()
 
@@ -71,6 +78,8 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         user_count=_count_for_tenant(session, models.User, tenant_id),
         order_count=_count_for_tenant(session, models.Order, tenant_id),
         reservation_count=_count_for_tenant(session, models.Reservation, tenant_id),
+        onboarding_status=tenant.onboarding_status,
+        onboarding_step=tenant.onboarding_step,
     )
 
 
@@ -153,6 +162,88 @@ def platform_tenants(
         .limit(_TENANT_LIST_LIMIT)
     ).all()
     return [_tenant_summary(session, t) for t in tenants if t.id is not None]
+
+
+def _temporary_password() -> str:
+    """Return a strong, one-time credential suitable for copying to the owner."""
+    return f"Ot!{secrets.token_urlsafe(12)}"
+
+
+@router.post(
+    "/tenants",
+    response_model=models.PlatformRestaurantCredentials,
+    status_code=status.HTTP_201_CREATED,
+)
+def platform_create_restaurant(
+    body: models.PlatformRestaurantCreate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformRestaurantCredentials:
+    """Provision a restaurant owner and return the one-time temporary credentials."""
+    try:
+        owner_email = normalize_email_address(body.owner_email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid owner email address") from exc
+
+    restaurant_name = body.restaurant_name.strip()
+    if len(restaurant_name) < 2:
+        raise HTTPException(status_code=400, detail="Restaurant name is required")
+    if session.exec(select(models.User).where(models.User.email == owner_email)).first():
+        raise HTTPException(status_code=409, detail="That owner email already has an account")
+
+    now = datetime.now(timezone.utc)
+    temporary_password = _temporary_password()
+    tenant = models.Tenant(
+        name=restaurant_name,
+        email=owner_email,
+        currency_code="GBP",
+        timezone="Europe/London",
+        default_language="en",
+        country_code="GB",
+        ordering_mode="menu_only",
+        ui_modules=new_tenant_ui_modules_stored(),
+        saas_subscription_status=initial_status_for_new_tenant(),
+        onboarding_status="not_started",
+        onboarding_step=0,
+    )
+    session.add(tenant)
+    session.flush()
+    owner = models.User(
+        email=owner_email,
+        hashed_password=security.get_password_hash(temporary_password),
+        full_name=(body.owner_name or "").strip() or None,
+        role=models.UserRole.owner,
+        tenant_id=tenant.id,
+        must_change_password=True,
+        temporary_password_issued_at=now,
+    )
+    session.add(owner)
+    session.flush()
+
+    password_setup_url: str | None = None
+    base = (settings.public_app_base_url or "").strip().rstrip("/")
+    if base:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        expires_at = now + timedelta(minutes=settings.password_reset_token_expire_minutes)
+        session.add(
+            models.PasswordResetToken(
+                user_id=owner.id,
+                token_hash=token_hash,
+                expires_at=expires_at,
+            )
+        )
+        password_setup_url = f"{base}/reset-password?token={quote(raw_token, safe='')}"
+
+    session.commit()
+    session.refresh(tenant)
+    return models.PlatformRestaurantCredentials(
+        tenant_id=tenant.id,
+        restaurant_name=tenant.name,
+        username=owner_email,
+        temporary_password=temporary_password,
+        password_setup_url=password_setup_url,
+    )
 
 
 @router.get("/tenants/{tenant_id}", response_model=models.PlatformTenantDetail)

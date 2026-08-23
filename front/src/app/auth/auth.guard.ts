@@ -27,20 +27,38 @@ export const authGuard: CanActivateFn = (route, state) => {
     }
     // Paywall page itself only needs auth
     const url = state.url.split('?')[0];
-    if (url === '/paywall' || url.startsWith('/paywall/')) {
+    if (
+      url === '/paywall' ||
+      url.startsWith('/paywall/') ||
+      url === '/onboarding' ||
+      url.startsWith('/onboarding/')
+    ) {
       return of(true);
     }
     if (user.tenant_id == null || user.role === 'platform_operator') {
       return of(true);
     }
-    return apiService.getSaasSubscription().pipe(
-      map((sub: SaasSubscription) => {
-        if (!sub.enabled || sub.has_access) {
-          return true;
+    const checkSubscription = () =>
+      apiService.getSaasSubscription().pipe(
+        map((sub: SaasSubscription) => {
+          if (!sub.enabled || sub.has_access) {
+            return true;
+          }
+          return router.createUrlTree(['/paywall']);
+        }),
+        catchError(() => of(true)),
+      );
+    if (user.role !== 'owner') {
+      return checkSubscription();
+    }
+    return apiService.getRestaurantOnboarding().pipe(
+      switchMap((onboarding) => {
+        if (onboarding.status !== 'completed') {
+          return of(router.createUrlTree(['/onboarding']));
         }
-        return router.createUrlTree(['/paywall']);
+        return checkSubscription();
       }),
-      catchError(() => of(true)),
+      catchError(() => checkSubscription()),
     );
   };
 
