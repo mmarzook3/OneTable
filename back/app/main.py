@@ -850,6 +850,7 @@ class TenantSummary(_BaseModel):
 
     id: int
     name: str
+    is_demo: bool = False
     logo_filename: str | None = None
     header_background_filename: str | None = None
     description: str | None = None
@@ -1109,6 +1110,7 @@ def _tenant_to_summary(t: models.Tenant, session: Session) -> TenantSummary:
     return TenantSummary(
         id=t.id,
         name=t.name,
+        is_demo=bool(getattr(t, "is_demo", False)),
         logo_filename=t.logo_filename,
         header_background_filename=t.header_background_filename,
         description=t.description,
@@ -1167,9 +1169,25 @@ def list_public_tenants(
     response: Response,
     session: Session = Depends(get_session),
 ) -> list:
-    """List all tenants (id, name, logo, description, phone, email). Public, no authentication."""
-    tenants = session.exec(select(models.Tenant).order_by(models.Tenant.name)).all()
-    return [_tenant_to_summary(t, session) for t in tenants]
+    """List fictional demo tenants for the public marketing landing page."""
+    tenants = session.exec(
+        select(models.Tenant)
+        .where(models.Tenant.is_demo == True)
+        .order_by(models.Tenant.name)
+    ).all()
+    summaries = [_tenant_to_summary(t, session) for t in tenants]
+    # Landing discovery never needs venue contact or map details. Clear them even
+    # if a demo record is accidentally populated from an older environment.
+    for summary in summaries:
+        summary.phone = None
+        summary.email = None
+        summary.whatsapp = None
+        summary.address = None
+        summary.website = None
+        summary.public_google_review_url = None
+        summary.public_google_maps_url = None
+        summary.public_openstreetmap_url = None
+    return summaries
 
 
 @app.get("/public/legal-urls")
@@ -1203,6 +1221,7 @@ def get_public_tenant(
     body = {
         "id": summary.id,
         "name": summary.name,
+        "is_demo": summary.is_demo,
         "logo_filename": summary.logo_filename,
         "header_background_filename": summary.header_background_filename,
         "description": summary.description,

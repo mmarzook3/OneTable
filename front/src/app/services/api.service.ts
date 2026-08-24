@@ -711,6 +711,8 @@ export interface PublicTenantMenuResponse {
 export interface TenantSummary {
   id: number;
   name: string;
+  /** True only for a fictional tenant approved for the marketing landing page. */
+  is_demo?: boolean;
   logo_filename: string | null;
   header_background_filename?: string | null;
   description?: string | null;

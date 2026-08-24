@@ -217,6 +217,8 @@
     "GUEST_TRY_DEMO": "Provar demo: Take Away",
     "RESTAURANTS_HEADING": "Tria el teu restaurant",
     "RESTAURANT_DEMO_NAME": "Restaurant demo",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "Iniciar sessió",
     "NO_TENANTS": "Encara no hi ha restaurants registrats.",
     "AT_TABLE_LABEL": "Comanda a la teva taula",
@@ -348,6 +350,7 @@
     "LOAD_ERROR": "No s'ha pogut carregar la tarifa. Torna-ho a provar més tard."
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Carta",
     "LOADING": "S'està carregant la carta…",
     "READ_ONLY_HINT": "Consulteu la carta - la comanda es fa a taula o en reservar.",

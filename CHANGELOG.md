@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.157] - 2026-08-24
+
+### Added
+
+- **Dedicated landing demo:** The marketing landing page now uses a fictional Scanaki demo tenant with demo-only tables and a non-alcoholic sample menu.
+
+### Fixed
+
+- **Customer privacy:** Real restaurant tenants and their contact details are excluded from the public landing tenant list, while their direct QR, menu, and booking URLs continue to work.
+- **Demo safety:** The demo public menu is clearly labelled and does not offer live delivery or booking actions.
+
 ## [2.1.156] - 2026-08-24
 
 ### Added

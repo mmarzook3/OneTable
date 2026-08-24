@@ -314,6 +314,8 @@
     "GUEST_TRY_DEMO": "Try demo: Take Away",
     "RESTAURANTS_HEADING": "Choose your restaurant",
     "RESTAURANT_DEMO_NAME": "Restaurant Demo",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "Login",
     "NO_TENANTS": "No restaurants registered yet.",
     "AT_TABLE_LABEL": "Order at your table",
@@ -446,6 +448,7 @@
     "LOAD_ERROR": "Could not load pricing. Please try again later."
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Menu",
     "LOADING": "Loading menu…",
     "READ_ONLY_HINT": "Browse our menu - ordering is available at your table or when booking.",
