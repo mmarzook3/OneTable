@@ -192,6 +192,8 @@
     "PLATFORM_SUBTITLE": "Les clients scannent un QR code ou utilisent le NFC. La commande et le paiement arrivent directement en cuisine ou au bar.",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
+    "OPEN_MENU": "Ouvrir le menu de navigation",
+    "CLOSE_MENU": "Fermer le menu de navigation",
     "BADGE": "Commande à table par QR et NFC",
     "TITLE": "Scannez. Commandez. Payez.",
     "TITLE_ACCENT": "Depuis la table.",

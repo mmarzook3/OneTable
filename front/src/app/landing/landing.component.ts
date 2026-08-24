@@ -31,22 +31,40 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
         <div class="landing-hero__orb landing-hero__orb--3"></div>
       </div>
 
-      <nav class="landing-nav" aria-label="Main">
+      <nav class="landing-nav" aria-label="Main" (keydown.escape)="closeMobileNav()">
         <a routerLink="/" class="landing-nav__brand">
           <span class="landing-nav__mark" aria-hidden="true"></span>
           <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
         </a>
-        <div class="landing-nav__links">
-          <a routerLink="/features" class="landing-nav__link">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
-          <a routerLink="/pricing" class="landing-nav__link">{{ 'LANDING.NAV_PRICING' | translate }}</a>
-          <a routerLink="/about" class="landing-nav__link" data-testid="landing-nav-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
-          <a href="#guests" class="landing-nav__link">{{ 'LANDING.NAV_GUESTS' | translate }}</a>
-          <a href="#demo" class="landing-nav__link">{{ 'LANDING.NAV_DEMO' | translate }}</a>
+        <button
+          type="button"
+          class="landing-nav__toggle"
+          [class.landing-nav__toggle--open]="mobileNavOpen()"
+          [attr.aria-label]="(mobileNavOpen() ? 'LANDING.CLOSE_MENU' : 'LANDING.OPEN_MENU') | translate"
+          [attr.aria-expanded]="mobileNavOpen()"
+          aria-controls="landing-navigation-content"
+          data-testid="landing-mobile-menu-toggle"
+          (click)="toggleMobileNav()"
+        >
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+        <div
+          id="landing-navigation-content"
+          class="landing-nav__links"
+          [class.landing-nav__links--open]="mobileNavOpen()"
+        >
+          <a routerLink="/features" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
+          <a routerLink="/pricing" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_PRICING' | translate }}</a>
+          <a routerLink="/about" class="landing-nav__link" data-testid="landing-nav-about" (click)="closeMobileNav()">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
+          <a href="#guests" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_GUESTS' | translate }}</a>
+          <a href="#demo" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_DEMO' | translate }}</a>
         </div>
-        <div class="landing-nav__actions">
+        <div class="landing-nav__actions" [class.landing-nav__actions--open]="mobileNavOpen()">
           <app-language-picker class="landing-language-picker"></app-language-picker>
-          <a routerLink="/login" class="landing-nav__login">{{ 'LANDING.LOGIN' | translate }}</a>
-          <a routerLink="/register" class="landing-nav__cta" data-testid="landing-hero-cta">
+          <a routerLink="/login" class="landing-nav__login" (click)="closeMobileNav()">{{ 'LANDING.LOGIN' | translate }}</a>
+          <a routerLink="/register" class="landing-nav__cta" data-testid="landing-hero-cta" (click)="closeMobileNav()">
             {{ 'LANDING.CTA_CREATE_QR_MENU' | translate }}
           </a>
         </div>
@@ -391,6 +409,19 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
       gap: var(--space-5);
     }
 
+    .landing-nav__links--open {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      flex: 0 0 100%;
+      order: 3;
+      gap: 0;
+      padding: var(--space-2);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      background: rgba(18, 18, 20, 0.96);
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+    }
+
     .landing-nav__link {
       color: var(--landing-muted);
       font-size: 0.9375rem;
@@ -399,16 +430,91 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
       transition: color 0.15s ease;
     }
 
+    .landing-nav__links--open .landing-nav__link {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0.625rem 0.75rem;
+      border-radius: 10px;
+      color: var(--landing-text);
+    }
+
+    .landing-nav__links--open .landing-nav__link:hover,
+    .landing-nav__links--open .landing-nav__link:focus-visible {
+      background: rgba(255, 255, 255, 0.08);
+      outline: none;
+    }
+
+    .landing-nav__toggle {
+      display: inline-grid;
+      place-content: center;
+      width: 44px;
+      height: 44px;
+      margin-left: auto;
+      padding: 0;
+      gap: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--landing-text);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .landing-nav__toggle:hover,
+    .landing-nav__toggle:focus-visible {
+      border-color: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+    }
+
+    .landing-nav__toggle:focus-visible {
+      box-shadow: 0 0 0 3px rgba(211, 82, 51, 0.35);
+    }
+
+    .landing-nav__toggle:active {
+      transform: scale(0.97);
+    }
+
+    .landing-nav__toggle span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+      transform-origin: center;
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .landing-nav__toggle--open span:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+
+    .landing-nav__toggle--open span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .landing-nav__toggle--open span:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+
     .landing-nav__link:hover {
       color: var(--landing-text);
       text-decoration: none;
     }
 
     .landing-nav__actions {
-      display: flex;
+      display: none;
       align-items: center;
       gap: var(--space-2);
-      margin-left: auto;
+    }
+
+    .landing-nav__actions--open {
+      display: flex;
+      flex: 0 0 100%;
+      order: 4;
+      flex-wrap: wrap;
+      padding: 0 var(--space-2) var(--space-2);
     }
 
     .landing-language-picker {
@@ -422,6 +528,10 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
       font-weight: 500;
       text-decoration: none;
       padding: var(--space-2) var(--space-3);
+    }
+
+    .landing-nav__actions--open .landing-nav__login {
+      display: inline-flex;
     }
 
     .landing-nav__login:hover {
@@ -453,8 +563,36 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
     }
 
     @media (min-width: 768px) {
+      .landing-nav {
+        flex-wrap: nowrap;
+      }
+
+      .landing-nav__toggle {
+        display: none;
+      }
+
       .landing-nav__links {
         display: flex;
+        order: initial;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .landing-nav__links .landing-nav__link {
+        min-height: auto;
+        padding: 0;
+      }
+
+      .landing-nav__actions {
+        display: flex;
+        flex: initial;
+        order: initial;
+        flex-wrap: nowrap;
+        margin-left: auto;
+        padding: 0;
       }
 
       .landing-nav__login {
@@ -1211,6 +1349,7 @@ export class LandingComponent implements OnInit, OnDestroy {
   guestScannerStarting = signal(false);
   guestScannerError = signal<string | null>(null);
   guestDemoError = signal<string | null>(null);
+  mobileNavOpen = signal(false);
 
   private guestQrScanner: Html5Qrcode | null = null;
   private guestScanDecodeHandled = false;
@@ -1254,6 +1393,14 @@ export class LandingComponent implements OnInit, OnDestroy {
 
   getTenantDisplayName(_tenant: TenantSummary): string {
     return this.translate.instant('LANDING.RESTAURANT_DEMO_NAME');
+  }
+
+  toggleMobileNav(): void {
+    this.mobileNavOpen.update((open) => !open);
+  }
+
+  closeMobileNav(): void {
+    this.mobileNavOpen.set(false);
   }
 
   /** Absolute URL to the read-only public menu page (for landing QR codes). */

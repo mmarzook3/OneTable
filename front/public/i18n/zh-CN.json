@@ -192,6 +192,8 @@
     "PLATFORM_SUBTITLE": "顾客扫描二维码或轻触 NFC，订单和付款信息会直接送达厨房或吧台。",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
+    "OPEN_MENU": "打开导航菜单",
+    "CLOSE_MENU": "关闭导航菜单",
     "BADGE": "QR 与 NFC 桌边点餐",
     "TITLE": "扫码。点餐。付款。",
     "TITLE_ACCENT": "就在桌边。",

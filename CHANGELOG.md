@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.173] - 2026-08-24
+
+### Fixed
+
+- **Mobile landing navigation:** Added a visible 44px hamburger button below the desktop breakpoint, an accessible open/close state, and a compact panel containing every navigation, language, login, and account action without horizontal overflow.
+
 ## [2.1.172] - 2026-08-24
 
 ### Fixed
