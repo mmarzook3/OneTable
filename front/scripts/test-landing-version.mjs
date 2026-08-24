@@ -307,6 +307,62 @@ async function main() {
       process.exit(1);
     }
     console.log('   Brand:', brandState.siteName);
+
+    console.log('1a. Mobile landing navigation...');
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+    await page.waitForSelector('[data-testid="landing-mobile-menu-toggle"]', { timeout: 5000 });
+    const mobileNavClosed = await page.evaluate(() => {
+      const toggle = document.querySelector('[data-testid="landing-mobile-menu-toggle"]');
+      const rect = toggle?.getBoundingClientRect();
+      const links = document.querySelector('.landing-nav__links');
+      return {
+        expanded: toggle?.getAttribute('aria-expanded'),
+        label: toggle?.getAttribute('aria-label') || '',
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+        panelVisible: links ? getComputedStyle(links).display !== 'none' : false,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    if (
+      mobileNavClosed.expanded !== 'false' ||
+      !mobileNavClosed.label ||
+      mobileNavClosed.width < 44 ||
+      mobileNavClosed.height < 44 ||
+      mobileNavClosed.panelVisible ||
+      mobileNavClosed.overflow
+    ) {
+      console.log('   FAIL: Closed mobile navigation is invalid.', mobileNavClosed);
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    const mobileNavOpen = await page.evaluate(() => {
+      const toggle = document.querySelector('[data-testid="landing-mobile-menu-toggle"]');
+      const visibleLinks = Array.from(document.querySelectorAll('.landing-nav__links a')).filter(
+        (link) => link.getClientRects().length > 0,
+      );
+      return {
+        expanded: toggle?.getAttribute('aria-expanded'),
+        visibleLinks: visibleLinks.length,
+        actionsVisible: Boolean(document.querySelector('.landing-nav__actions')?.getClientRects().length),
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    if (
+      mobileNavOpen.expanded !== 'true' ||
+      mobileNavOpen.visibleLinks < 5 ||
+      !mobileNavOpen.actionsVisible ||
+      mobileNavOpen.overflow
+    ) {
+      console.log('   FAIL: Open mobile navigation is invalid.', mobileNavOpen);
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+    console.log('   OK: Accessible 44px menu control opens the complete navigation.');
+
     await page.waitForFunction(
       () => {
         const el =
