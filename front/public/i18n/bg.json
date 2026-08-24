@@ -330,6 +330,7 @@
     "INVALID_TENANT": "Невалидна връзка към ресторант.",
     "TENANT_NOT_FOUND": "Ресторантът не е намерен.",
     "LOAD_FAILED": "Менюто за доставка не може да се зареди. Опитайте по-късно.",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table.",
     "POSTAL_CODE": "Postal code",
     "POSTAL_REQUIRED": "Postal code is required for delivery to this restaurant.",
     "POSTAL_HINT": "We deliver to these postal codes",
@@ -2163,6 +2164,8 @@
     "RESERVATION_CONFIRMATION_BODY_HINT": "Позволени имена (всяко в двойни фигурни скоби): restaurant_name, customer_name, date, time, party_size, reservation_url, reservation_link_block_html (линк в HTML имейли; празно ако няма линк за самообслужване), cancellation_policy, prepayment_text, prepayment_notice, dress_code, arrival_note, restaurant_phone, restaurant_email, restaurant_contact_block_html (блок телефон и имейл с tel/mailto в HTML и обикновен текст; празно ако липсват и двете), google_maps_link_block_html, openstreetmap_link_block_html (връзки към карти когато URL са зададени в контактна информация; иначе празно). Използвайте cancellation_policy и подобни за текст от настройките за резервации.",
     "PUBLIC_GOOGLE_REVIEW_URL_HINT": "Paste the Google Place ID (e.g., 0x...) from Google Place ID Finder: https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder . The app will auto-generate your review URL: https://search.google.com/local/writereview?placeid=YOUR-ID.",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",
@@ -3544,5 +3547,10 @@
     "RELEASE_CONFIRM": "Release this plaque from its current restaurant and table?",
     "QR_GENERATION_ERROR": "The permanent QR image could not be generated.",
     "ROTATE_CONFIRM": "Rotate hidden access for {{table}}? The permanent QR and NFC URL will keep working, but active direct menu sessions will stop."
+  },
+  "USER_MANUAL_PAGE": {
+    "LOADING": "Зареждане на ръководството за потребителя…",
+    "LOAD_ERROR": "Ръководството не можа да се зареди. Обновете страницата или опитайте по-късно.",
+    "DOC_TITLE": "Ръководство за потребителя | Scanaki"
   }
 }

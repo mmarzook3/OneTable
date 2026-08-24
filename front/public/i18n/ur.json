@@ -330,6 +330,7 @@
     "INVALID_TENANT": "غلط ریسٹورانٹ لنک۔",
     "TENANT_NOT_FOUND": "ریسٹورانٹ نہیں ملا۔",
     "LOAD_FAILED": "ڈلیوری مینو لوڈ نہیں ہو سکا۔ بعد میں دوبارہ کوشش کریں۔",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table.",
     "POSTAL_CODE": "Postal code",
     "POSTAL_REQUIRED": "Postal code is required for delivery to this restaurant.",
     "POSTAL_HINT": "We deliver to these postal codes",
@@ -2163,6 +2164,8 @@
     "RESERVATION_CONFIRMATION_BODY_HINT": "اجازت دی گئی نام (wrap ہر میں دوہرا گول بریسز): ریستوران_نام, گاہک_نام, تاریخ, وقت, افراد_سائز, بکنگ_URL, بکنگ_لنک_بلاک_html (clickable لنک میں HTML emails; خالی if وہاں ہے نہیں self-service لنک), منسوخی_پالیسی, پیشگی ادائیگی_متن, پیشگی ادائیگی_اطلاع, dress_کوڈ, arrival_نوٹ, ریستوران_فون, ریستوران_ای میل, ریستوران_رابطہ_بلاک_html (فون اور ای میل بلاک کے ساتھ tel/mailto میں HTML اور plain لائنیں میں متن; خالی if دونوں فون اور ای میل ہیں ان سیٹ کریں), google_نقشے_لنک_بلاک_html, openstreetmap_لنک_بلاک_html (نقشہ لنکس جب وہ URLs ہیں سیٹ کریں میں رابطہ معلومات; خالی otherwise). استعمال کریں منسوخی_پالیسی اور similar کو پل متن سے بکنگز ترتیبات سیکشن.",
     "PUBLIC_GOOGLE_REVIEW_URL_HINT": "پیسٹ کریں Google جگہ ID (مثلاً, 0x...) سے Google جگہ ID Finder: https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder . ایپ گا auto-generate آپ کا جائزہ URL: https://search.google.com/local/writereview?placeid=YOUR-ID.",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",
@@ -3544,5 +3547,10 @@
     "RELEASE_CONFIRM": "Release this plaque from its current restaurant and table?",
     "QR_GENERATION_ERROR": "The permanent QR image could not be generated.",
     "ROTATE_CONFIRM": "Rotate hidden access for {{table}}? The permanent QR and NFC URL will keep working, but active direct menu sessions will stop."
+  },
+  "USER_MANUAL_PAGE": {
+    "LOADING": "صارف دستی لوڈ ہو رہی ہے…",
+    "LOAD_ERROR": "صارف دستی لوڈ نہیں ہو سکی۔ صفحہ تازہ کریں یا بعد میں دوبارہ کوشش کریں۔",
+    "DOC_TITLE": "صارف دستی | Scanaki"
   }
 }

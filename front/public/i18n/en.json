@@ -361,7 +361,8 @@
     "QR_DEMO_OPEN_MENU": "Open demo menu",
     "NAV_PRICING": "Pricing",
     "NAV_ABOUT": "About us",
-    "COMPANY_OPERATOR": "A Fixaki product"
+    "COMPANY_OPERATOR": "A Fixaki product",
+    "USER_MANUAL": "User manual"
   },
   "FEATURES_PAGE": {
     "BADGE": "Full feature list",
@@ -535,7 +536,8 @@
     "BACK_HOME": "Back to home",
     "INVALID_TENANT": "Invalid restaurant link.",
     "TENANT_NOT_FOUND": "Restaurant not found.",
-    "LOAD_FAILED": "Could not load the delivery menu. Please try again later."
+    "LOAD_FAILED": "Could not load the delivery menu. Please try again later.",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table."
   },
   "DELIVERY_TRACK": {
     "TITLE": "Track your order",
@@ -2483,6 +2485,8 @@
     "USE_CURRENT_LOCATION": "Use current location",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",
     "DELIVERY_RADIUS": "Delivery radius (meters)",
@@ -3203,7 +3207,9 @@
     "DEPLOYMENT_TITLE": "Deployment",
     "DEPLOYMENT_BODY": "Scanaki is available as a managed service with secure hosting, updates, and support.",
     "CONTACT_TITLE": "Contact",
-    "CONTACT_BODY": "Questions about the platform or hosted service:"
+    "CONTACT_BODY": "Questions about the platform or hosted service:",
+    "MANUAL_TITLE": "User manual",
+    "MANUAL_BODY": "Step-by-step guides for setup, daily operations, reservations, inventory, and more."
   },
   "TALK": {
     "TITLE": "Talk to POS",
@@ -3544,5 +3550,10 @@
         "HOW_3": "Kitchen prepares; courier picks up; guest tracks until delivered."
       }
     }
+  },
+  "USER_MANUAL_PAGE": {
+    "LOADING": "Loading the user manual…",
+    "LOAD_ERROR": "Could not load the user manual. Refresh the page or try again later.",
+    "DOC_TITLE": "User manual | Scanaki"
   }
 }

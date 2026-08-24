@@ -330,6 +330,7 @@
     "INVALID_TENANT": "Lien restaurant invalide.",
     "TENANT_NOT_FOUND": "Restaurant introuvable.",
     "LOAD_FAILED": "Impossible de charger le menu livraison. Réessayez plus tard.",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table.",
     "POSTAL_CODE": "Postal code",
     "POSTAL_REQUIRED": "Postal code is required for delivery to this restaurant.",
     "POSTAL_HINT": "We deliver to these postal codes",
@@ -2043,6 +2044,8 @@
     "LOCATION_RADIUS_HINT": "Les commandes hors de ce rayon seront signalées",
     "USE_CURRENT_LOCATION": "Utiliser la position actuelle",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",
@@ -3544,5 +3547,10 @@
     "RELEASE_CONFIRM": "Release this plaque from its current restaurant and table?",
     "QR_GENERATION_ERROR": "The permanent QR image could not be generated.",
     "ROTATE_CONFIRM": "Rotate hidden access for {{table}}? The permanent QR and NFC URL will keep working, but active direct menu sessions will stop."
+  },
+  "USER_MANUAL_PAGE": {
+    "LOADING": "Chargement du manuel utilisateur…",
+    "LOAD_ERROR": "Impossible de charger le manuel utilisateur. Actualisez la page ou réessayez plus tard.",
+    "DOC_TITLE": "Manuel utilisateur | Scanaki"
   }
 }
