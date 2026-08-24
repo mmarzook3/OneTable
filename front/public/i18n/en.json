@@ -438,6 +438,8 @@
     "TIERS_TITLE": "Choose the right plan for your venue",
     "TIERS_SUBTITLE": "Three managed tiers with simple monthly pricing. Add more tables to any plan for £3.99 per table each month.",
     "MOST_POPULAR": "Most popular",
+    "LAUNCH_DEAL": "Launch deal",
+    "PLANNED_STANDARD_PRICE": "Planned standard price",
     "TABLES_INCLUDED": "{{count}} tables included",
     "EXTRA_TABLE": "Extra tables: {{price}} per table / month",
     "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",

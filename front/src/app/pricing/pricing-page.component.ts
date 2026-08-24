@@ -70,6 +70,15 @@ interface PriceParts {
                   {{ 'PRICING_PAGE.TABLES_INCLUDED' | translate: { count: plan.included_tables } }}
                 </p>
 
+                @let standardPrice = priceParts(standardPriceCents(plan.price_cents), plan.currency);
+                <div class="pricing-card__offer" data-testid="pricing-offer">
+                  <span class="pricing-card__deal">{{ 'PRICING_PAGE.LAUNCH_DEAL' | translate }}</span>
+                  <span class="pricing-card__standard">
+                    {{ 'PRICING_PAGE.PLANNED_STANDARD_PRICE' | translate }}
+                    <strong data-testid="pricing-standard-price">{{ standardPrice.formatted }}</strong>
+                  </span>
+                </div>
+
                 @let price = priceParts(plan.price_cents, plan.currency);
                 <div class="pricing-card__price" data-testid="pricing-price">
                   <span class="pricing-card__amount" [attr.aria-label]="price.formatted">
@@ -344,6 +353,42 @@ interface PriceParts {
         color: var(--pp-muted);
       }
 
+      .pricing-card__offer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        min-height: 1.75rem;
+        margin-top: var(--space-1);
+      }
+
+      .pricing-card__deal {
+        flex: 0 0 auto;
+        padding: 0.28rem 0.58rem;
+        border-radius: 999px;
+        background: rgba(255, 107, 71, 0.16);
+        color: #ff9a7f;
+        font-size: 0.6875rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .pricing-card__standard {
+        min-width: 0;
+        color: var(--pp-muted);
+        font-size: 0.75rem;
+        line-height: 1.35;
+        text-align: right;
+      }
+
+      .pricing-card__standard strong {
+        display: inline-block;
+        margin-left: 0.2rem;
+        color: rgba(250, 250, 250, 0.84);
+        font-weight: 650;
+      }
+
       .pricing-card__price {
         display: flex;
         align-items: baseline;
@@ -430,6 +475,17 @@ interface PriceParts {
         color: var(--pp-text);
       }
 
+      @media (max-width: 420px) {
+        .pricing-card__offer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .pricing-card__standard {
+          text-align: left;
+        }
+      }
+
     `,
   ],
 })
@@ -492,6 +548,10 @@ export class PricingPageComponent implements OnInit {
     } catch {
       return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
     }
+  }
+
+  standardPriceCents(dealPriceCents: number): number {
+    return Math.round(dealPriceCents * 3.5);
   }
 
   priceParts(cents: number, currency: string): PriceParts {
