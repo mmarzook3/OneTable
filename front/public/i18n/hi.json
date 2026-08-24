@@ -365,6 +365,16 @@
     "LOAD_ERROR": "मूल्य लोड नहीं हो सके। बाद में पुनः प्रयास करें।"
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "मेनू देखें",
+    "SEARCH_LABEL": "व्यंजन खोजें",
+    "SEARCH_PLACEHOLDER": "व्यंजन और सामग्री खोजें",
+    "CLEAR_SEARCH": "खोज साफ़ करें",
+    "CATEGORIES": "मेनू श्रेणियाँ",
+    "ALL_CATEGORIES": "सभी",
+    "NO_RESULTS": "कोई मेनू आइटम नहीं मिला",
+    "NO_RESULTS_HINT": "दूसरी खोज या श्रेणी आज़माएँ।",
+    "CLEAR_FILTERS": "फ़िल्टर साफ़ करें",
+    "RESULT_COUNT": "{{count}} मेनू आइटम",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "मेनू",
     "LOADING": "मेनू लोड हो रहा है…",

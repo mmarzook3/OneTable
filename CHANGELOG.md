@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.169] - 2026-08-24
+
+### Changed
+
+- **Modern public menu:** Replaced the narrow accordion list with a food-forward responsive menu using large photography, a branded hero, modern card hierarchy, clearer prices, and polished light and dark themes.
+- **Faster browsing:** Added sticky search, horizontally scrollable category filters, live result counts, category item counts, and a one-action reset when no dishes match.
+- **Mobile-first cards:** Added compact image-and-content rows on phones, two-column tablet and three-column desktop grids, touch-sized controls, lazy images, and reduced-motion support.
+- **Complete menu states:** Added structured loading skeletons, refined empty and error states, preserved demo and read-only notices, tenant branding, delivery or booking actions, legal links, and language switching.
+
 ## [2.1.168] - 2026-08-24
 
 ### Changed

@@ -267,6 +267,16 @@
     "COMPANY_OPERATOR": "Operado por Amvara Consulting S.L."
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "Explorar el menú",
+    "SEARCH_LABEL": "Buscar un plato",
+    "SEARCH_PLACEHOLDER": "Buscar platos e ingredientes",
+    "CLEAR_SEARCH": "Borrar búsqueda",
+    "CATEGORIES": "Categorías del menú",
+    "ALL_CATEGORIES": "Todas",
+    "NO_RESULTS": "No se encontraron productos",
+    "NO_RESULTS_HINT": "Prueba otra búsqueda o categoría.",
+    "CLEAR_FILTERS": "Borrar filtros",
+    "RESULT_COUNT": "{{count}} productos del menú",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Carta",
     "LOADING": "Cargando la carta…",

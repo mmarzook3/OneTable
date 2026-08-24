@@ -267,6 +267,16 @@
     "COMPANY_OPERATOR": "Управлявано от Amvara Consulting S.L."
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "Разгледайте менюто",
+    "SEARCH_LABEL": "Намерете ястие",
+    "SEARCH_PLACEHOLDER": "Търсете ястия и съставки",
+    "CLEAR_SEARCH": "Изчистете търсенето",
+    "CATEGORIES": "Категории в менюто",
+    "ALL_CATEGORIES": "Всички",
+    "NO_RESULTS": "Няма намерени артикули",
+    "NO_RESULTS_HINT": "Опитайте друго търсене или категория.",
+    "CLEAR_FILTERS": "Изчистете филтрите",
+    "RESULT_COUNT": "{{count}} артикула в менюто",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Меню",
     "LOADING": "Зареждане на менюто…",

@@ -462,6 +462,16 @@
     "LOAD_ERROR": "Could not load pricing. Please try again later."
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "Browse menu",
+    "SEARCH_LABEL": "Find a dish",
+    "SEARCH_PLACEHOLDER": "Search dishes and ingredients",
+    "CLEAR_SEARCH": "Clear search",
+    "CATEGORIES": "Menu categories",
+    "ALL_CATEGORIES": "All",
+    "NO_RESULTS": "No menu items found",
+    "NO_RESULTS_HINT": "Try another search or category.",
+    "CLEAR_FILTERS": "Clear filters",
+    "RESULT_COUNT": "{{count}} menu items",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Menu",
     "LOADING": "Loading menu…",
