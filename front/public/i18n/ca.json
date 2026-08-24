@@ -188,11 +188,15 @@
     }
   },
   "LANDING": {
+    "PLATFORM_BADGE": "Restaurant operations platform",
+    "PLATFORM_SUBTITLE": "Replace separate apps with one connected platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.",
+    "PRODUCT_REPOSITORY": "Product repository",
+    "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
-    "BADGE": "Plataforma de restaurants de codi obert",
+    "BADGE": "Restaurant operations platform",
     "TITLE": "Reduïu les despeses d’aplicacions",
     "TITLE_ACCENT": "un 50 %.",
-    "SUBTITLE": "Substituïu diverses apps per una plataforma open source - carta QR, comandes, reserves, pagaments, cuina i barra, torns, inventari i informes.",
+    "SUBTITLE": "Replace separate apps with one connected restaurant operations platform.",
     "CTA_CREATE_QR_MENU": "Crea la teva carta QR ara",
     "CTA_VIEW_DEMO": "Veure demo en directe",
     "NAV_FEATURES": "Funcions",
@@ -238,8 +242,8 @@
     "FOOTER_ACCOUNT": "Compte",
     "FOOTER_PARTNERS": "Socis",
     "FOOTER_SUPPORT": "Suport",
-    "GITHUB_REPO": "Codi a GitHub",
-    "OPEN_SOURCE_TAGLINE": "Codi obert amb ♥ des d'El Masnou (Barcelona) i Los Mochis (Mèxic).",
+    "LEGACY_REPOSITORY": "Product repository",
+    "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "Codi QR de la carta pública",
     "PUBLIC_MENU_QR_HINT": "Escanegeu o feu clic per veure la carta (sense iniciar sessió)",
     "PUBLIC_MENU_QR_LINK_ARIA": "Obrir la carta pública de {{name}}",
@@ -321,15 +325,16 @@
     "FEAT_PLATFORM_OPERATOR_DESC": "Operadors SaaS veuen activitat de tenants, contactes i enllaços públics al portal de plataforma.",
     "FEAT_I18N_TITLE": "Multilingüe",
     "FEAT_I18N_DESC": "Interfície de clients i personal en diversos idiomes amb valors per defecte per local.",
-    "FEAT_OPEN_SOURCE_TITLE": "Codi obert",
+    "FEAT_DEPLOYMENT_TITLE": "Deployment options",
     "FEAT_OPEN_SOURCE_DESC": "Autoallotgeu o executeu al núvol - inspeccioneu, amplieu i eviteu el bloqueig de proveïdor.",
     "FEAT_TSE_TITLE": "TSE alemanya (preparació KassenSichV)",
     "FEAT_TSE_DESC": "Mode tse_mode opcional per local (test/live) amb stubs de transaccions signades, camps TSE al tiquet i stub d’exportació DSFinV-K per interval de dates. El mode live usa un proveïdor TSE al núvol (Fiskaly SIGN DE) quan es desbloqueja - no es comercialitza com a certificat BSI fins a verificar les credencials de producció."
   },
   "PRICING_PAGE": {
+    "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "Preus hosted senzills",
     "TITLE": "Prova gratis, després un pla mensual fix",
-    "SUBTITLE": "Scanaki hosted inclou una prova gratuïta sense targeta. Autohostitja sota AGPLv3 sense cost de llicència si prefereixes executar-lo tu.",
+    "SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support.",
     "HOSTED_NAME": "Hosted",
     "HOSTED_LEDE": "Scanaki gestionat per al teu restaurant - nosaltres operem la plataforma.",
     "PER_MONTH": "/ mes",
@@ -345,8 +350,8 @@
     "SELFHOST_NAME": "Autohospedatge",
     "SELFHOST_LEDE": "Executa Scanaki als teus propis servidors.",
     "SELFHOST_PRICE": "€0",
-    "SELFHOST_LICENSE": "Codi obert AGPLv3 - sense quota hosted",
-    "CTA_GITHUB": "Veure a GitHub",
+    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
+    "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "No s'ha pogut carregar la tarifa. Torna-ho a provar més tard."
   },
   "PUBLIC_MENU": {
@@ -994,6 +999,7 @@
     "SHOW_LESS": "Mostra'n menys"
   },
   "ORDERS": {
+    "INVOICE_PRODUCT_PREFIX": "A Fixaki product",
     "TITLE": "Comandes",
     "REFRESH": "Actualitzar",
     "LOADING": "Carregant...",
@@ -1104,7 +1110,7 @@
     "PRINT_INVOICE": "Imprimir factura",
     "INVOICE": "Factura",
     "INVOICE_FOOTER": "Gràcies per la teva comanda.",
-    "INVOICE_OSS_PREFIX": "Open source · Fet amb ♥ a Barcelona i Mèxic",
+    "INVOICE_LEGACY_PREFIX": "A Fixaki product",
     "FISCAL_INVOICE_LABEL": "Verificació fiscal (preparació VeriFactu)",
     "FISCAL_INVOICE_NUMBER": "Núm. document fiscal",
     "FISCAL_ISSUE_FAILED": "No s'ha pogut emetre la factura fiscal. Potser la comanda ha d'estar pagada primer.",
@@ -2901,15 +2907,16 @@
     "ADD_GOOGLE_WALLET": "Afegir a Google Wallet"
   },
   "ABOUT_PAGE": {
+    "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Empresa",
     "TITLE": "Sobre Scanaki",
-    "SUBTITLE": "Una plataforma de codi obert per a restaurants: menús QR, comandes, reserves i operacions del dia a dia.",
+    "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "Què construïm",
     "PRODUCT_BODY": "Scanaki ajuda els restaurants a substituir diverses apps soltes per una sola plataforma: menús digitals, comandes, pantalles de cuina i barra, reserves, pagaments i informes - allotjada o autoallotjada.",
     "COMPANY_TITLE": "Qui l’opera",
     "COMPANY_BODY": "Scanaki l’opera Amvara Consulting S.L., una empresa amb seu a El Masnou (Barcelona), Espanya.",
-    "OPEN_SOURCE_TITLE": "Codi obert",
-    "OPEN_SOURCE_BODY": "El producte es desenvolupa en obert. Podeu revisar el codi, autoallotjar-lo sota AGPLv3 o usar el servei gestionat a scanaki.uk.",
+    "DEPLOYMENT_TITLE": "Deployment",
+    "DEPLOYMENT_BODY": "Scanaki is available as a managed service with secure hosting, updates, and support.",
     "CONTACT_TITLE": "Contacte",
     "CONTACT_BODY": "Preguntes sobre la plataforma o el servei allotjat:"
   },
@@ -3240,7 +3247,7 @@
         "HERO_SUBTITLE": "Opcionalment exigeu als restaurants nous una prova gratuïta o subscripció abans d’usar l’app del personal - per a operadors SaaS allotjats.",
         "BENEFIT_1": "Prova gratuïta sense targeta redueix la fricció d’alta.",
         "BENEFIT_2": "Paywall després de la prova per a un preu allotjat sostenible.",
-        "BENEFIT_3": "Qui autoallotgi sota AGPLv3 no es veu afectat.",
+        "BENEFIT_3": "Existing restaurant accounts are unaffected.",
         "HOW_1": "L’operador de plataforma activa la facturació a la configuració del desplegament.",
         "HOW_2": "Els locals nous inicien una prova en registrar-se.",
         "HOW_3": "Subscriviu-vos per mantenir l’accés del personal després de la prova."
@@ -3265,10 +3272,10 @@
         "HOW_2": "Els clients trien idioma al selector de pàgines públiques.",
         "HOW_3": "El personal canvia l’idioma a la capçalera de l’app."
       },
-      "open-source": {
-        "HERO_TITLE": "Codi obert",
-        "HERO_SUBTITLE": "Autoallotgeu o executeu al núvol sota AGPLv3 - inspeccioneu, amplieu i eviteu el bloqueig de proveïdor.",
-        "BENEFIT_1": "Accés complet al codi a GitHub.",
+      "deployment-options": {
+        "HERO_TITLE": "Deployment options",
+        "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
+        "BENEFIT_1": "Managed updates and product support.",
         "BENEFIT_2": "Autoallotgeu sense quotes de llicència o useu Scanaki allotjat.",
         "BENEFIT_3": "Suport comunitari i comercial via Amvara.",
         "HOW_1": "Cloneu el repositori i seguiu el setup del README.",

@@ -809,6 +809,13 @@ def _changelog_path() -> Path | None:
     return None
 
 
+def _staff_changelog_copy(raw: str) -> str:
+    """Keep historical release notes while removing retired marketing positioning."""
+    text = re.sub(r"(?i)\bopen[- ]source\b", "platform", raw)
+    text = re.sub(r"(?i)\bAGPL(?:-?3(?:\.0)?|v3)?\b", "product licence", text)
+    return re.sub(r"(?i)\bsource code\b", "product repository", text)
+
+
 @app.get("/changelog", response_class=PlainTextResponse)
 def get_changelog(
     current_user: Annotated[models.User, Depends(security.get_current_user)],
@@ -817,7 +824,7 @@ def get_changelog(
     path = _changelog_path()
     if not path:
         raise HTTPException(status_code=404, detail="Changelog not found")
-    return path.read_text(encoding="utf-8")
+    return _staff_changelog_copy(path.read_text(encoding="utf-8"))
 
 
 @app.get("/health/db")

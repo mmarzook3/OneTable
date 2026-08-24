@@ -421,6 +421,11 @@ async function main() {
       await browser.close();
       process.exit(1);
     }
+    if (/open[ -]?source|agpl/i.test(brandState.body)) {
+      console.log('   FAIL: Legacy licensing positioning is visible on the landing page.');
+      await browser.close();
+      process.exit(1);
+    }
     if (
       restaurantCards.tenants.length !== 1 ||
       restaurantCards.tenants[0]?.is_demo !== true ||

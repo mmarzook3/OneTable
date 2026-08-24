@@ -188,11 +188,15 @@
     }
   },
   "LANDING": {
+    "PLATFORM_BADGE": "Restaurant operations platform",
+    "PLATFORM_SUBTITLE": "Replace separate apps with one connected platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.",
+    "PRODUCT_REPOSITORY": "Product repository",
+    "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
-    "BADGE": "ओपन सोर्स रेस्तरां प्लेटफ़ॉर्म",
+    "BADGE": "Restaurant operations platform",
     "TITLE": "अपने ऐप खर्च कम करें",
     "TITLE_ACCENT": "50% तक।",
-    "SUBTITLE": "कई अलग-अलग ऐप की जगह एक ओपन-सोर्स प्लेटफ़ॉर्म - QR मेनू, ऑर्डर, बुकिंग, भुगतान, किचन और बार, शिफ्ट, इन्वेंटरी और रिपोर्ट।",
+    "SUBTITLE": "Replace separate apps with one connected restaurant operations platform.",
     "CTA_CREATE_QR_MENU": "अभी अपना QR-मेनू बनाएं",
     "CTA_VIEW_DEMO": "लाइव डेमो देखें",
     "NAV_FEATURES": "फ़ीचर्स",
@@ -238,8 +242,8 @@
     "FOOTER_ACCOUNT": "खाता",
     "FOOTER_PARTNERS": "पार्टनर",
     "FOOTER_SUPPORT": "सहायता",
-    "GITHUB_REPO": "GitHub पर स्रोत",
-    "OPEN_SOURCE_TAGLINE": "ओपन सोर्स ♥ के साथ - एल मास्नोउ (बार्सिलोना) और लॉस मोचिस (मेक्सिको)।",
+    "LEGACY_REPOSITORY": "Product repository",
+    "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "सार्वजनिक मेनू का QR कोड",
     "PUBLIC_MENU_QR_HINT": "मेनू के लिए स्कैन या क्लिक करें (लॉगिन नहीं)",
     "PUBLIC_MENU_QR_LINK_ARIA": "{{name}} का सार्वजनिक मेनू खोलें",
@@ -321,15 +325,16 @@
     "FEAT_PLATFORM_OPERATOR_DESC": "SaaS ऑपरेटर समर्पित प्लेटफ़ॉर्म पोर्टल से टेनेंट गतिविधि, संपर्क और सार्वजनिक पेज लिंक देखते हैं।",
     "FEAT_I18N_TITLE": "बहु-भाषा",
     "FEAT_I18N_DESC": "प्रति-टेनेंट डिफ़ॉल्ट के साथ कई भाषाओं में मेहमान और स्टाफ UI।",
-    "FEAT_OPEN_SOURCE_TITLE": "ओपन सोर्स",
+    "FEAT_DEPLOYMENT_TITLE": "Deployment options",
     "FEAT_OPEN_SOURCE_DESC": "सेल्फ़-होस्ट करें या क्लाउड में चलाएँ - जाँचें, विस्तार करें, और विक्रेता लॉक-इन से बचें।",
     "FEAT_TSE_TITLE": "जर्मन TSE (KassenSichV तैयारी)",
     "FEAT_TSE_DESC": "वैकल्पिक प्रति-टेनेंट tse_mode (टेस्ट/लाइव) साइन किए गए ट्रांज़ैक्शन स्टब, रसीद TSE फ़ील्ड और DSFinV-K डेट-रेंज एक्सपोर्ट स्टब के साथ। लाइव मोड अनलॉक होने पर क्लाउड TSE प्रोवाइडर (Fiskaly SIGN DE) का उपयोग करता है - उत्पादन क्रेडेंशियल सत्यापित होने तक BSI-प्रमाणित के रूप में नहीं बेचा जाता।"
   },
   "PRICING_PAGE": {
+    "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "सरल होस्टेड मूल्य",
     "TITLE": "मुफ़्त आज़माएँ, फिर एक फ्लैट मासिक प्लान",
-    "SUBTITLE": "होस्टेड Scanaki में कार्ड के बिना मुफ़्त ट्रायल शामिल है। खुद चलाएँ तो AGPLv3 के तहत शून्य लाइसेंस लागत।",
+    "SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support.",
     "HOSTED_NAME": "होस्टेड",
     "HOSTED_LEDE": "आपके रेस्तराँ के लिए प्रबंधित Scanaki - प्लेटफ़ॉर्म हम चलाते हैं।",
     "PER_MONTH": "/ माह",
@@ -345,8 +350,8 @@
     "SELFHOST_NAME": "सेल्फ-होस्ट",
     "SELFHOST_LEDE": "अपने सर्वर पर Scanaki चलाएँ।",
     "SELFHOST_PRICE": "€0",
-    "SELFHOST_LICENSE": "AGPLv3 ओपन सोर्स - कोई होस्टेड शुल्क नहीं",
-    "CTA_GITHUB": "GitHub पर देखें",
+    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
+    "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "मूल्य लोड नहीं हो सके। बाद में पुनः प्रयास करें।"
   },
   "PUBLIC_MENU": {
@@ -994,6 +999,7 @@
     "SHOW_LESS": "कम दिखाएं"
   },
   "ORDERS": {
+    "INVOICE_PRODUCT_PREFIX": "A Fixaki product",
     "TITLE": "ऑर्डर",
     "REFRESH": "रिफ्रेश करें",
     "LOADING": "लोड हो रहा है...",
@@ -1104,7 +1110,7 @@
     "PRINT_INVOICE": "इनवॉइस प्रिंट करें",
     "INVOICE": "इनवॉइस",
     "INVOICE_FOOTER": "आपके ऑर्डर के लिए धन्यवाद।",
-    "INVOICE_OSS_PREFIX": "ओपन सोर्स · बार्सिलोना और मेक्सिको में दिल से बनाया गया",
+    "INVOICE_LEGACY_PREFIX": "A Fixaki product",
     "FISCAL_INVOICE_LABEL": "Fiscal verification (VeriFactu preparation)",
     "FISCAL_INVOICE_NUMBER": "Fiscal document no.",
     "FISCAL_ISSUE_FAILED": "Could not issue fiscal invoice. The order may need to be paid first.",
@@ -2901,15 +2907,16 @@
     "ADD_GOOGLE_WALLET": "Google Wallet में जोड़ें"
   },
   "ABOUT_PAGE": {
+    "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "कंपनी",
     "TITLE": "Scanaki के बारे में",
-    "SUBTITLE": "रेस्तराँ के लिए ओपन-सोर्स प्लेटफ़ॉर्म - QR मेनू, ऑर्डर, आरक्षण और रोज़मर्रा के संचालन।",
+    "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "हम क्या बनाते हैं",
     "PRODUCT_BODY": "Scanaki रेस्तराँ को कई अलग ऐप्स की जगह एक प्लेटफ़ॉर्म देता है: डिजिटल मेनू, ऑर्डरिंग, किचन व बार डिस्प्ले, आरक्षण, भुगतान और रिपोर्ट - होस्टेड या सेल्फ़-होस्ट।",
     "COMPANY_TITLE": "कौन संचालित करता है",
     "COMPANY_BODY": "Scanaki को Amvara Consulting S.L. संचालित करता है, जो El Masnou (Barcelona), Spain में स्थित कंपनी है।",
-    "OPEN_SOURCE_TITLE": "ओपन सोर्स",
-    "OPEN_SOURCE_BODY": "उत्पाद खुले रूप में विकसित होता है। आप कोड देख सकते हैं, AGPLv3 के तहत सेल्फ़-होस्ट कर सकते हैं, या scanaki.uk पर प्रबंधित सेवा उपयोग कर सकते हैं।",
+    "DEPLOYMENT_TITLE": "Deployment",
+    "DEPLOYMENT_BODY": "Scanaki is available as a managed service with secure hosting, updates, and support.",
     "CONTACT_TITLE": "संपर्क",
     "CONTACT_BODY": "प्लेटफ़ॉर्म या होस्टेड सेवा के बारे में प्रश्न:"
   },
@@ -3240,7 +3247,7 @@
         "HERO_SUBTITLE": "वैकल्पिक रूप से नए रेस्तरां को स्टाफ ऐप से पहले मुफ़्त ट्रायल या सब्सक्रिप्शन की आवश्यकता - होस्टेड SaaS ऑपरेटरों के लिए।",
         "BENEFIT_1": "बिना कार्ड के मुफ़्त ट्रायल साइनअप घर्षण घटाता है।",
         "BENEFIT_2": "टिकाऊ होस्टेड मूल्य के लिए ट्रायल के बाद पेवॉल।",
-        "BENEFIT_3": "AGPLv3 के तहत सेल्फ़-होस्टर प्रभावित नहीं होते।",
+        "BENEFIT_3": "Existing restaurant accounts are unaffected.",
         "HOW_1": "प्लेटफ़ॉर्म ऑपरेटर डिप्लॉयमेंट कॉन्फ़िग में बिलिंग सक्षम करता है।",
         "HOW_2": "नए टेनेंट रजिस्ट्रेशन पर ट्रायल शुरू करते हैं।",
         "HOW_3": "ट्रायल खत्म होने पर स्टाफ पहुँच जारी रखने के लिए सब्सक्राइब करें।"
@@ -3265,10 +3272,10 @@
         "HOW_2": "मेहमान सार्वजनिक पेज के पिकर से भाषा चुनते हैं।",
         "HOW_3": "स्टाफ ऐप हेडर में भाषा बदलते हैं।"
       },
-      "open-source": {
-        "HERO_TITLE": "ओपन सोर्स",
-        "HERO_SUBTITLE": "AGPLv3 के तहत सेल्फ़-होस्ट करें या क्लाउड में चलाएँ - जाँचें, विस्तार करें, और विक्रेता लॉक-इन से बचें।",
-        "BENEFIT_1": "GitHub पर पूर्ण सोर्स पहुँच।",
+      "deployment-options": {
+        "HERO_TITLE": "Deployment options",
+        "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
+        "BENEFIT_1": "Managed updates and product support.",
         "BENEFIT_2": "शून्य लाइसेंस शुल्क के लिए सेल्फ़-होस्ट करें या होस्टेड Scanaki इस्तेमाल करें।",
         "BENEFIT_3": "Amvara के ज़रिए सामुदायिक और व्यावसायिक समर्थन।",
         "HOW_1": "रिपॉज़िटरी क्लोन करें और README सेटअप का पालन करें।",

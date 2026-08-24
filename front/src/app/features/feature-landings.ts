@@ -231,12 +231,6 @@ export const FEATURE_CATEGORIES: FeatureCategory[] = [
         'Multi-language - Scanaki',
         'Guest and staff UI in multiple languages with per-tenant defaults.',
       ),
-      item(
-        'open-source',
-        'OPEN_SOURCE',
-        'Open source - Scanaki',
-        'Self-host or run in the cloud - inspect, extend, and avoid vendor lock-in under AGPLv3.',
-      ),
     ],
   },
 ];

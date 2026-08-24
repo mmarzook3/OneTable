@@ -36,7 +36,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       <header class="about-hero">
         <p class="about-hero__badge">{{ 'ABOUT_PAGE.BADGE' | translate }}</p>
         <h1 class="about-hero__title" data-testid="about-title">{{ 'ABOUT_PAGE.TITLE' | translate }}</h1>
-        <p class="about-hero__subtitle">{{ 'ABOUT_PAGE.SUBTITLE' | translate }}</p>
+        <p class="about-hero__subtitle">{{ 'ABOUT_PAGE.PLATFORM_SUBTITLE' | translate }}</p>
       </header>
 
       <main class="about-main">
@@ -48,11 +48,6 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         <section class="about-section" aria-labelledby="about-company-heading" data-testid="about-company">
           <h2 id="about-company-heading" class="about-section__title">{{ 'ABOUT_PAGE.COMPANY_TITLE' | translate }}</h2>
           <p class="about-section__body">{{ 'ABOUT_PAGE.COMPANY_BODY' | translate }}</p>
-        </section>
-
-        <section class="about-section" aria-labelledby="about-open-source-heading">
-          <h2 id="about-open-source-heading" class="about-section__title">{{ 'ABOUT_PAGE.OPEN_SOURCE_TITLE' | translate }}</h2>
-          <p class="about-section__body">{{ 'ABOUT_PAGE.OPEN_SOURCE_BODY' | translate }}</p>
         </section>
 
         <section class="about-section" aria-labelledby="about-manual-heading" data-testid="about-user-manual">

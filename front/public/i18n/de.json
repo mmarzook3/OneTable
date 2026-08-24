@@ -188,11 +188,15 @@
     }
   },
   "LANDING": {
+    "PLATFORM_BADGE": "Restaurant operations platform",
+    "PLATFORM_SUBTITLE": "Replace separate apps with one connected platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.",
+    "PRODUCT_REPOSITORY": "Product repository",
+    "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
-    "BADGE": "Open-Source-Plattform für Restaurants",
+    "BADGE": "Restaurant operations platform",
     "TITLE": "Senken Sie Ihre App-Kosten",
     "TITLE_ACCENT": "um 50 %.",
-    "SUBTITLE": "Ersetzen Sie viele Einzel-Apps durch eine Open-Source-Plattform - QR-Karten, Bestellung, Reservierung, Zahlung, Küche & Bar, Schichten, Inventar und Berichte.",
+    "SUBTITLE": "Replace separate apps with one connected restaurant operations platform.",
     "CTA_CREATE_QR_MENU": "Jetzt QR-Speisekarte erstellen",
     "CTA_VIEW_DEMO": "Live-Demo ansehen",
     "NAV_FEATURES": "Funktionen",
@@ -237,8 +241,8 @@
     "FOOTER_ACCOUNT": "Konto",
     "FOOTER_PARTNERS": "Partner",
     "FOOTER_SUPPORT": "Support",
-    "GITHUB_REPO": "Quellcode auf GitHub",
-    "OPEN_SOURCE_TAGLINE": "Open Source mit ♥ aus El Masnou (Barcelona) und Los Mochis (Mexiko).",
+    "LEGACY_REPOSITORY": "Product repository",
+    "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "QR-Code für die öffentliche Speisekarte",
     "PUBLIC_MENU_QR_HINT": "Scannen oder klicken für die Karte (ohne Anmeldung)",
     "PUBLIC_MENU_QR_LINK_ARIA": "Öffentliche Speisekarte von {{name}} öffnen",
@@ -872,6 +876,7 @@
     "SHOW_LESS": "Weniger anzeigen"
   },
   "ORDERS": {
+    "INVOICE_PRODUCT_PREFIX": "A Fixaki product",
     "TITLE": "Bestellungen",
     "REFRESH": "Aktualisieren",
     "LOADING": "Laden...",
@@ -982,7 +987,7 @@
     "PRINT_INVOICE": "Rechnung drucken",
     "INVOICE": "Rechnung",
     "INVOICE_FOOTER": "Vielen Dank für Ihre Bestellung.",
-    "INVOICE_OSS_PREFIX": "Open Source · Mit ♥ in Barcelona und Mexiko",
+    "INVOICE_LEGACY_PREFIX": "A Fixaki product",
     "FISCAL_INVOICE_LABEL": "Steuerliche Nachweisführung (VeriFactu-Vorbereitung)",
     "FISCAL_INVOICE_NUMBER": "Steuerbeleg-Nr.",
     "FISCAL_ISSUE_FAILED": "Steuerbeleg konnte nicht ausgestellt werden. Die Bestellung ist möglicherweise noch nicht bezahlt.",
@@ -2777,15 +2782,16 @@
     "FEAT_PLATFORM_OPERATOR_DESC": "SaaS-Betreiber sehen Mandantenaktivität, Kontakte und öffentliche Seitenlinks im Plattform-Portal.",
     "FEAT_I18N_TITLE": "Mehrsprachigkeit",
     "FEAT_I18N_DESC": "Gäste- und Team-Oberfläche in mehreren Sprachen mit Mandanten-Defaults.",
-    "FEAT_OPEN_SOURCE_TITLE": "Open Source",
+    "FEAT_DEPLOYMENT_TITLE": "Deployment options",
     "FEAT_OPEN_SOURCE_DESC": "Self-Hosting oder Cloud - prüfen, erweitern und Vendor Lock-in vermeiden.",
     "FEAT_TSE_TITLE": "Deutsche TSE (KassenSichV-Vorbereitung)",
     "FEAT_TSE_DESC": "Optionaler Mandanten-Modus tse_mode (test/live) mit signierten Transaktions-Stubs, TSE-Belegfeldern und DSFinV-K-Datumsbereich-Export-Stub. Live-Modus nutzt einen Cloud-TSE-Anbieter (Fiskaly SIGN DE), sobald freigeschaltet - wird nicht als BSI-zertifiziert vermarktet, bis Produktions-Credentials geprüft sind."
   },
   "PRICING_PAGE": {
+    "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "Einfache Hosted-Preise",
     "TITLE": "Kostenlos testen, dann ein flacher Monatspreis",
-    "SUBTITLE": "Hosted Scanaki enthält eine kostenlose Testphase ohne Karte. Self-Hosting unter AGPLv3 ohne Lizenzkosten, wenn Sie selbst betreiben möchten.",
+    "SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support.",
     "HOSTED_NAME": "Hosted",
     "HOSTED_LEDE": "Verwaltetes Scanaki für Ihr Restaurant - wir betreiben die Plattform.",
     "PER_MONTH": "/ Monat",
@@ -2801,8 +2807,8 @@
     "SELFHOST_NAME": "Self-Host",
     "SELFHOST_LEDE": "Betreiben Sie Scanaki auf eigenen Servern.",
     "SELFHOST_PRICE": "€0",
-    "SELFHOST_LICENSE": "AGPLv3 Open Source - keine Hosted-Gebühr",
-    "CTA_GITHUB": "Auf GitHub ansehen",
+    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
+    "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "Preise konnten nicht geladen werden. Bitte später erneut versuchen."
   },
   "WAITLIST": {
@@ -2901,15 +2907,16 @@
     "ADD_GOOGLE_WALLET": "Zu Google Wallet hinzufügen"
   },
   "ABOUT_PAGE": {
+    "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Unternehmen",
     "TITLE": "Über Scanaki",
-    "SUBTITLE": "Eine Open-Source-Restaurantplattform für QR-Menüs, Bestellungen, Reservierungen und den Betriebsalltag.",
+    "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "Was wir bauen",
     "PRODUCT_BODY": "Scanaki hilft Restaurants, viele Einzel-Apps durch eine Plattform zu ersetzen: digitale Menüs, Bestellungen, Küchen- und Bardisplays, Reservierungen, Zahlungen und Berichte - gehostet oder selbst betrieben.",
     "COMPANY_TITLE": "Wer betreibt es",
     "COMPANY_BODY": "Scanaki wird von Amvara Consulting S.L. betrieben, einem Unternehmen mit Sitz in El Masnou (Barcelona), Spanien.",
-    "OPEN_SOURCE_TITLE": "Open Source",
-    "OPEN_SOURCE_BODY": "Das Produkt wird offen entwickelt. Sie können den Code einsehen, unter AGPLv3 selbst hosten oder den Managed Service auf scanaki.uk nutzen.",
+    "DEPLOYMENT_TITLE": "Deployment",
+    "DEPLOYMENT_BODY": "Scanaki is available as a managed service with secure hosting, updates, and support.",
     "CONTACT_TITLE": "Kontakt",
     "CONTACT_BODY": "Fragen zur Plattform oder zum Hosted Service:"
   },
@@ -3240,7 +3247,7 @@
         "HERO_SUBTITLE": "Optional neue Restaurants zu kostenloser Testphase oder Abo verpflichten, bevor die Team-App nutzbar ist - für gehostete SaaS-Betreiber.",
         "BENEFIT_1": "Kostenlose Testphase ohne Karte senkt die Anmeldehürde.",
         "BENEFIT_2": "Paywall nach der Testphase für nachhaltiges Hosting-Pricing.",
-        "BENEFIT_3": "Self-Hoster unter AGPLv3 sind nicht betroffen.",
+        "BENEFIT_3": "Existing restaurant accounts are unaffected.",
         "HOW_1": "Der Plattformbetreiber aktiviert Billing in der Deployment-Konfiguration.",
         "HOW_2": "Neue Mandanten starten bei der Registrierung eine Testphase.",
         "HOW_3": "Abonnieren, um den Team-Zugriff nach der Testphase fortzusetzen."
@@ -3265,10 +3272,10 @@
         "HOW_2": "Gäste wählen die Sprache im Picker auf öffentlichen Seiten.",
         "HOW_3": "Mitarbeitende ändern die Sprache in der App-Kopfzeile."
       },
-      "open-source": {
-        "HERO_TITLE": "Open Source",
-        "HERO_SUBTITLE": "Self-Hosting oder Cloud unter AGPLv3 - prüfen, erweitern und Vendor Lock-in vermeiden.",
-        "BENEFIT_1": "Voller Quellcode-Zugang auf GitHub.",
+      "deployment-options": {
+        "HERO_TITLE": "Deployment options",
+        "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
+        "BENEFIT_1": "Managed updates and product support.",
         "BENEFIT_2": "Self-Hosting ohne Lizenzgebühren oder gehostetes Scanaki nutzen.",
         "BENEFIT_3": "Community- und kommerzieller Support über Amvara.",
         "HOW_1": "Repository klonen und dem README-Setup folgen.",
