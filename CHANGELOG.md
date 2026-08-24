@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.155] - 2026-08-24
+
 ### Added
 
 - **User manual translations (#354):** Full manual body HTML for de, fr, ca, bg, hi, ur, and zh-CN. `/manual-usuario` loads each locale’s content file; missing files fall back to English.
