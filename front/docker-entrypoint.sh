@@ -75,7 +75,10 @@ fi
 
 # Optional: populate front/sites/<slug>/ and front/marketing-flat/ (docker-compose.dev mounts ./scripts → /pos-scripts)
 if [ -f /pos-scripts/sync-all-marketing-sites.sh ] && [ "${SYNC_MARKETING_ON_START:-${SYNC_GUSTAZO_ON_START:-1}}" != "0" ]; then
-  /bin/bash /pos-scripts/sync-all-marketing-sites.sh || true
+  # Windows checkouts may expose CRLF through the bind mount. Execute a normalized
+  # temporary copy without rewriting the user's host file.
+  sed 's/\r$//' /pos-scripts/sync-all-marketing-sites.sh >/tmp/sync-all-marketing-sites.sh
+  /bin/bash /tmp/sync-all-marketing-sites.sh || true
 fi
 
 # Execute the original command
