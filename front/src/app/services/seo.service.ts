@@ -14,13 +14,13 @@ export interface SeoPageConfig {
 
 const BRAND = 'Scanaki';
 const DEFAULT_DESCRIPTION =
-  'Restaurant operations platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.';
+  'QR and NFC table ordering for restaurants. Guests scan or tap, order and pay, and requests reach the kitchen or bar instantly.';
 const OG_IMAGE_PATH = '/og-image.png';
 
 /** Exact marketing / public shell pages with fixed English meta (crawler-friendly). */
 const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   '/': {
-    title: `${BRAND} - Restaurant operations platform`,
+    title: `${BRAND} - QR and NFC table ordering`,
     description: DEFAULT_DESCRIPTION,
   },
   '/features': {
@@ -35,11 +35,11 @@ const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   },
   '/register': {
     title: `Create your restaurant - ${BRAND}`,
-    description: `Sign up for ${BRAND} and launch QR menus, ordering, and reservations for your restaurant.`,
+    description: `Sign up for ${BRAND} and launch QR and NFC menus, table ordering, payments, and reservations for your restaurant.`,
   },
   '/signup': {
     title: `Create your restaurant - ${BRAND}`,
-    description: `Sign up for ${BRAND} and launch QR menus, ordering, and reservations for your restaurant.`,
+    description: `Sign up for ${BRAND} and launch QR and NFC menus, table ordering, payments, and reservations for your restaurant.`,
   },
   '/orders': {
     title: `Order online - ${BRAND}`,

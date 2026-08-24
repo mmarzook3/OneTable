@@ -48,7 +48,6 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
         <div class="landing-hero__content">
           <div class="landing-hero__copy">
             <p class="landing-badge">
-              <span class="landing-badge__dot" aria-hidden="true"></span>
               {{ 'LANDING.PLATFORM_BADGE' | translate }}
             </p>
             <h1 class="landing-hero__title">
@@ -257,8 +256,6 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
     </div>
   `,
   styles: [`
-    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-
     .landing-page {
       --landing-bg: #050506;
       --landing-surface: rgba(255, 255, 255, 0.04);
@@ -464,22 +461,13 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
     .landing-badge {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
       margin: 0 0 var(--space-5);
-      padding: 0.375rem 0.875rem 0.375rem 0.625rem;
+      padding: 0.375rem 0.875rem;
       border-radius: 999px;
       border: 1px solid var(--landing-border);
       background: rgba(255, 255, 255, 0.04);
       font-size: 0.8125rem;
       color: var(--landing-muted);
-    }
-
-    .landing-badge__dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #ff8a65, #d35233);
-      box-shadow: 0 0 12px rgba(255, 107, 71, 0.8);
     }
 
     .landing-hero__title {
@@ -493,9 +481,11 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
 
     .landing-hero__title-accent {
       display: block;
-      font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+      font-family: inherit;
       font-style: italic;
-      font-weight: 400;
+      font-weight: 500;
+      line-height: 1.1;
+      padding-bottom: 0.08em;
       letter-spacing: -0.02em;
       background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.72) 100%);
       -webkit-background-clip: text;

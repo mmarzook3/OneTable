@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.163] - 2026-08-24
+
+### Changed
+
+- **Clear product promise:** The landing hero now explains that guests scan QR or tap NFC to order and pay from their table, with requests sent directly to the kitchen or bar.
+- **Inclusive digital-menu wording:** Replaced QR-only calls to action and feature copy with language that covers both QR and NFC ordering across every supported language.
+- **Search clarity:** Updated landing and registration metadata to describe Scanaki as a QR and NFC table-ordering platform.
+
 ## [2.1.162] - 2026-08-24
 
 ### Added
