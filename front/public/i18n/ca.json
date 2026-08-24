@@ -365,6 +365,16 @@
     "LOAD_ERROR": "No s'ha pogut carregar la tarifa. Torna-ho a provar més tard."
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "Explora el menú",
+    "SEARCH_LABEL": "Troba un plat",
+    "SEARCH_PLACEHOLDER": "Cerca plats i ingredients",
+    "CLEAR_SEARCH": "Esborra la cerca",
+    "CATEGORIES": "Categories del menú",
+    "ALL_CATEGORIES": "Totes",
+    "NO_RESULTS": "No s'han trobat articles",
+    "NO_RESULTS_HINT": "Prova una altra cerca o categoria.",
+    "CLEAR_FILTERS": "Esborra els filtres",
+    "RESULT_COUNT": "{{count}} articles del menú",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Carta",
     "LOADING": "S'està carregant la carta…",

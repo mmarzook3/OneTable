@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "2.1.168",
+  "version": "2.1.169",
   "scripts": {
     "ng": "ng",
     "prebuild": "node scripts/get-commit-hash.js",
@@ -22,6 +22,7 @@
     "test:landing-guest-qr": "tsc scripts/test-landing-guest-qr.ts src/app/landing/guest-qr-route.ts --target ES2022 --module commonjs --moduleResolution node --outDir ../tmp/landing-guest-qr-test --skipLibCheck && node ../tmp/landing-guest-qr-test/scripts/test-landing-guest-qr.js",
     "test:features": "node scripts/test-features.mjs",
     "test:pricing": "node scripts/test-pricing.mjs",
+    "test:public-menu-modern": "node scripts/test-public-menu-modern.mjs",
     "test:about": "node scripts/test-about.mjs",
     "test:provider-register": "node scripts/test-provider-register.mjs",
     "test:customer-register-login": "node scripts/test-customer-register-login.mjs",

@@ -267,6 +267,16 @@
     "COMPANY_OPERATOR": "Amvara Consulting S.L. کے زیر چلایا جاتا ہے"
   },
   "PUBLIC_MENU": {
+    "BROWSE_MENU": "مینو دیکھیں",
+    "SEARCH_LABEL": "ڈش تلاش کریں",
+    "SEARCH_PLACEHOLDER": "ڈشز اور اجزا تلاش کریں",
+    "CLEAR_SEARCH": "تلاش صاف کریں",
+    "CATEGORIES": "مینو کیٹیگریز",
+    "ALL_CATEGORIES": "سب",
+    "NO_RESULTS": "کوئی مینو آئٹم نہیں ملا",
+    "NO_RESULTS_HINT": "دوسری تلاش یا کیٹیگری آزمائیں۔",
+    "CLEAR_FILTERS": "فلٹر صاف کریں",
+    "RESULT_COUNT": "{{count}} مینو آئٹمز",
     "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "مینو",
     "LOADING": "مینو لوڈ ہو رہا ہے…",
