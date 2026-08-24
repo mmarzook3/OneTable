@@ -4182,7 +4182,7 @@ def update_tenant_settings(
             if len(currency_code) != 3 or not currency_code.isalpha():
                 raise HTTPException(
                     status_code=400,
-                    detail="currency_code must be a 3-letter ISO code (e.g. EUR)",
+                    detail="currency_code must be a 3-letter ISO code (e.g. GBP)",
                 )
             tenant.currency_code = currency_code
         else:
@@ -16896,7 +16896,7 @@ def create_revolut_order(
             status_code=400, detail="Revolut is not configured for this tenant"
         )
 
-    currency = "EUR"
+    currency = "GBP"
     if tenant.currency_code and isinstance(tenant.currency_code, str):
         currency = tenant.currency_code.strip().upper()
     else:

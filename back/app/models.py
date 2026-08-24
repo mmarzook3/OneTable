@@ -139,9 +139,9 @@ class Tenant(SQLModel, table=True):
     # Currency: store ISO 4217 code internally; frontend derives symbol via Intl.
     # Keep `currency` (symbol) for backward compatibility.
     currency_code: str | None = Field(
-        default=None
-    )  # ISO 4217, e.g. EUR, USD, MXN, INR, CNY, TWD
-    currency: str | None = Field(default=None)  # Legacy symbol (€, $, etc.)
+        default="GBP"
+    )  # ISO 4217, e.g. GBP, EUR, USD, MXN, INR, CNY, TWD
+    currency: str | None = Field(default="£")  # Legacy symbol (£, €, $, etc.)
 
     # Default UI language for this tenant (e.g. en, es, ca, de, zh-CN, hi)
     default_language: str | None = Field(default=None)

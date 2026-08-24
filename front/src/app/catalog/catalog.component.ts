@@ -740,7 +740,7 @@ export class CatalogComponent implements OnInit {
     price: ''
   };
 
-  currency = signal<string>('€');
+  currency = signal<string>('£');
   currencyCode = signal<string | null>(null);
 
   /** Cards with long description / aromas / elaboration: collapsed by default with line-clamp. */
@@ -806,7 +806,7 @@ export class CatalogComponent implements OnInit {
         if (code) {
           this.currency.set(currencySymbolFromIsoCode(this.translate, code));
         } else {
-          this.currency.set(settings.currency || '€');
+          this.currency.set(settings.currency || '£');
         }
       },
       error: (err) => {

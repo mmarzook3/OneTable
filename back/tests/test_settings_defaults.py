@@ -13,3 +13,10 @@ def test_email_sender_name_uses_scanaki_brand() -> None:
     from app.settings import Settings
 
     assert Settings.model_fields["email_from_name"].default == "Scanaki"
+
+
+def test_payment_defaults_use_gbp() -> None:
+    from app.settings import Settings
+
+    assert Settings.model_fields["stripe_currency"].default == "gbp"
+    assert Settings.model_fields["saas_plan_currency"].default == "gbp"

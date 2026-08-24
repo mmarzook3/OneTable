@@ -209,11 +209,16 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
     return url.startsWith('/') ? base + url : `${base}/${url}`;
   }
 
-  formatPrice(product: { price_formatted: string }): string {
-    const amount = product.price_formatted;
-    const code = this.currencyLabel();
-    if (!code) return amount;
-    return `${amount} ${code}`;
+  formatPrice(product: { price_cents: number; price_formatted: string }): string {
+    const code = this.currencyLabel() || 'GBP';
+    try {
+      return new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: code,
+      }).format(product.price_cents / 100);
+    } catch {
+      return `£${product.price_formatted}`;
+    }
   }
 
   private updateDocumentTitle(): void {

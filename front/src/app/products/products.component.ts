@@ -651,7 +651,7 @@ export class ProductsComponent implements OnInit {
   uploading = signal(false);
   pendingImageFile = signal<File | null>(null);
   pendingImagePreview = signal<string | null>(null);
-  currency = signal<string>('€');
+  currency = signal<string>('£');
   currencyCode = signal<string | null>(null);
   /** Bumps when UI language changes so price formatting refreshes in the template. */
   private intlRevision = signal(0);
@@ -845,13 +845,13 @@ export class ProductsComponent implements OnInit {
         if (code) {
           this.currency.set(currencySymbolFromIsoCode(this.translate, code));
         } else {
-          this.currency.set(settings.currency || '€');
+          this.currency.set(settings.currency || '£');
         }
         this.loadProducts();
       },
       error: (err) => {
         console.error('Failed to load tenant settings:', err);
-        this.currency.set('€');
+        this.currency.set('£');
         this.loadProducts();
       },
     });

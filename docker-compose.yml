@@ -21,7 +21,7 @@ services:
       - DB_NAME=${POSTGRES_DB:-pos}
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-CHANGE_THIS_IN_PRODUCTION}
-      - STRIPE_CURRENCY=${STRIPE_CURRENCY:-usd}
+      - STRIPE_CURRENCY=${STRIPE_CURRENCY:-gbp}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4200}
       - ROOT_PATH=/api
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
@@ -35,7 +35,7 @@ services:
       - SAAS_PAYWALL_ENABLED=${SAAS_PAYWALL_ENABLED:-false}
       - SAAS_TRIAL_DAYS=${SAAS_TRIAL_DAYS:-14}
       - SAAS_PLAN_PRICE_CENTS=${SAAS_PLAN_PRICE_CENTS:-4900}
-      - SAAS_PLAN_CURRENCY=${SAAS_PLAN_CURRENCY:-eur}
+      - SAAS_PLAN_CURRENCY=${SAAS_PLAN_CURRENCY:-gbp}
       - SAAS_STRIPE_PRICE_ID=${SAAS_STRIPE_PRICE_ID:-}
       - SAAS_STRIPE_WEBHOOK_SECRET=${SAAS_STRIPE_WEBHOOK_SECRET:-}
       # Idempotent first-tenant provisioning; credentials stay in ignored config.env.

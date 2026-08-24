@@ -391,7 +391,7 @@ export class PricingPageComponent implements OnInit {
         id: p.id || 'hosted_standard',
         trial_days: p.trial_days,
         price_cents: p.price_cents,
-        currency: p.currency || 'eur',
+        currency: p.currency || 'gbp',
         interval: p.interval || 'month',
       }));
     }
@@ -400,7 +400,7 @@ export class PricingPageComponent implements OnInit {
         id: 'hosted_standard',
         trial_days: cfg.trial_days,
         price_cents: cfg.price_cents,
-        currency: cfg.currency || 'eur',
+        currency: cfg.currency || 'gbp',
         interval: 'month',
       },
     ];
@@ -410,11 +410,11 @@ export class PricingPageComponent implements OnInit {
     try {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
-        currency: (currency || 'EUR').toUpperCase(),
+        currency: (currency || 'GBP').toUpperCase(),
         maximumFractionDigits: 0,
       }).format(cents / 100);
     } catch {
-      return `${(cents / 100).toFixed(0)} ${(currency || 'eur').toUpperCase()}`;
+      return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
     }
   }
 }

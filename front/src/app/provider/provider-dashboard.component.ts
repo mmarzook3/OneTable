@@ -95,7 +95,7 @@ import { environment } from '../../environments/environment';
                   @if (p.catalog_name && p.catalog_name !== p.name) {
                     <p class="catalog-ref">{{ p.catalog_name }}</p>
                   }
-                  <p class="price">{{ p.price_cents != null ? (p.price_cents / 100 | number:'1.2-2') + ' €' : '—' }}</p>
+                  <p class="price">{{ p.price_cents != null ? '£' + (p.price_cents / 100 | number:'1.2-2') : '—' }}</p>
                   <span class="badge" [class.available]="p.availability" [class.unavailable]="!p.availability">
                     {{ p.availability ? 'Available' : 'Unavailable' }}
                   </span>
@@ -137,7 +137,7 @@ import { environment } from '../../environments/environment';
                         </div>
                       </div>
                     </td>
-                    <td>{{ p.price_cents != null ? (p.price_cents / 100 | number:'1.2-2') + ' €' : '—' }}</td>
+                    <td>{{ p.price_cents != null ? '£' + (p.price_cents / 100 | number:'1.2-2') : '—' }}</td>
                     <td>
                       <span class="badge" [class.available]="p.availability" [class.unavailable]="!p.availability">
                         {{ p.availability ? 'Available' : 'Unavailable' }}
