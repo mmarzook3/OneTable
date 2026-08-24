@@ -5639,6 +5639,20 @@ def delete_tenant_header_background(
 
 # ============ PRODUCTS ============
 
+PRODUCT_ALLERGEN_CODES = {
+    "celery", "gluten", "crustaceans", "eggs", "fish", "lupin", "milk",
+    "molluscs", "mustard", "nuts", "peanuts", "sesame", "soya", "sulphites",
+}
+PRODUCT_DIETARY_TAGS = {"vegetarian", "vegan", "gluten_free"}
+
+
+def _normalise_codes(values: list[str] | None, allowed: set[str]) -> list[str]:
+    result = sorted({str(value).strip().lower() for value in (values or []) if str(value).strip()})
+    invalid = [value for value in result if value not in allowed]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid product tag: {invalid[0]}")
+    return result
+
 
 @app.get("/products")
 def list_products(
@@ -5775,6 +5789,9 @@ def create_product(
     session: Session = Depends(get_session),
 ) -> models.Product:
     product.tenant_id = current_user.tenant_id
+    product.allergens = _normalise_codes(product.allergens, PRODUCT_ALLERGEN_CODES)
+    product.dietary_tags = _normalise_codes(product.dietary_tags, PRODUCT_DIETARY_TAGS)
+    product.allergen_notes = (product.allergen_notes or "").strip() or None
     if product.category is not None:
         from .category_codes import normalize_product_category
 
@@ -5817,6 +5834,18 @@ def update_product(
         product.cost_cents = product_update.cost_cents
     if product_update.ingredients is not None:
         product.ingredients = product_update.ingredients
+    if product_update.description is not None:
+        product.description = product_update.description
+    if product_update.is_available is not None:
+        product.is_available = product_update.is_available
+    if product_update.allergens is not None:
+        product.allergens = _normalise_codes(product_update.allergens, PRODUCT_ALLERGEN_CODES)
+    if product_update.dietary_tags is not None:
+        product.dietary_tags = _normalise_codes(product_update.dietary_tags, PRODUCT_DIETARY_TAGS)
+    if product_update.allergen_notes is not None:
+        product.allergen_notes = product_update.allergen_notes.strip() or None
+    if product_update.allergen_reviewed is not None:
+        product.allergen_reviewed = product_update.allergen_reviewed
     if product_update.category is not None:
         from .category_codes import normalize_product_category
 
@@ -5847,8 +5876,12 @@ def update_product(
             product.kitchen_station_id = int(val)
 
     session.add(product)
-    # Sync availability dates to linked TenantProduct(s) so customer menu stays consistent
-    if product_update.available_from is not None or product_update.available_until is not None:
+    # Sync availability to linked TenantProduct(s) so customer menu stays consistent.
+    if (
+        product_update.available_from is not None
+        or product_update.available_until is not None
+        or product_update.is_available is not None
+    ):
         linked = session.exec(
             select(models.TenantProduct).where(
                 models.TenantProduct.product_id == product.id,
@@ -5860,6 +5893,8 @@ def update_product(
                 tp.available_from = product_update.available_from
             if product_update.available_until is not None:
                 tp.available_until = product_update.available_until
+            if product_update.is_available is not None:
+                tp.is_active = product_update.is_available
             session.add(tp)
     session.commit()
     session.refresh(product)
@@ -9273,6 +9308,9 @@ def bulk_create_tables(
     current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
+    from .saas_billing import ensure_table_capacity
+
+    ensure_table_capacity(session, int(current_user.tenant_id), additional_tables=body.count)
     if body.floor_id is not None:
         floor = session.get(models.Floor, body.floor_id)
         if not floor or floor.tenant_id != current_user.tenant_id:
@@ -9496,6 +9534,9 @@ def create_table(
     current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
     session: Session = Depends(get_session),
 ) -> JSONResponse:
+    from .saas_billing import ensure_table_capacity
+
+    ensure_table_capacity(session, int(current_user.tenant_id), additional_tables=1)
     table = models.Table(
         name=table_data.name,
         tenant_id=current_user.tenant_id,
@@ -12354,8 +12395,25 @@ def get_menu(
     ).all()
 
     legacy_products = session.exec(
-        select(models.Product).where(models.Product.tenant_id == table.tenant_id)
+        select(models.Product).where(
+            models.Product.tenant_id == table.tenant_id,
+            models.Product.is_available == True,
+        )
     ).all()
+
+    unavailable_product_ids = set(
+        session.exec(
+            select(models.Product.id).where(
+                models.Product.tenant_id == table.tenant_id,
+                models.Product.is_available == False,
+            )
+        ).all()
+    )
+    tenant_products = [
+        tp
+        for tp in tenant_products
+        if tp.product_id is None or tp.product_id not in unavailable_product_ids
+    ]
 
     # Customer-facing: only show products available today (within available_from..available_until)
     try:
@@ -12454,8 +12512,13 @@ def get_menu(
         # Get the actual product record to check for customized description
         if tp.product_id:
             custom_product = session.get(models.Product, tp.product_id)
-            if custom_product and custom_product.description:
-                product_data["description"] = custom_product.description
+            if custom_product:
+                if custom_product.description:
+                    product_data["description"] = custom_product.description
+                product_data["allergens"] = custom_product.allergens or []
+                product_data["dietary_tags"] = custom_product.dietary_tags or []
+                product_data["allergen_notes"] = custom_product.allergen_notes
+                product_data["allergen_reviewed"] = custom_product.allergen_reviewed
 
         # Add translations for tenant product
         if lang != "en":  # Only add if different from default
@@ -12676,6 +12739,10 @@ def get_menu(
             "image_filename": lp.image_filename,
             "tenant_id": lp.tenant_id,
             "ingredients": lp.ingredients,
+            "allergens": lp.allergens or [],
+            "dietary_tags": lp.dietary_tags or [],
+            "allergen_notes": lp.allergen_notes,
+            "allergen_reviewed": lp.allergen_reviewed,
             "category": lp.category,
             "subcategory": lp.subcategory,
             "_source": "product",

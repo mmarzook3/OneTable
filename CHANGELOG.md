@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.177] - 2026-08-25
+
+### Added
+
+- **Enforced Scanaki plans:** Persisted Lite, Pro and Ultra plan selection, enforced included plus purchased table allowances, added separate Stripe Price support per tier, and gave platform operators plan and extra-table controls.
+- **Secure restaurant invitations:** New platform-created restaurants receive a single-use password-setup email when SMTP is configured, with delivery status retained for operator review and a manual secure-link fallback.
+- **Menu safety and service controls:** Added instant sold-out/available actions, structured dietary tags, the 14 standard allergen categories, allergen notes and an explicit restaurant review confirmation in all supported languages.
+- **Launch-readiness dashboard:** Added platform checks for profile, hours, menu, prices, allergens, plan limits, plaques/NFC, kitchen, Stripe, legal URLs and onboarding completion.
+- **Installable kitchen:** Added a Scanaki Kitchen web manifest and safe service worker shell for Android home-screen and standalone installation while preserving network-first live order data.
+
 ## [2.1.176] - 2026-08-24
 
 ### Added

@@ -759,6 +759,21 @@
             <p>{{ selectedProduct()!.ingredients }}</p>
           </div>
           }
+          @if ((selectedProduct()!.allergens?.length || 0) > 0 || selectedProduct()!.allergen_notes) {
+          <div class="detail-section ingredients">
+            <h4>{{ 'PRODUCTS.ALLERGENS_TITLE' | translate }}</h4>
+            @if ((selectedProduct()!.allergens?.length || 0) > 0) {
+            <div class="product-tags">
+              @for (allergen of selectedProduct()!.allergens || []; track allergen) {
+              <span class="product-tag product-tag--offer">{{ ('PRODUCTS.ALLERGEN_' + allergen.toUpperCase()) | translate }}</span>
+              }
+            </div>
+            }
+            @if (selectedProduct()!.allergen_notes) {
+            <p>{{ selectedProduct()!.allergen_notes }}</p>
+            }
+          </div>
+          }
         </div>
       </div>
 

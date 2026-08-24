@@ -11,6 +11,7 @@ from typing import Any
 
 import stripe
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from . import models
@@ -30,6 +31,47 @@ ACTIVE_STATUSES = frozenset(
         SAAS_STATUS_GRANDFATHERED,
     }
 )
+
+SAAS_PLAN_TABLES = {"lite": 2, "pro": 20, "ultra": 45}
+
+
+def normalize_plan_code(value: str | None) -> str:
+    code = (value or "lite").strip().lower()
+    if code not in SAAS_PLAN_TABLES:
+        raise HTTPException(status_code=400, detail="Invalid Scanaki plan")
+    return code
+
+
+def tenant_table_limit(tenant: models.Tenant) -> int:
+    return SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)] + max(
+        0, int(tenant.saas_extra_tables or 0)
+    )
+
+
+def ensure_table_capacity(
+    session: Session, tenant_id: int, *, additional_tables: int = 1
+) -> tuple[int, int]:
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    current = int(
+        session.exec(
+            select(func.count()).select_from(models.Table).where(models.Table.tenant_id == tenant_id)
+        ).one()
+        or 0
+    )
+    limit = tenant_table_limit(tenant)
+    if current + additional_tables > limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "table_plan_limit",
+                "message": f"Your {normalize_plan_code(tenant.saas_plan_code).title()} plan allows {limit} tables.",
+                "current_tables": current,
+                "table_limit": limit,
+            },
+        )
+    return current, limit
 
 # API path prefixes that remain usable without a SaaS subscription
 # (signup priming, auth, paywall itself, public guest flows).
@@ -142,7 +184,11 @@ def plan_config() -> dict[str, Any]:
     extra_table_price = int(
         getattr(settings, "saas_extra_table_price_cents", 399) or 399
     )
-    price_id = (getattr(settings, "saas_stripe_price_id", None) or "").strip()
+    price_ids = {
+        "lite": (getattr(settings, "saas_lite_stripe_price_id", None) or settings.saas_stripe_price_id or "").strip(),
+        "pro": (getattr(settings, "saas_pro_stripe_price_id", None) or "").strip(),
+        "ultra": (getattr(settings, "saas_ultra_stripe_price_id", None) or "").strip(),
+    }
     secret = (settings.stripe_secret_key or "").strip()
     plans = [
         {
@@ -176,6 +222,8 @@ def plan_config() -> dict[str, Any]:
             "extra_table_price_cents": extra_table_price,
         },
     ]
+    for plan in plans:
+        plan["stripe_checkout_available"] = bool(secret and price_ids[plan["id"]])
     return {
         "enabled": paywall_enabled(),
         "trial_days": trial_days,
@@ -183,7 +231,7 @@ def plan_config() -> dict[str, Any]:
         "price_cents": lite_price,
         "currency": currency,
         "extra_table_price_cents": extra_table_price,
-        "stripe_checkout_available": bool(secret and price_id),
+        "stripe_checkout_available": any(bool(secret and value) for value in price_ids.values()),
         "plans": plans,
     }
 
@@ -196,6 +244,10 @@ def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
         **cfg,
         "status": status_val,
         "has_access": has_access,
+        "plan_code": normalize_plan_code(tenant.saas_plan_code),
+        "included_tables": SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)],
+        "extra_tables": max(0, int(tenant.saas_extra_tables or 0)),
+        "table_limit": tenant_table_limit(tenant),
         "trial_ends_at": tenant.saas_trial_ends_at.isoformat()
         if tenant.saas_trial_ends_at
         else None,
@@ -205,7 +257,7 @@ def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
     }
 
 
-def start_trial(session: Session, tenant: models.Tenant) -> models.Tenant:
+def start_trial(session: Session, tenant: models.Tenant, plan_code: str | None = None) -> models.Tenant:
     if not paywall_enabled():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -234,6 +286,7 @@ def start_trial(session: Session, tenant: models.Tenant) -> models.Tenant:
 
     trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
     now = datetime.now(timezone.utc)
+    tenant.saas_plan_code = normalize_plan_code(plan_code or tenant.saas_plan_code)
     tenant.saas_subscription_status = SAAS_STATUS_TRIALING
     tenant.saas_trial_ends_at = now + timedelta(days=trial_days)
     session.add(tenant)
@@ -248,9 +301,12 @@ def create_checkout_session(
     user: models.User,
     success_url: str,
     cancel_url: str,
+    plan_code: str | None = None,
 ) -> str:
     cfg = plan_config()
-    if not cfg["stripe_checkout_available"]:
+    selected_plan = normalize_plan_code(plan_code or tenant.saas_plan_code)
+    selected = next(plan for plan in cfg["plans"] if plan["id"] == selected_plan)
+    if not selected["stripe_checkout_available"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -258,7 +314,11 @@ def create_checkout_session(
                 "message": "Platform Stripe is not configured for SaaS checkout.",
             },
         )
-    price_id = settings.saas_stripe_price_id.strip()
+    price_id = {
+        "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
+        "pro": settings.saas_pro_stripe_price_id.strip(),
+        "ultra": settings.saas_ultra_stripe_price_id.strip(),
+    }[selected_plan]
     secret = settings.stripe_secret_key.strip()
     trial_days = int(cfg["trial_days"])
 
@@ -268,6 +328,7 @@ def create_checkout_session(
         "metadata": {
             "tenant_id": str(tenant.id),
             "user_id": str(user.id),
+            "plan_code": selected_plan,
         },
     }
     if tenant.saas_trial_ends_at is None and (
@@ -286,6 +347,7 @@ def create_checkout_session(
             "metadata": {
                 "tenant_id": str(tenant.id),
                 "user_id": str(user.id),
+                "plan_code": selected_plan,
             },
             "subscription_data": subscription_data,
             "api_key": secret,
@@ -349,6 +411,9 @@ def apply_stripe_subscription_object(
     sub_id = _obj_get(sub, "id")
     customer_id = _obj_get(sub, "customer")
     stripe_status = _obj_get(sub, "status")
+    metadata = _obj_get(sub, "metadata") or {}
+    if isinstance(metadata, dict) and metadata.get("plan_code"):
+        tenant.saas_plan_code = normalize_plan_code(str(metadata["plan_code"]))
     mapped = _stripe_status_to_saas(stripe_status)
     if mapped is None and stripe_status:
         # Unknown status: still store ids, leave status unchanged unless canceled via deleted
@@ -431,6 +496,9 @@ def apply_checkout_session_to_tenant(
         tenant.saas_stripe_customer_id = str(customer_id)
     if subscription_id:
         tenant.saas_stripe_subscription_id = str(subscription_id)
+    metadata = _obj_get(checkout, "metadata") or {}
+    if isinstance(metadata, dict) and metadata.get("plan_code"):
+        tenant.saas_plan_code = normalize_plan_code(str(metadata["plan_code"]))
 
     # Default optimistic active until we see Subscription details
     tenant.saas_subscription_status = SAAS_STATUS_ACTIVE

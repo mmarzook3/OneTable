@@ -81,6 +81,47 @@ class TestScanakiMvp(PgClientTestCase):
         self.session.refresh(self.table)
         self.session.refresh(self.product)
 
+    def test_structured_allergens_and_sold_out_toggle(self) -> None:
+        headers = _bearer_headers(self.owner)
+        update = self.client.put(
+            f"/products/{self.product.id}",
+            headers=headers,
+            json={
+                "is_available": False,
+                "allergens": ["milk", "eggs"],
+                "dietary_tags": ["vegetarian"],
+                "allergen_notes": "Prepared in a shared kitchen.",
+                "description": "Freshly prepared burger",
+            },
+        )
+        self.assertEqual(update.status_code, 200, update.text)
+        self.assertFalse(update.json()["is_available"])
+        self.assertEqual(update.json()["allergens"], ["eggs", "milk"])
+
+        hidden_menu = self.client.get(f"/menu/{self.table.token}")
+        self.assertEqual(hidden_menu.status_code, 200, hidden_menu.text)
+        self.assertNotIn(self.product.id, [row["id"] for row in hidden_menu.json()["products"]])
+
+        available = self.client.put(
+            f"/products/{self.product.id}",
+            headers=headers,
+            json={"is_available": True},
+        )
+        self.assertEqual(available.status_code, 200, available.text)
+        visible_menu = self.client.get(f"/menu/{self.table.token}")
+        product = next(row for row in visible_menu.json()["products"] if row["id"] == self.product.id)
+        self.assertEqual(product["allergens"], ["eggs", "milk"])
+        self.assertEqual(product["dietary_tags"], ["vegetarian"])
+        self.assertEqual(product["allergen_notes"], "Prepared in a shared kitchen.")
+
+    def test_invalid_allergen_code_is_rejected(self) -> None:
+        response = self.client.put(
+            f"/products/{self.product.id}",
+            headers=_bearer_headers(self.owner),
+            json={"allergens": ["not-a-real-allergen"]},
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+
     def _create_checkout(self, key: str = "checkout-test-0001") -> int:
         response = self.client.post(
             f"/menu/{self.table.token}/order",

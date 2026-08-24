@@ -862,6 +862,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isVegetarian(product: Product): boolean {
+    if (product.dietary_tags?.includes('vegetarian') || product.dietary_tags?.includes('vegan')) {
+      return true;
+    }
     const ingredients = product.ingredients?.toLowerCase() || '';
     const subcategory = product.subcategory?.toLowerCase() || '';
     return subcategory.includes('vegetarian') ||
@@ -870,6 +873,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isVegan(product: Product): boolean {
+    if (product.dietary_tags?.includes('vegan')) return true;
     const ingredients = product.ingredients?.toLowerCase() || '';
     const subcategory = product.subcategory?.toLowerCase() || '';
     return subcategory.includes('vegan') ||
@@ -878,6 +882,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isGlutenFree(product: Product): boolean {
+    if (product.dietary_tags?.includes('gluten_free')) return true;
     const ingredients = product.ingredients?.toLowerCase() || '';
     return ingredients.includes('sin gluten') ||
       ingredients.includes('gluten-free') ||

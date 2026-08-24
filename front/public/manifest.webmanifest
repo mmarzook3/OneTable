@@ -1,0 +1,20 @@
+{
+  "name": "Scanaki Kitchen",
+  "short_name": "Scanaki KDS",
+  "description": "FIFO kitchen display for Scanaki restaurant orders.",
+  "start_url": "/kitchen?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

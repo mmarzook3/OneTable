@@ -382,3 +382,61 @@
     flex-shrink: 0;
     white-space: nowrap;
 }
+
+.product-readiness-panel,
+.tag-fieldset {
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+}
+
+.tag-fieldset legend {
+    padding: 0 var(--space-1);
+    font-weight: 600;
+}
+
+.availability-checkbox,
+.tag-checkbox-grid label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    cursor: pointer;
+}
+
+.tag-checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: var(--space-1) var(--space-3);
+}
+
+.sold-out-badge {
+    display: inline-block;
+    margin-top: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(185, 28, 28, 0.12);
+    color: #b91c1c;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.availability-action {
+    min-height: 34px;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.availability-action--sold-out {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+    color: var(--color-primary);
+}
