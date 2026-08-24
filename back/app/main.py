@@ -882,6 +882,7 @@ class TenantSummary(_BaseModel):
     guest_birthday_capture_enabled: bool = True
     guest_birthday_marketing_enabled: bool = False
     guest_birthday_consent_text: str | None = None
+    delivery_enabled: bool = True
 
 
 TAKE_AWAY_TABLE_NAMES = ("take away", "home ordering", "takeaway", "take-away")
@@ -1138,6 +1139,7 @@ def _tenant_to_summary(t: models.Tenant, session: Session) -> TenantSummary:
             getattr(t, "guest_birthday_marketing_enabled", False)
         ),
         guest_birthday_consent_text=getattr(t, "guest_birthday_consent_text", None),
+        delivery_enabled=bool(getattr(t, "delivery_enabled", True)),
     )
 
 
@@ -1227,6 +1229,7 @@ def get_public_tenant(
         "guest_birthday_capture_enabled": summary.guest_birthday_capture_enabled,
         "guest_birthday_marketing_enabled": summary.guest_birthday_marketing_enabled,
         "guest_birthday_consent_text": summary.guest_birthday_consent_text,
+        "delivery_enabled": summary.delivery_enabled,
     }
     return JSONResponse(content=body)
 
@@ -1274,6 +1277,8 @@ def get_public_satisfecho_delivery_config(
     tenant = session.get(models.Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     from app.delivery_order_service import (
         parse_delivery_postal_codes,
         tenant_delivery_fee_cents,
@@ -1286,6 +1291,7 @@ def get_public_satisfecho_delivery_config(
         radius is not None and int(radius) > 0 and has_center
     )
     return {
+        "delivery_enabled": True,
         "delivery_fee_cents": tenant_delivery_fee_cents(tenant),
         "delivery_radius_meters": int(radius) if radius_active else None,
         "postal_codes_required": bool(postal),
@@ -1375,6 +1381,8 @@ def create_public_satisfecho_delivery_order(
     tenant = session.get(models.Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     if not body.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
     address = (body.delivery_address or "").strip()
@@ -4500,7 +4508,9 @@ def update_tenant_settings(
         else:
             tenant.guest_birthday_consent_text = None
 
-    # Scanaki Delivery fee + coverage
+    # Scanaki Delivery availability, fee + coverage
+    if tenant_update.delivery_enabled is not None:
+        tenant.delivery_enabled = bool(tenant_update.delivery_enabled)
     if tenant_update.delivery_fee_cents is not None:
         fee = int(tenant_update.delivery_fee_cents)
         if fee < 0:
@@ -14357,6 +14367,11 @@ def create_satisfecho_delivery_order_endpoint(
     session: Session = Depends(get_session),
 ) -> dict:
     """Staff: create a first-party Scanaki Delivery order (no table / marketplace)."""
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     if not body.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
     address = (body.delivery_address or "").strip()

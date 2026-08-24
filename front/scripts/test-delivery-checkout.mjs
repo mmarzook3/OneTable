@@ -38,6 +38,7 @@ if (existsSync(envPath)) {
 
 const BASE_URL = (process.env.BASE_URL || 'http://127.0.0.1:4202').replace(/\/$/, '');
 const TENANT_ID = process.env.TENANT_ID || '1';
+const EXPECT_DELIVERY_DISABLED = process.env.EXPECT_DELIVERY_DISABLED === '1';
 const CHROME =
   process.env.CHROME_PATH ||
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -89,6 +90,29 @@ async function main() {
   const text = await page.evaluate(() => document.body.innerText);
   if (/DELIVERY_CHECKOUT\./.test(text)) {
     throw new Error('Raw i18n keys visible on delivery page');
+  }
+  if (EXPECT_DELIVERY_DISABLED) {
+    if (!/Delivery is not available/i.test(text)) {
+      throw new Error(`Expected disabled-delivery message, got: ${text.slice(0, 400)}`);
+    }
+    if (await page.$('button.delivery-add-btn')) {
+      throw new Error('Delivery add button is visible while delivery is disabled');
+    }
+
+    await page.goto(`${BASE_URL}/public-menu/${TENANT_ID}`, {
+      waitUntil: 'networkidle2',
+      timeout: 60000,
+    });
+    if (await page.$('a[href*="/delivery/"]')) {
+      throw new Error('Public menu still shows an Order delivery CTA');
+    }
+    if (!(await page.$(`a[href="/book/${TENANT_ID}"]`))) {
+      throw new Error('Public menu does not show the Book a table CTA');
+    }
+    console.log('Disabled delivery page and booking-only public CTA OK');
+    console.log('PASS');
+    await browser.close();
+    return;
   }
   if (/Restaurant not found|Invalid restaurant|Tenant not found/i.test(text) && !/Add|cart|menu/i.test(text)) {
     console.warn('Tenant may be missing in this env; page still rendered error state OK');

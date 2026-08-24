@@ -89,6 +89,25 @@ class TestPublicSatisfechoDelivery(PgClientTestCase):
         self.assertEqual(order.session_id, "public_satisfecho_delivery")
         self.assertEqual(order.delivery_fee_cents, 0)
 
+    def test_public_delivery_can_be_disabled_per_tenant(self) -> None:
+        self.tenant.delivery_enabled = False
+        self.session.add(self.tenant)
+        self.session.commit()
+
+        cfg = self.client.get(
+            f"/public/tenants/{self.tenant.id}/satisfecho-delivery-config"
+        )
+        self.assertEqual(cfg.status_code, 403, cfg.text)
+        self.assertEqual(cfg.json()["detail"], "delivery_disabled")
+
+        body, status = self._create_public()
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["_raw"].json()["detail"], "delivery_disabled")
+
+        summary = self.client.get(f"/public/tenants/{self.tenant.id}")
+        self.assertEqual(summary.status_code, 200, summary.text)
+        self.assertFalse(summary.json()["delivery_enabled"])
+
     def test_public_create_applies_delivery_fee(self) -> None:
         self.tenant.delivery_fee_cents = 350
         self.session.add(self.tenant)

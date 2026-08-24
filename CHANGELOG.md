@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.156] - 2026-08-24
+
+### Added
+
+- **Per-restaurant delivery switch:** Restaurant settings can now disable Scanaki Delivery without affecting table ordering or reservations.
+
+### Fixed
+
+- **Delivery enforcement:** Disabled restaurants reject both public and staff-created delivery orders at the API, and their public delivery page clearly reports that delivery is unavailable.
+
 ## [2.1.154] - 2026-08-24
 
 ### Added

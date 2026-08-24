@@ -61,9 +61,15 @@
     <main class="book-content public-menu-content">
       <p class="public-menu-readonly-hint">{{ 'PUBLIC_MENU.READ_ONLY_HINT' | translate }}</p>
       <p class="public-menu-delivery-cta">
-        <a [routerLink]="['/delivery', tenantId()]" class="btn btn-primary">
-          {{ 'PUBLIC_MENU.ORDER_DELIVERY' | translate }}
-        </a>
+        @if (tenant()?.delivery_enabled !== false) {
+          <a [routerLink]="['/delivery', tenantId()]" class="btn btn-primary">
+            {{ 'PUBLIC_MENU.ORDER_DELIVERY' | translate }}
+          </a>
+        } @else {
+          <a [routerLink]="['/book', tenantId()]" class="btn btn-primary">
+            {{ 'LANDING.BOOK_TABLE' | translate }}
+          </a>
+        }
       </p>
 
       @if (menuLoading()) {

@@ -92,6 +92,22 @@ class TestSatisfechoDeliveryOrders(PgClientTestCase):
         self.assertEqual(match["delivery_address"], "Calle Mayor 10, Madrid")
         self.assertEqual(match["customer_phone"], "+34600111222")
 
+    def test_staff_create_rejects_when_delivery_is_disabled(self) -> None:
+        self.tenant.delivery_enabled = False
+        self.session.add(self.tenant)
+        self.session.commit()
+
+        response = self.client.post(
+            "/orders/satisfecho-delivery",
+            headers=_bearer_headers(self.owner),
+            json={
+                "items": [{"product_id": self.product.id, "quantity": 1}],
+                "delivery_address": "Calle Mayor 10, Madrid",
+            },
+        )
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.json()["detail"], "delivery_disabled")
+
     def test_update_delivery_fields(self) -> None:
         h = _bearer_headers(self.owner)
         r = self.client.post(
