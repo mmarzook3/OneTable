@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.159] - 2026-08-24
+
+### Changed
+
+- **United Kingdom currency:** New restaurants, unconfigured tenants, hosted plan pricing, payment fallbacks, menus, reports, invoices, and staff forms now default to GBP with the pound symbol (`£`).
+- **UK examples:** Currency hints, reservation prepayment examples, and pricing-calculator examples now use pounds and pence.
+
 ## [2.1.158] - 2026-08-24
 
 ### Changed

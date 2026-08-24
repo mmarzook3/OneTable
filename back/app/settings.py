@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = Field(
         default="", validation_alias="STRIPE_PUBLISHABLE_KEY"
     )
-    stripe_currency: str = Field(default="eur", validation_alias="STRIPE_CURRENCY")
+    stripe_currency: str = Field(default="gbp", validation_alias="STRIPE_CURRENCY")
     stripe_guest_webhook_secret: str = Field(
         default="",
         validation_alias="STRIPE_GUEST_WEBHOOK_SECRET",
@@ -78,9 +78,9 @@ class Settings(BaseSettings):
     saas_plan_price_cents: int = Field(
         default=4900,
         validation_alias="SAAS_PLAN_PRICE_CENTS",
-        description="Displayed monthly plan price in cents (e.g. 4900 = €49)",
+        description="Displayed monthly plan price in pence (e.g. 4900 = £49)",
     )
-    saas_plan_currency: str = Field(default="eur", validation_alias="SAAS_PLAN_CURRENCY")
+    saas_plan_currency: str = Field(default="gbp", validation_alias="SAAS_PLAN_CURRENCY")
     saas_stripe_price_id: str = Field(
         default="",
         validation_alias="SAAS_STRIPE_PRICE_ID",

@@ -105,7 +105,7 @@ def default_confirmation_body_template(lang: str = "en") -> str:
 def _format_money_line(cents: int | None, currency_code: str | None, lang: str = "en") -> str:
     if cents is None or cents <= 0:
         return ""
-    code = (currency_code or "EUR").strip().upper()
+    code = (currency_code or "GBP").strip().upper()
     amount = cents / 100.0
     amount_s = f"{amount:.2f}"
     return get_message("email_reservation_prepayment_amount", lang, amount=amount_s, currency=code)

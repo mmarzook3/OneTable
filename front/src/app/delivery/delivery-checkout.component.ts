@@ -271,7 +271,7 @@ export class DeliveryCheckoutComponent implements OnInit, OnDestroy {
   }
 
   formatCents(cents: number): string {
-    const currency = this.menu()?.currency || 'EUR';
+    const currency = this.menu()?.currency || 'GBP';
     try {
       return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100);
     } catch {

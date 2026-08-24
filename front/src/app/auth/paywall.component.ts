@@ -267,11 +267,11 @@ export class PaywallComponent implements OnInit {
     try {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
-        currency: (currency || 'EUR').toUpperCase(),
+        currency: (currency || 'GBP').toUpperCase(),
         maximumFractionDigits: 0,
       }).format(cents / 100);
     } catch {
-      return `${(cents / 100).toFixed(0)} ${(currency || 'eur').toUpperCase()}`;
+      return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
     }
   }
 

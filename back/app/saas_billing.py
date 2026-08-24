@@ -136,7 +136,7 @@ def ensure_tenant_saas_access(session: Session, tenant_id: int | None) -> None:
 def plan_config() -> dict[str, Any]:
     price_cents = int(getattr(settings, "saas_plan_price_cents", 4900) or 4900)
     trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
-    currency = (getattr(settings, "saas_plan_currency", None) or "eur").lower()
+    currency = (getattr(settings, "saas_plan_currency", None) or "gbp").lower()
     price_id = (getattr(settings, "saas_stripe_price_id", None) or "").strip()
     secret = (settings.stripe_secret_key or "").strip()
     # Flat top-level fields stay for paywall/signup; `plans` is the forward-compatible catalog.

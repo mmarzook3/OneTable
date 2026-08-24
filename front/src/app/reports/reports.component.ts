@@ -96,7 +96,7 @@ export class ReportsComponent implements OnInit {
   @ViewChild('attendanceStaffDropdownRoot') attendanceStaffDropdownRoot?: ElementRef<HTMLElement>;
   fromDate = signal('');
   toDate = signal('');
-  currency = signal('€');
+  currency = signal('£');
   currencyCode = signal<string | null>(null);
 
   maxBarValue = computed(() => {
@@ -225,7 +225,7 @@ export class ReportsComponent implements OnInit {
         if (code) {
           this.currency.set(currencySymbolFromIsoCode(this.translate, code));
         } else {
-          this.currency.set(s.currency || '€');
+          this.currency.set(s.currency || '£');
         }
       },
     });
