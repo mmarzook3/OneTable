@@ -2788,6 +2788,11 @@
     "FEAT_TSE_DESC": "Mode tse_mode optionnel par établissement (test/live) avec stubs de transactions signées, champs TSE sur le ticket et stub d’export DSFinV-K par plage de dates. Le mode live utilise un fournisseur TSE cloud (Fiskaly SIGN DE) une fois débloqué - non commercialisé comme certifié BSI tant que les identifiants de production ne sont pas vérifiés."
   },
   "PRICING_PAGE": {
+    "TIERS_TITLE": "Choose the right plan for your venue",
+    "TIERS_SUBTITLE": "Three managed tiers with simple monthly pricing. Add more tables to any plan for £3.99 per table each month.",
+    "MOST_POPULAR": "Most popular",
+    "TABLES_INCLUDED": "{{count}} tables included",
+    "EXTRA_TABLE": "Extra tables: {{price}} per table / month",
     "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "Tarifs hébergés simples",
     "TITLE": "Essai gratuit, puis un forfait mensuel unique",

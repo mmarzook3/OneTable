@@ -110,6 +110,12 @@ async function main() {
       const bannedPositioning = /open[ -]?source|agpl/i.test(document.body?.innerText || '');
       const billingActive = !!document.querySelector('[data-testid="pricing-billing-active"]');
       const billingInactive = !!document.querySelector('[data-testid="pricing-billing-inactive"]');
+      const planCards = Array.from(document.querySelectorAll('[data-testid="pricing-plan-card"]')).map(
+        (card) => ({
+          id: card.getAttribute('data-plan-id') || '',
+          text: (card.textContent || '').replace(/\s+/g, ' ').trim(),
+        }),
+      );
       const rawKeyDump =
         title.includes('PRICING_PAGE.') ||
         (document.body?.innerText || '').includes('PRICING_PAGE.TITLE');
@@ -126,11 +132,12 @@ async function main() {
         bannedPositioning,
         billingActive,
         billingInactive,
+        planCards,
         rawKeyDump,
         priceMentionsAmount,
         trialMentionsDays,
       };
-    }, { price_cents: cfg.price_cents, trial_days: cfg.trial_days });
+    }, { price_cents: cfg.price_cents, trial_days: cfg.trial_days, plans: cfg.plans });
 
     if (!shell.title || shell.rawKeyDump) {
       console.error('FAIL: Hero title missing or untranslated. Got:', JSON.stringify(shell.title));
@@ -163,6 +170,29 @@ async function main() {
     if (!shell.registerOk || shell.selfHostPresent || shell.bannedPositioning) {
       console.error('FAIL: Pricing must show managed signup only, without legacy positioning.', shell);
       process.exit(1);
+    }
+
+    const expectedPlans = [
+      { id: 'lite', name: 'Lite', price: '£9.99', tables: '2 tables', extra: '£3.99' },
+      { id: 'pro', name: 'Pro', price: '£39.99', tables: '20 tables', extra: '£3.99' },
+      { id: 'ultra', name: 'Ultra', price: '£84.99', tables: '45 tables', extra: '£3.99' },
+    ];
+    if (shell.planCards.length !== expectedPlans.length) {
+      console.error('FAIL: Expected exactly three managed pricing cards.', shell.planCards);
+      process.exit(1);
+    }
+    for (const expected of expectedPlans) {
+      const card = shell.planCards.find((row) => row.id === expected.id);
+      if (
+        !card ||
+        !card.text.includes(expected.name) ||
+        !card.text.includes(expected.price) ||
+        !card.text.includes(expected.tables) ||
+        !card.text.includes(expected.extra)
+      ) {
+        console.error('FAIL: Pricing card mismatch.', expected, card);
+        process.exit(1);
+      }
     }
 
     if (cfg.enabled) {

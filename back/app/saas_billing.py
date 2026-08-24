@@ -134,26 +134,57 @@ def ensure_tenant_saas_access(session: Session, tenant_id: int | None) -> None:
 
 
 def plan_config() -> dict[str, Any]:
-    price_cents = int(getattr(settings, "saas_plan_price_cents", 4900) or 4900)
     trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
     currency = (getattr(settings, "saas_plan_currency", None) or "gbp").lower()
+    lite_price = int(getattr(settings, "saas_lite_price_cents", 999) or 999)
+    pro_price = int(getattr(settings, "saas_pro_price_cents", 3999) or 3999)
+    ultra_price = int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499)
+    extra_table_price = int(
+        getattr(settings, "saas_extra_table_price_cents", 399) or 399
+    )
     price_id = (getattr(settings, "saas_stripe_price_id", None) or "").strip()
     secret = (settings.stripe_secret_key or "").strip()
-    # Flat top-level fields stay for paywall/signup; `plans` is the forward-compatible catalog.
-    hosted_standard = {
-        "id": "hosted_standard",
-        "trial_days": trial_days,
-        "price_cents": price_cents,
-        "currency": currency,
-        "interval": "month",
-    }
+    plans = [
+        {
+            "id": "lite",
+            "name": "Lite",
+            "trial_days": trial_days,
+            "price_cents": lite_price,
+            "currency": currency,
+            "interval": "month",
+            "included_tables": 2,
+            "extra_table_price_cents": extra_table_price,
+        },
+        {
+            "id": "pro",
+            "name": "Pro",
+            "trial_days": trial_days,
+            "price_cents": pro_price,
+            "currency": currency,
+            "interval": "month",
+            "included_tables": 20,
+            "extra_table_price_cents": extra_table_price,
+        },
+        {
+            "id": "ultra",
+            "name": "Ultra",
+            "trial_days": trial_days,
+            "price_cents": ultra_price,
+            "currency": currency,
+            "interval": "month",
+            "included_tables": 45,
+            "extra_table_price_cents": extra_table_price,
+        },
+    ]
     return {
         "enabled": paywall_enabled(),
         "trial_days": trial_days,
-        "price_cents": price_cents,
+        # Flat fields remain for the existing paywall flow and represent Lite.
+        "price_cents": lite_price,
         "currency": currency,
+        "extra_table_price_cents": extra_table_price,
         "stripe_checkout_available": bool(secret and price_id),
-        "plans": [hosted_standard],
+        "plans": plans,
     }
 
 

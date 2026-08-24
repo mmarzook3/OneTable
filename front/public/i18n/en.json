@@ -429,6 +429,11 @@
     "FEAT_TSE_DESC": "Optional per-tenant tse_mode (test/live) with signed transaction stubs, receipt TSE fields, and DSFinV-K date-range export stub. Live mode uses a cloud TSE provider (Fiskaly SIGN DE) when unlocked - not marketed as BSI-certified until production credentials are verified."
   },
   "PRICING_PAGE": {
+    "TIERS_TITLE": "Choose the right plan for your venue",
+    "TIERS_SUBTITLE": "Three managed tiers with simple monthly pricing. Add more tables to any plan for £3.99 per table each month.",
+    "MOST_POPULAR": "Most popular",
+    "TABLES_INCLUDED": "{{count}} tables included",
+    "EXTRA_TABLE": "Extra tables: {{price}} per table / month",
     "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "Simple hosted pricing",
     "TITLE": "Try free, then one flat monthly plan",

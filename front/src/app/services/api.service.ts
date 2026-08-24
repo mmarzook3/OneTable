@@ -326,10 +326,13 @@ export interface RegisterResponse {
 /** One catalog tier from GET /saas/config (multi-tier ready; #328) */
 export interface SaasPlanTier {
   id: string;
+  name: string;
   trial_days: number;
   price_cents: number;
   currency: string;
   interval: string;
+  included_tables: number;
+  extra_table_price_cents: number;
 }
 
 /** Platform SaaS subscription / hard paywall (issue #296) */
@@ -338,6 +341,7 @@ export interface SaasSubscription {
   trial_days: number;
   price_cents: number;
   currency: string;
+  extra_table_price_cents?: number;
   stripe_checkout_available: boolean;
   /** Forward-compatible plan catalog; omit or empty → use top-level price fields */
   plans?: SaasPlanTier[];

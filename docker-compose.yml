@@ -34,8 +34,12 @@ services:
       # Platform SaaS paywall (from --env-file config.env). Default off for local/demo.
       - SAAS_PAYWALL_ENABLED=${SAAS_PAYWALL_ENABLED:-false}
       - SAAS_TRIAL_DAYS=${SAAS_TRIAL_DAYS:-14}
-      - SAAS_PLAN_PRICE_CENTS=${SAAS_PLAN_PRICE_CENTS:-4900}
+      - SAAS_PLAN_PRICE_CENTS=${SAAS_PLAN_PRICE_CENTS:-999}
       - SAAS_PLAN_CURRENCY=${SAAS_PLAN_CURRENCY:-gbp}
+      - SAAS_LITE_PRICE_CENTS=${SAAS_LITE_PRICE_CENTS:-999}
+      - SAAS_PRO_PRICE_CENTS=${SAAS_PRO_PRICE_CENTS:-3999}
+      - SAAS_ULTRA_PRICE_CENTS=${SAAS_ULTRA_PRICE_CENTS:-8499}
+      - SAAS_EXTRA_TABLE_PRICE_CENTS=${SAAS_EXTRA_TABLE_PRICE_CENTS:-399}
       - SAAS_STRIPE_PRICE_ID=${SAAS_STRIPE_PRICE_ID:-}
       - SAAS_STRIPE_WEBHOOK_SECRET=${SAAS_STRIPE_WEBHOOK_SECRET:-}
       # Idempotent first-tenant provisioning; credentials stay in ignored config.env.
