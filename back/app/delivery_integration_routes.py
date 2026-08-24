@@ -342,6 +342,10 @@ def ingest_delivery_webhook(
     if not row.enabled:
         raise HTTPException(status_code=503, detail="Integration disabled")
 
+    tenant = session.get(models.Tenant, row.tenant_id)
+    if not tenant or not tenant.delivery_enabled:
+        raise HTTPException(status_code=503, detail="Delivery disabled")
+
     try:
         adapter = get_adapter(row.provider_key)
     except KeyError:
