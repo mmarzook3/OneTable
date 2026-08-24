@@ -6,6 +6,13 @@ import { ApiService, type SaasPlanTier, type SaasSubscription } from '../service
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 
+interface PriceParts {
+  formatted: string;
+  symbol: string;
+  whole: string;
+  decimal: string;
+}
+
 @Component({
   selector: 'app-pricing-page',
   standalone: true,
@@ -63,8 +70,15 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
                   {{ 'PRICING_PAGE.TABLES_INCLUDED' | translate: { count: plan.included_tables } }}
                 </p>
 
+                @let price = priceParts(plan.price_cents, plan.currency);
                 <div class="pricing-card__price" data-testid="pricing-price">
-                  <span class="pricing-card__amount">{{ formatPrice(plan.price_cents, plan.currency) }}</span>
+                  <span class="pricing-card__amount" [attr.aria-label]="price.formatted">
+                    <span class="pricing-card__amount-visual" aria-hidden="true">
+                      <span class="pricing-card__symbol">{{ price.symbol }}</span>
+                      <span class="pricing-card__whole">{{ price.whole }}</span>
+                      <small class="pricing-card__decimal">{{ price.decimal }}</small>
+                    </span>
+                  </span>
                   <span class="pricing-card__period">{{ 'PRICING_PAGE.PER_MONTH' | translate }}</span>
                 </div>
 
@@ -270,6 +284,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         display: grid;
         grid-template-columns: 1fr;
         gap: var(--space-5);
+        align-items: stretch;
       }
 
       @media (min-width: 768px) {
@@ -279,9 +294,11 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       }
 
       .pricing-card {
+        position: relative;
         display: flex;
         flex-direction: column;
         gap: var(--space-3);
+        height: 100%;
         padding: var(--space-6);
         border-radius: 16px;
         background: var(--pp-surface);
@@ -298,7 +315,9 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       }
 
       .pricing-card__popular {
-        align-self: flex-start;
+        position: absolute;
+        top: var(--space-5);
+        right: var(--space-5);
         padding: 0.3rem 0.65rem;
         border-radius: 999px;
         background: rgba(255, 107, 71, 0.16);
@@ -311,12 +330,15 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
       .pricing-card__name {
         margin: 0;
+        min-height: 1.5rem;
+        padding-right: 7.5rem;
         font-size: 1.25rem;
         font-weight: 600;
       }
 
       .pricing-card__lede {
         margin: 0;
+        min-height: 1.5rem;
         font-size: 0.9375rem;
         line-height: 1.5;
         color: var(--pp-muted);
@@ -326,16 +348,39 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         display: flex;
         align-items: baseline;
         gap: var(--space-2);
+        min-height: 3rem;
         margin-top: var(--space-2);
+        white-space: nowrap;
       }
 
       .pricing-card__amount {
+        display: inline-flex;
         font-size: 2.25rem;
         font-weight: 700;
         letter-spacing: -0.03em;
       }
 
+      .pricing-card__amount-visual {
+        display: inline-flex;
+        align-items: flex-start;
+      }
+
+      .pricing-card__symbol,
+      .pricing-card__whole {
+        line-height: 1;
+      }
+
+      .pricing-card__decimal {
+        margin-top: 0.08em;
+        font-size: 0.52em;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+
       .pricing-card__period {
+        align-self: flex-end;
+        margin-bottom: 0.28rem;
         color: var(--pp-muted);
         font-size: 0.9375rem;
       }
@@ -384,6 +429,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         border: 1px solid var(--pp-border);
         color: var(--pp-text);
       }
+
     `,
   ],
 })
@@ -445,6 +491,41 @@ export class PricingPageComponent implements OnInit {
       }).format(cents / 100);
     } catch {
       return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
+    }
+  }
+
+  priceParts(cents: number, currency: string): PriceParts {
+    const currencyCode = (currency || 'GBP').toUpperCase();
+    try {
+      const formatter = new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      const parts = formatter.formatToParts(cents / 100);
+      const symbol = parts.find((part) => part.type === 'currency')?.value || currencyCode;
+      const whole = parts
+        .filter((part) => part.type === 'integer' || part.type === 'group')
+        .map((part) => part.value)
+        .join('');
+      const decimalSeparator = parts.find((part) => part.type === 'decimal')?.value || '.';
+      const fraction = parts.find((part) => part.type === 'fraction')?.value || '00';
+      return {
+        formatted: formatter.format(cents / 100),
+        symbol,
+        whole,
+        decimal: `${decimalSeparator}${fraction}`,
+      };
+    } catch {
+      const fixed = (cents / 100).toFixed(2);
+      const [whole, fraction] = fixed.split('.');
+      return {
+        formatted: `${currencyCode} ${fixed}`,
+        symbol: currencyCode === 'GBP' ? '£' : currencyCode,
+        whole,
+        decimal: `.${fraction}`,
+      };
     }
   }
 }

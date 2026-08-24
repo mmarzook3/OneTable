@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.166] - 2026-08-24
+
+### Changed
+
+- **Symmetrical pricing cards:** Positioned the Pro badge outside normal card flow and standardised card row heights so every plan name, allowance, price, trial, add-on, feature list, and button aligns across the tier grid.
+- **Price hierarchy:** Split each monthly price into whole-pound and decimal elements, rendering the two decimal digits smaller while preserving the complete accessible currency label.
+
 ## [2.1.165] - 2026-08-24
 
 ### Changed
