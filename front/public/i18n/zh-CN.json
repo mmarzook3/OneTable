@@ -410,7 +410,8 @@
     "BACK_HOME": "返回首页",
     "INVALID_TENANT": "餐厅链接无效。",
     "TENANT_NOT_FOUND": "未找到该餐厅。",
-    "LOAD_FAILED": "无法加载配送菜单，请稍后再试。"
+    "LOAD_FAILED": "无法加载配送菜单，请稍后再试。",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table."
   },
   "DELIVERY_TRACK": {
     "TITLE": "Track your order",
@@ -2185,6 +2186,8 @@
     "LOCATION_RADIUS_HINT": "超出此半径的订单将被标记",
     "USE_CURRENT_LOCATION": "使用当前位置",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",

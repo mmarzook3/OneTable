@@ -58,7 +58,9 @@ export class DeliveryCheckoutComponent implements OnInit, OnDestroy {
   logoUrl = signal<string | null>(null);
   loading = signal(true);
   menuLoading = signal(false);
-  errorKind = signal<'invalid_tenant' | 'tenant_not_found' | 'menu_load_failed' | null>(null);
+  errorKind = signal<
+    'invalid_tenant' | 'tenant_not_found' | 'delivery_disabled' | 'menu_load_failed' | null
+  >(null);
 
   step = signal<CheckoutStep>('menu');
   cart = signal<CartLine[]>([]);
@@ -142,6 +144,12 @@ export class DeliveryCheckoutComponent implements OnInit, OnDestroy {
       next: (t) => {
         this.tenant.set(t);
         this.logoUrl.set(this.api.getTenantLogoUrl(t.logo_filename ?? undefined, t.id));
+        if (t.delivery_enabled === false) {
+          this.errorKind.set('delivery_disabled');
+          this.loading.set(false);
+          this.updateDocumentTitle();
+          return;
+        }
         this.loadMenu(tid);
         this.loadDeliveryConfig(tid);
       },

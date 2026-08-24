@@ -410,7 +410,8 @@
     "BACK_HOME": "Tornar a l'inici",
     "INVALID_TENANT": "Enllaç de restaurant no vàlid.",
     "TENANT_NOT_FOUND": "Restaurant no trobat.",
-    "LOAD_FAILED": "No s'ha pogut carregar el menú de lliurament. Torneu-ho a provar més tard."
+    "LOAD_FAILED": "No s'ha pogut carregar el menú de lliurament. Torneu-ho a provar més tard.",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table."
   },
   "DELIVERY_TRACK": {
     "TITLE": "Track your order",
@@ -2185,6 +2186,8 @@
     "LOCATION_RADIUS_HINT": "Les comandes fora d'aquest radi es marcaran",
     "USE_CURRENT_LOCATION": "Usar ubicació actual",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",

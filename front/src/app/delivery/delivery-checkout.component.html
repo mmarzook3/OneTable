@@ -25,6 +25,8 @@
               {{ 'DELIVERY_CHECKOUT.INVALID_TENANT' | translate }}
             } @else if (errorKind() === 'tenant_not_found') {
               {{ 'DELIVERY_CHECKOUT.TENANT_NOT_FOUND' | translate }}
+            } @else if (errorKind() === 'delivery_disabled') {
+              {{ 'DELIVERY_CHECKOUT.DISABLED' | translate }}
             } @else {
               {{ 'DELIVERY_CHECKOUT.LOAD_FAILED' | translate }}
             }

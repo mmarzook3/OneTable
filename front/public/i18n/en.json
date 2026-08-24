@@ -508,7 +508,8 @@
     "BACK_HOME": "Back to home",
     "INVALID_TENANT": "Invalid restaurant link.",
     "TENANT_NOT_FOUND": "Restaurant not found.",
-    "LOAD_FAILED": "Could not load the delivery menu. Please try again later."
+    "LOAD_FAILED": "Could not load the delivery menu. Please try again later.",
+    "DISABLED": "Delivery is not available for this restaurant right now. Please order at your table or book a table."
   },
   "DELIVERY_TRACK": {
     "TITLE": "Track your order",
@@ -2448,6 +2449,8 @@
     "USE_CURRENT_LOCATION": "Use current location",
     "SATISFECHO_DELIVERY_TITLE": "Scanaki Delivery",
     "SATISFECHO_DELIVERY_DESC": "Flat delivery fee and coverage for first-party delivery checkout (postal codes and/or radius from restaurant coordinates).",
+    "DELIVERY_ENABLED": "Accept delivery orders",
+    "DELIVERY_ENABLED_HINT": "Turn this off to block new public and staff delivery orders. Table ordering and reservations stay available.",
     "DELIVERY_FEE_CENTS": "Delivery fee (cents)",
     "DELIVERY_FEE_HINT": "Amount added to guest checkout totals (0 = free). Example: 250 = 2.50.",
     "DELIVERY_RADIUS": "Delivery radius (meters)",

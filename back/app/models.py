@@ -223,7 +223,8 @@ class Tenant(SQLModel, table=True):
     guest_birthday_marketing_enabled: bool = Field(default=False)
     guest_birthday_consent_text: str | None = Field(default=None)  # GDPR copy when marketing enabled
 
-    # Scanaki Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
+    # Scanaki Delivery: tenant switch, flat fee, and coverage (postal list and/or radius from lat/lng)
+    delivery_enabled: bool = Field(default=True)
     delivery_fee_cents: int = Field(default=0)
     delivery_radius_meters: int | None = Field(default=None)
     delivery_postal_codes: str | None = Field(
@@ -2089,7 +2090,8 @@ class TenantUpdate(SQLModel):
     guest_birthday_marketing_enabled: bool | None = None
     guest_birthday_consent_text: str | None = None
 
-    # Scanaki Delivery fee + coverage
+    # Scanaki Delivery availability, fee + coverage
+    delivery_enabled: bool | None = None
     delivery_fee_cents: int | None = None
     delivery_radius_meters: int | None = None
     delivery_postal_codes: str | None = None  # JSON array string or empty to clear

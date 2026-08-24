@@ -749,6 +749,8 @@ export interface TenantSummary {
   guest_birthday_capture_enabled?: boolean;
   guest_birthday_marketing_enabled?: boolean;
   guest_birthday_consent_text?: string | null;
+  /** Whether this restaurant currently accepts new delivery orders. */
+  delivery_enabled?: boolean;
 }
 
 /** Planned opening-hours baselines and date overrides (issue #194). */
@@ -1725,6 +1727,7 @@ export interface PublicSatisfechoDeliveryOrderResponse {
 }
 
 export interface PublicSatisfechoDeliveryConfig {
+  delivery_enabled: boolean;
   delivery_fee_cents: number;
   delivery_radius_meters: number | null;
   postal_codes_required: boolean;
@@ -1891,6 +1894,7 @@ export interface TenantSettings {
   longitude?: number | null;
   location_radius_meters?: number | null;
   location_check_enabled?: boolean;
+  delivery_enabled?: boolean;
   delivery_fee_cents?: number | null;
   /** Max delivery distance from restaurant lat/lng; null/0 = no radius check */
   delivery_radius_meters?: number | null;
