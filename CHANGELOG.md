@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.176] - 2026-08-24
+
+### Added
+
+- **Automated Scanaki operations:** Added secure installation for daily encrypted backups, weekly isolated restore tests, five-minute application/container/payment checks, TLS-expiry and disk monitoring, locking, log rotation and an optional failure webhook.
+- **Portable recovery:** Added checksum-verified encrypted dumps and compose-aware restore validation that works with both the isolated Scanaki VPS stack and the standard production overlay.
+
 ## [2.1.175] - 2026-08-24
 
 ### Security
