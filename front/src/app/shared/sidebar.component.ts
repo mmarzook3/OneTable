@@ -295,7 +295,6 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
         </nav>
 
         <div class="sidebar-footer">
-          <a class="source-link" href="https://github.com/mmarzook3/OneTable" target="_blank" rel="noopener noreferrer">Product repository</a>
           <app-language-picker></app-language-picker>
           @if (user()) {
             <div class="user-info">

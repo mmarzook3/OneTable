@@ -190,7 +190,6 @@
   "LANDING": {
     "PLATFORM_BADGE": "QR और NFC टेबल ऑर्डरिंग",
     "PLATFORM_SUBTITLE": "ग्राहक QR कोड स्कैन करते हैं या NFC टैप करते हैं। उनका ऑर्डर और भुगतान सीधे आपकी रसोई या बार तक पहुंचता है।",
-    "PRODUCT_REPOSITORY": "Product repository",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
     "BADGE": "QR और NFC टेबल ऑर्डरिंग",
@@ -252,7 +251,6 @@
     "FOOTER_ACCOUNT": "खाता",
     "FOOTER_PARTNERS": "पार्टनर",
     "FOOTER_SUPPORT": "सहायता",
-    "LEGACY_REPOSITORY": "Product repository",
     "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "सार्वजनिक मेनू का QR कोड। NFC प्लेट भी यही लिंक खोलती हैं।",
     "PUBLIC_MENU_QR_HINT": "मेनू के लिए स्कैन या क्लिक करें (लॉगिन नहीं)",
@@ -336,7 +334,6 @@
     "FEAT_I18N_TITLE": "बहु-भाषा",
     "FEAT_I18N_DESC": "प्रति-टेनेंट डिफ़ॉल्ट के साथ कई भाषाओं में मेहमान और स्टाफ UI।",
     "FEAT_DEPLOYMENT_TITLE": "Deployment options",
-    "FEAT_OPEN_SOURCE_DESC": "सेल्फ़-होस्ट करें या क्लाउड में चलाएँ - जाँचें, विस्तार करें, और विक्रेता लॉक-इन से बचें।",
     "FEAT_TSE_TITLE": "जर्मन TSE (KassenSichV तैयारी)",
     "FEAT_TSE_DESC": "वैकल्पिक प्रति-टेनेंट tse_mode (टेस्ट/लाइव) साइन किए गए ट्रांज़ैक्शन स्टब, रसीद TSE फ़ील्ड और DSFinV-K डेट-रेंज एक्सपोर्ट स्टब के साथ। लाइव मोड अनलॉक होने पर क्लाउड TSE प्रोवाइडर (Fiskaly SIGN DE) का उपयोग करता है - उत्पादन क्रेडेंशियल सत्यापित होने तक BSI-प्रमाणित के रूप में नहीं बेचा जाता।"
   },
@@ -362,10 +359,6 @@
     "INCLUDE_REPORTS": "बिक्री रिपोर्ट और स्टाफ़ टूल",
     "INCLUDE_LOYALTY": "क्लब लॉयल्टी (अंक या स्टैम्प)",
     "CTA_START": "अपना खाता बनाएँ",
-    "SELFHOST_NAME": "सेल्फ-होस्ट",
-    "SELFHOST_LEDE": "अपने सर्वर पर Scanaki चलाएँ।",
-    "SELFHOST_PRICE": "£0",
-    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
     "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "मूल्य लोड नहीं हो सके। बाद में पुनः प्रयास करें।"
   },
@@ -491,8 +484,6 @@
     "HELP_TITLE": "मदद चाहिए?",
     "HELP_DESC": "हम यहाँ हैं। बग रिपोर्ट करें, सवाल पूछें या विचार साझा करें।",
     "HELP_INVITE": "सुधार के लिए चर्चा शुरू करें या Issue खोलें - हम आपसे सुनना पसंद करेंगे।",
-    "HELP_ISSUES": "समस्या रिपोर्ट करें (GitHub)",
-    "HELP_DISCUSSIONS": "चर्चा शुरू करें (GitHub)",
     "WHATS_NEW_TITLE": "क्या नया है",
     "WHATS_NEW_DESC": "नवीनतम परिवर्तन और नई सुविधाएं",
     "MY_SHIFT_TITLE": "मेरी शिफ्ट",
@@ -2927,7 +2918,7 @@
     "TITLE": "Scanaki के बारे में",
     "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "हम क्या बनाते हैं",
-    "PRODUCT_BODY": "Scanaki रेस्तराँ को कई अलग ऐप्स की जगह एक प्लेटफ़ॉर्म देता है: डिजिटल मेनू, ऑर्डरिंग, किचन व बार डिस्प्ले, आरक्षण, भुगतान और रिपोर्ट - होस्टेड या सेल्फ़-होस्ट।",
+    "PRODUCT_BODY": "Scanaki रेस्तराँ को कई अलग ऐप्स की जगह एक प्रबंधित प्लेटफ़ॉर्म देता है: डिजिटल मेनू, ऑर्डरिंग, किचन व बार डिस्प्ले, आरक्षण, भुगतान और रिपोर्ट।",
     "COMPANY_TITLE": "कौन संचालित करता है",
     "COMPANY_BODY": "Scanaki को Amvara Consulting S.L. संचालित करता है, जो El Masnou (Barcelona), Spain में स्थित कंपनी है।",
     "DEPLOYMENT_TITLE": "Deployment",
@@ -3288,14 +3279,14 @@
         "HOW_3": "स्टाफ ऐप हेडर में भाषा बदलते हैं।"
       },
       "deployment-options": {
-        "HERO_TITLE": "Deployment options",
+        "HERO_TITLE": "प्रबंधित होस्टिंग",
         "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
         "BENEFIT_1": "Managed updates and product support.",
-        "BENEFIT_2": "शून्य लाइसेंस शुल्क के लिए सेल्फ़-होस्ट करें या होस्टेड Scanaki इस्तेमाल करें।",
-        "BENEFIT_3": "Amvara के ज़रिए सामुदायिक और व्यावसायिक समर्थन।",
-        "HOW_1": "रिपॉज़िटरी क्लोन करें और README सेटअप का पालन करें।",
-        "HOW_2": "अपने इंफ़्रा पर Docker Compose से चलाएँ।",
-        "HOW_3": "या प्रबंधित अपडेट के साथ होस्टेड Scanaki के लिए रजिस्टर करें।"
+        "BENEFIT_2": "Scanaki टीम द्वारा प्रबंधित सुरक्षित होस्टिंग।",
+        "BENEFIT_3": "Scanaki टीम से उत्पाद सहायता।",
+        "HOW_1": "अपने स्थान के लिए सही प्रबंधित योजना चुनें।",
+        "HOW_2": "निर्देशित रेस्टोरेंट सेटअप पूरा करें।",
+        "HOW_3": "Scanaki होस्टिंग, रखरखाव और अपडेट संभालता है।"
       },
       "scanaki-delivery": {
         "HERO_TITLE": "Scanaki Delivery",

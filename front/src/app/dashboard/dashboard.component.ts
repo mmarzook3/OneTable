@@ -214,20 +214,6 @@ import {
           }
         </div>
 
-        <div class="help-section">
-          <h2 class="help-title">{{ 'DASHBOARD.HELP_TITLE' | translate }}</h2>
-          <p class="help-desc">{{ 'DASHBOARD.HELP_DESC' | translate }}</p>
-          <p class="help-invite">{{ 'DASHBOARD.HELP_INVITE' | translate }}</p>
-          <div class="help-links">
-            <a href="https://github.com/mmarzook3/OneTable/issues" target="_blank" rel="noopener noreferrer" class="help-link">
-              {{ 'DASHBOARD.HELP_ISSUES' | translate }}
-            </a>
-            <a href="https://github.com/mmarzook3/OneTable/discussions" target="_blank" rel="noopener noreferrer" class="help-link">
-              {{ 'DASHBOARD.HELP_DISCUSSIONS' | translate }}
-            </a>
-          </div>
-        </div>
-
         @if (showChangelogModal()) {
           <div class="changelog-overlay" (click)="closeChangelog()" role="button" tabindex="0" data-testid="changelog-overlay">
             <div class="changelog-modal" (click)="$event.stopPropagation()" role="dialog" aria-labelledby="changelog-title">
@@ -348,59 +334,6 @@ import {
         grid-template-columns: 1fr;
       }
     }
-    .help-section {
-      margin-top: var(--space-8);
-      padding: var(--space-6);
-      border-radius: var(--radius-lg);
-      background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%);
-      border: 1px solid var(--color-border);
-    }
-
-    .help-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--color-text);
-      margin: 0 0 var(--space-2);
-    }
-
-    .help-desc {
-      font-size: 0.9375rem;
-      color: var(--color-text-muted);
-      margin: 0 0 var(--space-2);
-    }
-
-    .help-invite {
-      font-size: 0.9375rem;
-      color: var(--color-text);
-      margin: 0 0 var(--space-4);
-      font-weight: 500;
-    }
-
-    .help-links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-    }
-
-    .help-link {
-      display: inline-flex;
-      align-items: center;
-      padding: var(--space-2) var(--space-4);
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      color: var(--color-primary);
-      text-decoration: none;
-      font-size: 0.9375rem;
-      font-weight: 500;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    .help-link:hover {
-      border-color: var(--color-primary);
-      box-shadow: var(--shadow-sm);
-    }
-
     .action-card-whats-new {
       cursor: pointer;
       border: 1px dashed var(--color-primary);

@@ -190,7 +190,6 @@
   "LANDING": {
     "PLATFORM_BADGE": "QR 与 NFC 桌边点餐",
     "PLATFORM_SUBTITLE": "顾客扫描二维码或轻触 NFC，订单和付款信息会直接送达厨房或吧台。",
-    "PRODUCT_REPOSITORY": "Product repository",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
     "BADGE": "QR 与 NFC 桌边点餐",
@@ -252,7 +251,6 @@
     "FOOTER_ACCOUNT": "账户",
     "FOOTER_PARTNERS": "合作伙伴",
     "FOOTER_SUPPORT": "支持",
-    "LEGACY_REPOSITORY": "Product repository",
     "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "公开菜单二维码。NFC 标牌会打开同一个链接。",
     "PUBLIC_MENU_QR_HINT": "扫码或点击查看菜单（无需登录）",
@@ -336,7 +334,6 @@
     "FEAT_I18N_TITLE": "多语言",
     "FEAT_I18N_DESC": "客人与员工界面支持多语言，并可按租户设置默认语言。",
     "FEAT_DEPLOYMENT_TITLE": "Deployment options",
-    "FEAT_OPEN_SOURCE_DESC": "可自托管或上云--查看源码、扩展功能，避免厂商锁定。",
     "FEAT_TSE_TITLE": "德国 TSE（KassenSichV 准备）",
     "FEAT_TSE_DESC": "可选按租户 tse_mode（测试/正式），含已签名交易存根、小票 TSE 字段与 DSFinV-K 日期范围导出存根。正式模式在解锁后使用云 TSE 提供商（Fiskaly SIGN DE）--在生产凭证验证前，不以 BSI 认证对外宣传。"
   },
@@ -362,10 +359,6 @@
     "INCLUDE_REPORTS": "销售报表与员工工具",
     "INCLUDE_LOYALTY": "会员忠诚（积分或盖章）",
     "CTA_START": "创建账户",
-    "SELFHOST_NAME": "自托管",
-    "SELFHOST_LEDE": "在自有服务器上运行 Scanaki。",
-    "SELFHOST_PRICE": "£0",
-    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
     "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "无法加载定价。请稍后重试。"
   },
@@ -491,8 +484,6 @@
     "HELP_TITLE": "需要帮助？",
     "HELP_DESC": "我们随时为您服务。报告问题、提问或分享想法。",
     "HELP_INVITE": "发起改进讨论或提交 Issue - 我们期待您的反馈。",
-    "HELP_ISSUES": "报告问题 (GitHub)",
-    "HELP_DISCUSSIONS": "发起讨论 (GitHub)",
     "WHATS_NEW_TITLE": "更新内容",
     "WHATS_NEW_DESC": "最新变更与新功能",
     "MY_SHIFT_TITLE": "我的班次",
@@ -2927,7 +2918,7 @@
     "TITLE": "关于 Scanaki",
     "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "我们做什么",
-    "PRODUCT_BODY": "Scanaki 帮助餐厅用一个平台替代多种专用应用：数字菜单、客人点餐、厨吧显示、预订、支付与报表--可托管或自托管。",
+    "PRODUCT_BODY": "Scanaki 帮助餐厅用一个托管平台替代多种专用应用：数字菜单、客人点餐、厨吧显示、预订、支付与报表。",
     "COMPANY_TITLE": "运营方",
     "COMPANY_BODY": "Scanaki 由 Amvara Consulting S.L. 运营，该公司位于西班牙巴塞罗那埃尔马斯诺（El Masnou）。",
     "DEPLOYMENT_TITLE": "Deployment",
@@ -3288,14 +3279,14 @@
         "HOW_3": "员工在应用页头更改语言。"
       },
       "deployment-options": {
-        "HERO_TITLE": "Deployment options",
+        "HERO_TITLE": "托管服务",
         "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
         "BENEFIT_1": "Managed updates and product support.",
-        "BENEFIT_2": "自托管免授权费，或使用托管版 Scanaki。",
-        "BENEFIT_3": "通过 Amvara 获得社区与商业支持。",
-        "HOW_1": "克隆仓库并按 README 完成设置。",
-        "HOW_2": "在您的基础设施上用 Docker Compose 运行。",
-        "HOW_3": "或注册托管版 Scanaki，由我们管理更新。"
+        "BENEFIT_2": "由 Scanaki 团队管理的安全托管服务。",
+        "BENEFIT_3": "由 Scanaki 团队提供产品支持。",
+        "HOW_1": "选择适合您场所的托管方案。",
+        "HOW_2": "完成引导式餐厅设置。",
+        "HOW_3": "Scanaki 负责托管、维护和更新。"
       },
       "scanaki-delivery": {
         "HERO_TITLE": "Scanaki Delivery",

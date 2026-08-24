@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.167] - 2026-08-24
+
+### Changed
+
+- **No source-control links:** Removed repository, issue, and discussion links from the shared marketing footer, landing page, About page, staff login, provider login and registration, dashboard, and staff sidebar.
+- **Clean managed-hosting copy:** Replaced repository cloning and self-managed deployment instructions with Scanaki managed-hosting guidance across all supported languages.
+
 ## [2.1.166] - 2026-08-24
 
 ### Changed
