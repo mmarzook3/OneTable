@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.171] - 2026-08-24
+
+### Fixed
+
+- **Scanaki user manual branding:** Removed the remaining legacy product name from the English and Spanish manual content and from every translated browser title.
+
 ## [2.1.170] - 2026-08-24
 
 ### Changed
