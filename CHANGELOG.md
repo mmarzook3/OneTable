@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.165] - 2026-08-24
+
+### Changed
+
+- **Trusted guest entry:** Removed the public table-name field from the landing page and replaced it with a camera QR scanner, preventing accidental matches against similarly named tables at other restaurants.
+- **Printed-name privacy:** Restricted the legacy public table lookup endpoint to opaque tokens, so printed table names can no longer disclose matching restaurants or table tokens.
+- **Strict Scanaki routes:** The guest scanner accepts only Scanaki smart-plaque and table-menu URLs, rejects unrelated QR codes and external domains, and stops the camera when closed or after a result.
+- **Clear scanner states:** Added translated camera permission, invalid-code, retry, cancellation, demo-unavailable, and NFC alternative guidance across all supported languages.
+
 ## [2.1.164] - 2026-08-24
 
 ### Changed

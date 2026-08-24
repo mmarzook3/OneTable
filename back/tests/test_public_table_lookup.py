@@ -1,4 +1,4 @@
-"""Public table lookup: printed name (e.g. T01) or token → menu token (GitHub #38)."""
+"""Legacy public table lookup accepts opaque tokens without exposing printed names."""
 
 import unittest
 
@@ -39,18 +39,15 @@ class TestPublicTableLookup(PgClientTestCase):
         self.assertFalse(b["ambiguous"])
         self.assertEqual(b["choices"], [])
 
-    def test_lookup_by_printed_name_case_insensitive(self):
+    def test_lookup_by_printed_name_is_rejected(self):
         r = self.client.get("/public/table-lookup", params={"q": "lu-single-38"})
-        self.assertEqual(r.status_code, 200, r.text)
-        b = r.json()
-        self.assertEqual(b["table_token"], self.table.token)
-        self.assertFalse(b["ambiguous"])
+        self.assertEqual(r.status_code, 404, r.text)
 
     def test_lookup_unknown_returns_404(self):
         r = self.client.get("/public/table-lookup", params={"q": "NO_SUCH_TABLE_XYZ"})
         self.assertEqual(r.status_code, 404, r.text)
 
-    def test_lookup_ambiguous_same_name_two_tenants(self):
+    def test_same_name_across_tenants_does_not_disclose_choices(self):
         t2 = models.Tenant(name="Lookup Tenant B")
         self.session.add(t2)
         self.session.commit()
@@ -75,15 +72,11 @@ class TestPublicTableLookup(PgClientTestCase):
         self.session.refresh(self.table)
 
         r = self.client.get("/public/table-lookup", params={"q": "lu-amb-38"})
-        self.assertEqual(r.status_code, 200, r.text)
-        b = r.json()
-        self.assertIsNone(b["table_token"])
-        self.assertTrue(b["ambiguous"])
-        self.assertEqual(len(b["choices"]), 2)
-        tokens = {c["table_token"] for c in b["choices"]}
-        self.assertEqual(tokens, {self.table.token, tab2.token})
-        tenant_names = {c["tenant_name"] for c in b["choices"]}
-        self.assertEqual(tenant_names, {"Lookup Tenant A", "Lookup Tenant B"})
+        self.assertEqual(r.status_code, 404, r.text)
+        self.assertNotIn(self.table.token, r.text)
+        self.assertNotIn(tab2.token, r.text)
+        self.assertNotIn("Lookup Tenant A", r.text)
+        self.assertNotIn("Lookup Tenant B", r.text)
 
 
 if __name__ == "__main__":
