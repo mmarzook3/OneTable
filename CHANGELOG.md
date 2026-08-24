@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.161] - 2026-08-24
+
+### Changed
+
+- **Pricing clarity:** Removed the internal billing-status note from public tier cards so the page shows customer pricing and allowances only.
+
 ## [2.1.160] - 2026-08-24
 
 ### Changed

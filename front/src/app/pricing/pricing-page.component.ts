@@ -82,16 +82,6 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
                   }}
                 </p>
 
-                @if (billingActive()) {
-                  <p class="pricing-card__billing-note" data-testid="pricing-billing-active">
-                    {{ 'PRICING_PAGE.BILLING_ACTIVE_NOTE' | translate }}
-                  </p>
-                } @else {
-                  <p class="pricing-card__billing-note" data-testid="pricing-billing-inactive">
-                    {{ 'PRICING_PAGE.BILLING_INACTIVE_NOTE' | translate }}
-                  </p>
-                }
-
                 <ul class="pricing-card__includes">
                   <li>{{ 'PRICING_PAGE.INCLUDE_QR' | translate }}</li>
                   <li>{{ 'PRICING_PAGE.INCLUDE_KITCHEN' | translate }}</li>
@@ -351,19 +341,11 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       }
 
       .pricing-card__trial,
-      .pricing-card__billing-note,
       .pricing-card__extra {
         margin: 0;
         font-size: 0.875rem;
         line-height: 1.45;
         color: var(--pp-muted);
-      }
-
-      .pricing-card__billing-note {
-        padding: var(--space-3);
-        border-radius: 10px;
-        border: 1px solid var(--pp-border);
-        background: rgba(255, 255, 255, 0.03);
       }
 
       .pricing-card__extra {
@@ -410,13 +392,11 @@ export class PricingPageComponent implements OnInit {
 
   loading = signal(true);
   error = signal('');
-  billingActive = signal(false);
   plans = signal<SaasPlanTier[]>([]);
 
   ngOnInit(): void {
     this.api.getSaasConfig().subscribe({
       next: (cfg: SaasSubscription) => {
-        this.billingActive.set(!!cfg.enabled);
         this.plans.set(this.resolvePlans(cfg));
         this.loading.set(false);
       },
