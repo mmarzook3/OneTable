@@ -27,6 +27,7 @@ export COMMIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || true)"
 "${COMPOSE[@]}" run --rm back python -m app.migrate
 "${COMPOSE[@]}" run --rm back python -m app.migrate --sync-idempotent
 "${COMPOSE[@]}" up -d --remove-orphans
+"${COMPOSE[@]}" exec -T back python -m app.seeds.ensure_landing_demo
 "${COMPOSE[@]}" exec -T back python -m app.seeds.seed_yue_tree_pilot
 
 for attempt in {1..30}; do

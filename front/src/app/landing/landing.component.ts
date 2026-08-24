@@ -8,8 +8,6 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 
-/** Only tenant 1 is shown on the public landing page (displayed as Restaurant Demo). */
-const LANDING_DEMO_TENANT_ID = 1;
 /** Demo table name for the landing guest ordering flow (must exist on demo tenant). */
 const LANDING_DEMO_TABLE_NAME = 'Take Away';
 
@@ -177,9 +175,11 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
               </figure>
 
               <div class="landing-qr-demo__content">
+                <p class="landing-qr-demo__badge">{{ 'LANDING.DEMO_BADGE' | translate }}</p>
                 <p class="landing-qr-demo__label" data-testid="landing-tenant-name">{{ getTenantDisplayName(tenant) }}</p>
                 <h2 id="landing-qr-demo-heading" class="landing-qr-demo__title">{{ 'LANDING.QR_DEMO_TITLE' | translate }}</h2>
                 <p class="landing-qr-demo__lede">{{ 'LANDING.QR_DEMO_LEDE' | translate }}</p>
+                <p class="landing-qr-demo__notice">{{ 'LANDING.DEMO_DATA_NOTICE' | translate }}</p>
                 <ol class="landing-qr-demo__steps">
                   <li>{{ 'LANDING.QR_DEMO_STEP_1' | translate }}</li>
                   <li>{{ 'LANDING.QR_DEMO_STEP_2' | translate }}</li>
@@ -1013,6 +1013,27 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       color: var(--landing-accent);
     }
 
+    .landing-qr-demo__badge {
+      display: inline-flex;
+      width: fit-content;
+      margin: 0 0 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .landing-qr-demo__notice {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
     .landing-qr-demo__title {
       margin: 0 0 var(--space-3);
       font-size: clamp(1.5rem, 3.5vw, 2rem);
@@ -1120,8 +1141,7 @@ export class LandingComponent implements OnInit {
     this.error.set(null);
     this.api.getPublicTenants().subscribe({
       next: (list) => {
-        const demo = list.filter((t) => t.id === LANDING_DEMO_TENANT_ID);
-        this.tenants.set(demo);
+        this.tenants.set(list.filter((tenant) => tenant.is_demo === true).slice(0, 1));
         this.loading.set(false);
       },
       error: (err) => {
@@ -1142,6 +1162,13 @@ export class LandingComponent implements OnInit {
   }
 
   tryDemoTable(): void {
+    const demo = this.tenants().find((tenant) => tenant.is_demo === true);
+    if (demo?.take_away_table_token) {
+      this.tableLookupError.set(null);
+      this.tableLookupChoices.set([]);
+      void this.router.navigate(['/menu', demo.take_away_table_token]);
+      return;
+    }
     this.tableCode = LANDING_DEMO_TABLE_NAME;
     this.goToTableMenu();
   }

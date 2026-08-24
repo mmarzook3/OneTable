@@ -385,13 +385,18 @@ async function main() {
       },
       { timeout: 15000 }
     );
-    const restaurantCards = await page.evaluate(() => {
+    const restaurantCards = await page.evaluate(async () => {
       const cards = Array.from(document.querySelectorAll('[data-testid="landing-tenant-card"]'));
       const names = cards.map((c) => {
         const el = c.querySelector('[data-testid="landing-tenant-name"]');
         return (el?.textContent || '').trim();
       });
-      return { count: cards.length, names };
+      const menuHrefs = cards.map(
+        (c) => c.querySelector('a[href^="/public-menu/"]')?.getAttribute('href') || '',
+      );
+      const response = await fetch('/api/public/tenants');
+      const tenants = response.ok ? await response.json() : [];
+      return { count: cards.length, names, menuHrefs, tenants };
     });
     if (restaurantCards.count !== 1) {
       console.log(
@@ -413,6 +418,27 @@ async function main() {
         '!== expected',
         JSON.stringify(expectedDemoName)
       );
+      await browser.close();
+      process.exit(1);
+    }
+    if (
+      restaurantCards.tenants.length !== 1 ||
+      restaurantCards.tenants[0]?.is_demo !== true ||
+      !/demo/i.test(restaurantCards.tenants[0]?.name || '') ||
+      !restaurantCards.tenants[0]?.take_away_table_token
+    ) {
+      console.log('   FAIL: Landing API did not return exactly one explicitly marked demo tenant.');
+      await browser.close();
+      process.exit(1);
+    }
+    const demoTenant = restaurantCards.tenants[0];
+    if (demoTenant.email || demoTenant.phone || demoTenant.address || demoTenant.whatsapp) {
+      console.log('   FAIL: Landing demo contains restaurant contact details.', demoTenant);
+      await browser.close();
+      process.exit(1);
+    }
+    if (restaurantCards.menuHrefs[0] !== `/public-menu/${demoTenant.id}`) {
+      console.log('   FAIL: Landing demo QR/menu link targets the wrong tenant.');
       await browser.close();
       process.exit(1);
     }

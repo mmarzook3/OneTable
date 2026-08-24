@@ -216,6 +216,8 @@
     "GUEST_TRY_DEMO": "Essayer la démo : Take Away",
     "RESTAURANTS_HEADING": "Choisissez votre restaurant",
     "RESTAURANT_DEMO_NAME": "Restaurant démo",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "Connexion",
     "NO_TENANTS": "Aucun restaurant enregistré pour l'instant.",
     "AT_TABLE_LABEL": "Commander à table",
@@ -253,6 +255,7 @@
     "COMPANY_OPERATOR": "Exploité par Amvara Consulting S.L."
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Carte",
     "LOADING": "Chargement de la carte…",
     "READ_ONLY_HINT": "Parcourez notre carte - la commande se fait à table ou lors de la réservation.",

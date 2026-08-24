@@ -216,6 +216,8 @@
     "GUEST_TRY_DEMO": "Try demo: Take Away",
     "RESTAURANTS_HEADING": "Изберете ресторанта си",
     "RESTAURANT_DEMO_NAME": "Демо ресторант",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "Вход",
     "NO_TENANTS": "Все още няма регистрирани ресторанти.",
     "AT_TABLE_LABEL": "Поръчайте на масата си",
@@ -253,6 +255,7 @@
     "COMPANY_OPERATOR": "Управлявано от Amvara Consulting S.L."
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "Меню",
     "LOADING": "Зареждане на менюто…",
     "READ_ONLY_HINT": "Разгледайте менюто - поръчката е на масата или при резервация.",

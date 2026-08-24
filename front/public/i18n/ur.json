@@ -216,6 +216,8 @@
     "GUEST_TRY_DEMO": "Try demo: Take Away",
     "RESTAURANTS_HEADING": "منتخب کریں آپ کا ریستوران",
     "RESTAURANT_DEMO_NAME": "ریستوران ڈیمو",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "لاگ ان",
     "NO_TENANTS": "نہیں ریستوران رجسٹرڈ ابھی.",
     "AT_TABLE_LABEL": "آرڈر پر آپ کا میز",
@@ -253,6 +255,7 @@
     "COMPANY_OPERATOR": "Amvara Consulting S.L. کے زیر چلایا جاتا ہے"
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "مینو",
     "LOADING": "مینو لوڈ ہو رہا ہے…",
     "READ_ONLY_HINT": "مینو دیکھیں - آرڈر میز پر یا بکنگ پر دستیاب ہے۔",

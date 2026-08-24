@@ -217,6 +217,8 @@
     "GUEST_TRY_DEMO": "试用演示：Take Away",
     "RESTAURANTS_HEADING": "选择您的餐厅",
     "RESTAURANT_DEMO_NAME": "餐厅演示",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "登录",
     "NO_TENANTS": "暂无注册餐厅。",
     "AT_TABLE_LABEL": "在桌点餐",
@@ -348,6 +350,7 @@
     "LOAD_ERROR": "无法加载定价。请稍后重试。"
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "菜单",
     "LOADING": "正在加载菜单…",
     "READ_ONLY_HINT": "浏览菜单 - 可在餐桌或预订时点餐。",

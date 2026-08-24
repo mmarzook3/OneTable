@@ -8,11 +8,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.157] - 2026-08-24
+
 ### Added
+
+- **Dedicated landing demo:** The marketing landing page now uses a fictional Scanaki demo tenant with demo-only tables and a non-alcoholic sample menu.
+
+### Fixed
+
+- **Customer privacy:** Real restaurant tenants and their contact details are excluded from the public landing tenant list, while their direct QR, menu, and booking URLs continue to work.
+- **Demo safety:** The demo public menu is clearly labelled and does not offer live delivery or booking actions.
+
+## [2.1.156] - 2026-08-24
+
+### Added
+
+- **Per-restaurant delivery switch:** Restaurant settings can now disable Scanaki Delivery without affecting table ordering or reservations.
+
+### Fixed
+
+- **Delivery enforcement:** Disabled restaurants reject both public and staff-created delivery orders at the API, and their public delivery page clearly reports that delivery is unavailable.
+
+## [2.1.154] - 2026-08-24
+
+### Added
+
+- **User manual language switch (#353):** Public `/manual-usuario` is now an Angular page with the marketing language picker and shared footer. Spanish and English manual bodies load from `content/es.html` and `content/en.html`; other UI locales use English until more translations exist. Footer and About links use the SPA route.
+
+## [2.1.153] - 2026-08-23
+
+### Fixed
+
+- **QR menu order history (#350):** Public `/menu/{table_token}` order history no longer lists every guest’s paid orders at the same table. `GET /menu/{table_token}/order-history` requires `session_id` and scopes results to that browser session or, when logged in, the end-user customer at the tenant. Table orders set `Order.customer_id` when the customer cookie is present. Staff back-office table views are unchanged.
+
+## [2.1.152] - 2026-08-23
+
+### Added
+
+- **User manual on marketing site (#352):** Published the Spanish user manual at `/manual-usuario/` (static assets from `docs/manual-usuario/`). **User manual** links on the shared marketing footer, `/about`, and `/features`.
 
 ### Changed
 
-### Fixed
+- **Agent loop (FEAT waiting for human):** Feature coder step skips parked **FEAT** tasks after one waiting GitHub comment until a human replies on the linked issue (`scripts/agent-feat-waiting-human-preflight.sh`).
 
 ## [2.1.155] - 2026-08-23
 

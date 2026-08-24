@@ -11,10 +11,17 @@ from app import models
 class TestPublicTenantsList(PgClientTestCase):
     def setUp(self):
         super().setUp()
-        tenant = models.Tenant(
-            name="Public List Test",
-            email="pos-public-list-test@amvara.de",
+        self.real_tenant = models.Tenant(
+            name="Real Customer Tenant",
+            email="real-customer-test@amvara.de",
+            is_demo=False,
         )
+        tenant = models.Tenant(
+            name="Scanaki Demo Restaurant",
+            email="must-not-leak-on-landing@amvara.de",
+            is_demo=True,
+        )
+        self.session.add(self.real_tenant)
         self.session.add(tenant)
         self.session.commit()
         self.session.refresh(tenant)
@@ -28,11 +35,14 @@ class TestPublicTenantsList(PgClientTestCase):
         self.assertGreaterEqual(len(data), 1)
         match = next((t for t in data if t["id"] == self.tenant_id), None)
         self.assertIsNotNone(match, "Created tenant must appear in list")
-        self.assertEqual(match["name"], "Public List Test")
-        self.assertEqual(match["email"], "pos-public-list-test@amvara.de")
+        self.assertEqual(match["name"], "Scanaki Demo Restaurant")
+        self.assertIsNone(match["email"])
+        self.assertTrue(match["is_demo"])
+        self.assertNotIn(self.real_tenant.id, {row["id"] for row in data})
         for key in (
             "id",
             "name",
+            "is_demo",
             "logo_filename",
             "whatsapp",
             "take_away_table_token",
@@ -43,6 +53,12 @@ class TestPublicTenantsList(PgClientTestCase):
             "website",
         ):
             self.assertIn(key, match, f"TenantSummary must include {key!r}")
+
+    def test_real_tenant_remains_available_by_direct_id(self):
+        response = self.client.get(f"/public/tenants/{self.real_tenant.id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["name"], "Real Customer Tenant")
+        self.assertFalse(response.json()["is_demo"])
 
 
 if __name__ == "__main__":

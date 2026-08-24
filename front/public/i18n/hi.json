@@ -217,6 +217,8 @@
     "GUEST_TRY_DEMO": "डेमो आज़माएं: Take Away",
     "RESTAURANTS_HEADING": "अपना रेस्तरां चुनें",
     "RESTAURANT_DEMO_NAME": "रेस्तरां डेमो",
+    "DEMO_BADGE": "Fictional demo",
+    "DEMO_DATA_NOTICE": "This demo uses sample data only. It is not connected to a real restaurant or customer.",
     "LOGIN": "लॉग इन",
     "NO_TENANTS": "अभी तक कोई रेस्तरां पंजीकृत नहीं है।",
     "AT_TABLE_LABEL": "अपनी टेबल पर ऑर्डर करें",
@@ -348,6 +350,7 @@
     "LOAD_ERROR": "मूल्य लोड नहीं हो सके। बाद में पुनः प्रयास करें।"
   },
   "PUBLIC_MENU": {
+    "DEMO_NOTICE": "Demo menu only. All restaurant, table and product information on this page is fictional, and live ordering and bookings are disabled.",
     "PAGE_TITLE": "मेनू",
     "LOADING": "मेनू लोड हो रहा है…",
     "READ_ONLY_HINT": "मेनू देखें - ऑर्डर टेबल पर या बुकिंग पर उपलब्ध है।",

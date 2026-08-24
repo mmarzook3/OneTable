@@ -93,6 +93,8 @@ class Tenant(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Only explicitly marked fictional tenants may appear on the public marketing landing page.
+    is_demo: bool = Field(default=False, index=True)
 
     # Scanaki first-login setup. Platform provisioning starts new restaurants
     # at not_started; existing and self-managed tenants remain completed.
