@@ -10,6 +10,9 @@ Usage:
 
 from __future__ import annotations
 
+from pathlib import Path
+from shutil import copy2
+
 from sqlmodel import Session, select
 
 from app.db import engine
@@ -19,16 +22,16 @@ from app.models import BusinessType, Floor, Product, Table, Tenant
 DEMO_TENANT_NAME = "Scanaki Demo Restaurant"
 DEMO_DESCRIPTION = "Fictional demonstration venue. No real restaurant or customer data."
 DEMO_PRODUCTS = (
-    ("Fish & Chips", 1395, "Mains", "Crispy fish, chips, peas and tartare sauce"),
-    ("Classic Beef Burger", 1295, "Mains", "Beef burger with salad and skin-on chips"),
-    ("Plant Burger", 1250, "Mains", "Plant-based burger with salad and skin-on chips"),
-    ("Chicken Wings", 795, "Small Plates", "Chicken wings with house sauce"),
-    ("Halloumi Fries", 695, "Small Plates", "Halloumi fries with chilli jam"),
-    ("Skin-on Chips", 395, "Sides", "Crisp skin-on potato chips"),
-    ("Sticky Toffee Pudding", 650, "Desserts", "Warm pudding with toffee sauce"),
-    ("House Lemonade", 325, "Soft Drinks", "Fresh sparkling lemonade"),
-    ("Cola", 300, "Soft Drinks", "Chilled cola"),
-    ("Traditional Sausage Roll", 495, "Small Plates", "Puff pastry sausage roll"),
+    ("Fish & Chips", 1395, "Mains", "Crispy fish, chips, peas and tartare sauce", "fish-and-chips.jpg"),
+    ("Classic Beef Burger", 1295, "Mains", "Beef burger with salad and skin-on chips", "classic-beef-burger.jpg"),
+    ("Plant Burger", 1250, "Mains", "Plant-based burger with salad and skin-on chips", "plant-burger.jpg"),
+    ("Chicken Wings", 795, "Small Plates", "Chicken wings with house sauce", "chicken-wings.jpg"),
+    ("Halloumi Fries", 695, "Small Plates", "Halloumi fries with chilli jam", "halloumi-fries.jpg"),
+    ("Skin-on Chips", 395, "Sides", "Crisp skin-on potato chips", "skin-on-chips.jpg"),
+    ("Sticky Toffee Pudding", 650, "Desserts", "Warm pudding with toffee sauce", "sticky-toffee-pudding.jpg"),
+    ("House Lemonade", 325, "Soft Drinks", "Fresh sparkling lemonade", "house-lemonade.jpg"),
+    ("Cola", 300, "Soft Drinks", "Chilled cola", "cola.jpg"),
+    ("Traditional Sausage Roll", 495, "Small Plates", "Puff pastry sausage roll", "traditional-sausage-roll.jpg"),
 )
 DEMO_TABLES = (
     ("Take Away", 2, True),
@@ -36,6 +39,9 @@ DEMO_TABLES = (
     ("Demo Table 2", 4, False),
     ("Demo Table 3", 2, False),
 )
+
+_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "demo-menu"
+_UPLOADS_DIR = Path(__file__).resolve().parents[2] / "uploads"
 
 
 def run() -> None:
@@ -111,7 +117,13 @@ def run() -> None:
             product.name: product
             for product in session.exec(select(Product).where(Product.tenant_id == demo.id)).all()
         }
-        for name, price_cents, category, description in DEMO_PRODUCTS:
+        product_upload_dir = _UPLOADS_DIR / str(demo.id) / "products"
+        product_upload_dir.mkdir(parents=True, exist_ok=True)
+        for name, price_cents, category, description, image_filename in DEMO_PRODUCTS:
+            source_image = _ASSET_DIR / image_filename
+            if not source_image.is_file():
+                raise RuntimeError(f"Missing packaged demo image: {source_image}")
+            copy2(source_image, product_upload_dir / image_filename)
             product = existing_products.get(name)
             if not product:
                 product = Product(tenant_id=demo.id, name=name, price_cents=price_cents)
@@ -120,7 +132,7 @@ def run() -> None:
             product.subcategory = None
             product.description = description
             product.ingredients = None
-            product.image_filename = None
+            product.image_filename = image_filename
             session.add(product)
 
         session.commit()
