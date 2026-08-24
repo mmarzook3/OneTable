@@ -37,6 +37,8 @@ class TestGuestFeedback(PgClientTestCase):
         self.res_id = res.id
 
     def test_public_tenant_includes_google_review_url(self):
+        from app.settings import settings
+
         r = self.client.get(f"/public/tenants/{self.tenant_id}")
         self.assertEqual(r.status_code, 200, r.text)
         data = r.json()
@@ -44,8 +46,9 @@ class TestGuestFeedback(PgClientTestCase):
         self.assertEqual(data.get("public_google_maps_url"), "https://maps.google.com/?q=Test")
         self.assertIsNone(data.get("public_openstreetmap_url"))
         self.assertEqual(data.get("address"), "123 Main St")
-        self.assertIsNone(data.get("terms_of_service_url"))
-        self.assertIsNone(data.get("privacy_policy_url"))
+        base = settings.public_app_base_url.rstrip("/")
+        self.assertEqual(data.get("terms_of_service_url"), f"{base}/terms")
+        self.assertEqual(data.get("privacy_policy_url"), f"{base}/privacy")
 
     def test_public_legal_urls_endpoint(self):
         from app.settings import settings

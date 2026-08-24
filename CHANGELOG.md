@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.175] - 2026-08-24
+
+### Security
+
+- **Patched Angular runtime:** Updated Angular framework, router, compiler, build and SSR packages to 21.2.21, clearing all reported production dependency vulnerabilities.
+- **Browser security policy:** Added HSTS, Content Security Policy, frame denial, MIME sniffing protection, strict referrer handling and a minimal Permissions Policy while retaining Stripe, analytics, QR camera and location flows.
+
+### Fixed
+
+- **Green legal-link regression:** Updated the public-tenant test to match the intentional product-level Terms and Privacy fallback URLs.
+- **Reliable Windows Docker startup:** Normalized the optional marketing sync script inside the container so CRLF checkouts no longer produce shell errors.
+
 ## [2.1.174] - 2026-08-24
 
 ### Fixed
