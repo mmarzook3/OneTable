@@ -363,6 +363,26 @@ async function main() {
     await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
     console.log('   OK: Accessible 44px menu control opens the complete navigation.');
 
+    console.log('1b. Footer route scroll restoration...');
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const footerScrollPosition = await page.evaluate(() => window.scrollY);
+    if (footerScrollPosition < 100) {
+      console.log('   FAIL: Could not reach the landing footer for the navigation test.');
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-pricing"]');
+    await waitForPath(page, '/pricing');
+    await page.waitForFunction(() => window.scrollY < 8, { timeout: 5000 });
+    const pricingScrollPosition = await page.evaluate(() => window.scrollY);
+    if (pricingScrollPosition >= 8) {
+      console.log('   FAIL: Footer navigation retained the previous scroll position.');
+      await browser.close();
+      process.exit(1);
+    }
+    await page.goto(new URL('/', baseUrl).href, { waitUntil: 'networkidle2', timeout: 15000 });
+    console.log('   OK: Footer route navigation starts at the top.');
+
     await page.waitForFunction(
       () => {
         const el =

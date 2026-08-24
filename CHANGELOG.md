@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.174] - 2026-08-24
+
+### Fixed
+
+- **Footer navigation position:** New routes opened from footer links now start at the top, browser back and forward navigation restores saved positions, and same-page anchors continue scrolling to their target.
+
 ## [2.1.173] - 2026-08-24
 
 ### Fixed
