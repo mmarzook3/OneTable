@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService, PlatformTenantDetail } from '../services/api.service';
@@ -6,7 +7,7 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
 @Component({
   selector: 'app-platform-tenant-detail',
   standalone: true,
-  imports: [RouterLink, TranslateModule],
+  imports: [RouterLink, TranslateModule, FormsModule],
   template: `
     <div class="platform-page">
       <header class="platform-header">
@@ -87,6 +88,28 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
               <h3>{{ 'PLATFORM_DASHBOARD.COL_RESERVATIONS' | translate }}</h3>
               <p class="metric-value">{{ tenant()!.reservation_count }}</p>
             </article>
+          </div>
+        </section>
+
+        <section class="platform-section readiness-card" [class.readiness-card--ready]="tenant()!.readiness.ready">
+          <h2>Launch readiness</h2>
+          <p class="readiness-summary">{{ tenant()!.readiness.ready ? 'Ready for controlled-beta launch' : tenant()!.readiness.missing.length + ' launch checks still need attention' }}</p>
+          <div class="readiness-grid">
+            @for (check of readinessEntries(); track check.key) {
+              <span [class.readiness-ok]="check.value" [class.readiness-missing]="!check.value">
+                {{ check.value ? '✓' : '○' }} {{ readinessLabel(check.key) }}
+              </span>
+            }
+          </div>
+          <p class="platform-muted">Plan: {{ tenant()!.saas_plan_code }} · {{ tenant()!.table_count }}/{{ tenant()!.table_limit }} tables</p>
+          <div class="plan-controls">
+            <label>Plan
+              <select [(ngModel)]="planCode">
+                <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option>
+              </select>
+            </label>
+            <label>Extra tables <input type="number" min="0" max="500" [(ngModel)]="extraTables"></label>
+            <button type="button" class="link-btn" (click)="savePlan()" [disabled]="planSaving()">Save plan</button>
           </div>
         </section>
 
@@ -227,6 +250,15 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
     .platform-table th { background: var(--color-bg); font-weight: 500; }
     .platform-muted { color: var(--color-text-muted); }
     .platform-error { color: var(--color-error); }
+    .readiness-card { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+    .readiness-card--ready { border-color: #18794e; }
+    .readiness-summary { font-weight: 700; }
+    .readiness-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+    .readiness-ok { color: #18794e; }
+    .readiness-missing { color: var(--color-error); }
+    .plan-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3); margin-top: var(--space-4); }
+    .plan-controls label { display: grid; gap: var(--space-1); font-size: 0.8rem; }
+    .plan-controls select, .plan-controls input { min-height: 40px; padding: 0 var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); }
   `]
 })
 export class PlatformTenantDetailComponent implements OnInit {
@@ -237,6 +269,9 @@ export class PlatformTenantDetailComponent implements OnInit {
   tenant = signal<PlatformTenantDetail | null>(null);
   loading = signal(true);
   error = signal('');
+  planCode = 'lite';
+  extraTables = 0;
+  planSaving = signal(false);
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('tenantId'));
@@ -248,6 +283,8 @@ export class PlatformTenantDetailComponent implements OnInit {
     this.api.getPlatformTenant(id).subscribe({
       next: (t) => {
         this.tenant.set(t);
+        this.planCode = t.saas_plan_code;
+        this.extraTables = t.saas_extra_tables;
         this.loading.set(false);
       },
       error: () => {
@@ -269,6 +306,24 @@ export class PlatformTenantDetailComponent implements OnInit {
     const id = this.tenant()?.id;
     if (!id || typeof window === 'undefined') return `/${segment}/${id ?? ''}`;
     return `${window.location.origin}/${segment}/${id}`;
+  }
+
+  readinessEntries(): { key: string; value: boolean }[] {
+    return Object.entries(this.tenant()?.readiness.checks || {}).map(([key, value]) => ({ key, value }));
+  }
+
+  readinessLabel(key: string): string {
+    return key.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
+  }
+
+  savePlan(): void {
+    const tenant = this.tenant();
+    if (!tenant || this.planSaving()) return;
+    this.planSaving.set(true);
+    this.api.updatePlatformTenantPlan(tenant.id, this.planCode, Math.max(0, Number(this.extraTables) || 0)).subscribe({
+      next: (updated) => { this.tenant.set(updated); this.planSaving.set(false); },
+      error: () => { this.planSaving.set(false); },
+    });
   }
 
   logout(): void {

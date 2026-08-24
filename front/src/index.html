@@ -21,6 +21,8 @@
   <!-- Default icon: orange (production). App switches to white in dev, blue on staging/admin. Do not replace favicon.svg with white. -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2.0.0">
   <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0a0a0b">
   <script src="/runtime-config.js"></script>
   <script>
     // Runtime configuration from environment variables
@@ -50,6 +52,13 @@
       s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
       document.head.appendChild(s);
     })();
+  </script>
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+      });
+    }
   </script>
 </head>
 <body>

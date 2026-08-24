@@ -70,6 +70,7 @@ class TestRestaurantOnboarding(PgClientTestCase):
                 "restaurant_name": "Onboarding Test Kitchen",
                 "owner_name": "Taylor Owner",
                 "owner_email": "onboarding-test-owner@amvara.de",
+                "plan_code": "pro",
             },
         )
         self.assertEqual(response.status_code, 201, response.text)
@@ -86,6 +87,8 @@ class TestRestaurantOnboarding(PgClientTestCase):
 
         self.assertEqual(tenant.onboarding_status, "not_started")
         self.assertEqual(tenant.ordering_mode, "menu_only")
+        self.assertEqual(tenant.saas_plan_code, "pro")
+        self.assertEqual(result["table_limit"], 20)
         self.assertTrue(owner.must_change_password)
         self.assertTrue(
             security.verify_password(result["temporary_password"], owner.hashed_password)
@@ -234,3 +237,14 @@ class TestRestaurantOnboarding(PgClientTestCase):
             },
         )
         self.assertEqual(response.status_code, 403, response.text)
+
+    def test_operator_can_assign_plan_and_extra_tables(self) -> None:
+        _, tenant, _ = self._provision()
+        response = self.client.put(
+            f"/platform/tenants/{tenant.id}/plan",
+            headers=_platform_headers(self.operator),
+            json={"plan_code": "ultra", "extra_tables": 2},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["saas_plan_code"], "ultra")
+        self.assertEqual(response.json()["table_limit"], 47)

@@ -41,6 +41,16 @@ import {
             <input id="owner-email" type="email" formControlName="owner_email" aria-describedby="owner-email-help" autocomplete="off" data-testid="platform-owner-email" />
           </div>
 
+          <div class="form-field">
+            <label for="plan-code">Scanaki plan</label>
+            <p class="field-help" id="plan-code-help">Choose the table allowance agreed with the restaurant.</p>
+            <select id="plan-code" formControlName="plan_code" aria-describedby="plan-code-help" data-testid="platform-plan-code">
+              <option value="lite">Lite, 2 tables</option>
+              <option value="pro">Pro, 20 tables</option>
+              <option value="ultra">Ultra, 45 tables</option>
+            </select>
+          </div>
+
           @if (error()) {
             <p class="error-banner" role="alert" data-testid="platform-create-error">{{ error() }}</p>
           }
@@ -93,6 +103,8 @@ import {
             <strong>{{ 'PLATFORM_CREATE.SAVE_NOW' | translate }}</strong>
             <p>{{ 'PLATFORM_CREATE.SAVE_NOW_HELP' | translate }}</p>
           </aside>
+          <p class="field-help">Plan: {{ credentials()!.plan_code }} · {{ credentials()!.table_limit }} tables</p>
+          <p class="field-help">Invitation email: {{ credentials()!.invitation_email_sent ? 'sent' : 'not sent; share the secure link manually' }}</p>
 
           <div class="result-actions">
             <a [routerLink]="['/platform/tenants', credentials()!.tenant_id]" class="secondary-button">
@@ -129,7 +141,7 @@ import {
     .form-field { margin-bottom: var(--space-5); }
     label { display: block; font-weight: 600; margin-bottom: var(--space-1); }
     .field-help { color: var(--color-text-muted); font-size: 0.85rem; line-height: 1.45; margin: 0 0 var(--space-2); }
-    input {
+    input, select {
       width: 100%; box-sizing: border-box; padding: var(--space-3); border: 1px solid var(--color-border);
       border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); font: inherit;
     }
@@ -172,6 +184,7 @@ export class PlatformCreateRestaurantComponent {
     restaurant_name: ['', [Validators.required, Validators.minLength(2)]],
     owner_name: [''],
     owner_email: ['', [Validators.required, Validators.email]],
+    plan_code: ['lite' as 'lite' | 'pro' | 'ultra', Validators.required],
   });
 
   createRestaurant(): void {

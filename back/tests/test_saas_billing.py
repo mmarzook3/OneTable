@@ -21,6 +21,7 @@ from app.saas_billing import (
     SAAS_STATUS_PAST_DUE,
     SAAS_STATUS_TRIALING,
     construct_saas_webhook_event,
+    ensure_table_capacity,
     initial_status_for_new_tenant,
     path_is_saas_exempt,
     plan_config,
@@ -119,11 +120,37 @@ def test_start_trial_persists():
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             with patch("app.saas_billing.settings") as mock_settings:
                 mock_settings.saas_trial_days = 14
-                updated = start_trial(session, tenant)
+                updated = start_trial(session, tenant, "pro")
         assert updated.saas_subscription_status == SAAS_STATUS_TRIALING
+        assert updated.saas_plan_code == "pro"
         assert updated.saas_trial_ends_at is not None
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             assert tenant_has_saas_access(updated) is True
+
+
+def test_table_plan_limit_and_extra_table_allowance():
+    with Session(engine) as session:
+        tenant = models.Tenant(name=f"Limit-{uuid.uuid4().hex[:8]}", saas_plan_code="lite")
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        session.add_all([
+            models.Table(name="T1", tenant_id=tenant.id),
+            models.Table(name="T2", tenant_id=tenant.id),
+        ])
+        session.commit()
+        try:
+            ensure_table_capacity(session, tenant.id, additional_tables=1)
+            assert False, "expected table plan limit"
+        except HTTPException as exc:
+            assert exc.status_code == 402
+            assert exc.detail["code"] == "table_plan_limit"
+        tenant.saas_extra_tables = 1
+        session.add(tenant)
+        session.commit()
+        current, limit = ensure_table_capacity(session, tenant.id, additional_tables=1)
+        assert current == 2
+        assert limit == 3
 
 
 def test_webhook_past_due_without_confirm_checkout():
@@ -150,7 +177,7 @@ def test_webhook_past_due_without_confirm_checkout():
                     "customer": tenant.saas_stripe_customer_id,
                     "status": "past_due",
                     "current_period_end": period_end,
-                    "metadata": {"tenant_id": str(tenant.id)},
+                    "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                 }
             },
         }
@@ -222,9 +249,9 @@ def test_webhook_checkout_completed_resolves_tenant_by_reference():
                         "object": "subscription",
                         "status": "active",
                         "current_period_end": period_end,
-                        "metadata": {"tenant_id": str(tenant.id)},
+                        "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                     },
-                    "metadata": {"tenant_id": str(tenant.id)},
+                    "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                 }
             },
         }
@@ -234,6 +261,7 @@ def test_webhook_checkout_completed_resolves_tenant_by_reference():
         assert tenant.saas_subscription_status == SAAS_STATUS_ACTIVE
         assert tenant.saas_stripe_subscription_id
         assert tenant.saas_stripe_customer_id
+        assert tenant.saas_plan_code == "ultra"
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             assert tenant_has_saas_access(tenant) is True
 

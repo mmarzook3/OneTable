@@ -349,6 +349,10 @@ export interface SaasSubscription {
   has_access?: boolean;
   trial_ends_at?: string | null;
   subscription_ends_at?: string | null;
+  plan_code?: 'lite' | 'pro' | 'ultra' | string;
+  included_tables?: number;
+  extra_tables?: number;
+  table_limit?: number;
 }
 
 /** Provider portal types */
@@ -423,12 +427,18 @@ export interface PlatformTenantSummary {
   reservation_count: number;
   onboarding_status: 'not_started' | 'in_progress' | 'completed' | string;
   onboarding_step: number;
+  saas_plan_code: 'lite' | 'pro' | 'ultra' | string;
+  saas_extra_tables: number;
+  table_limit: number;
+  invitation_sent_at?: string | null;
+  invitation_last_error?: string | null;
 }
 
 export interface PlatformRestaurantCreate {
   restaurant_name: string;
   owner_email: string;
   owner_name?: string | null;
+  plan_code: 'lite' | 'pro' | 'ultra';
 }
 
 export interface PlatformRestaurantCredentials {
@@ -437,6 +447,9 @@ export interface PlatformRestaurantCredentials {
   username: string;
   temporary_password: string;
   password_setup_url?: string | null;
+  plan_code: string;
+  table_limit: number;
+  invitation_email_sent: boolean;
 }
 
 export interface SmartPlaque {
@@ -505,6 +518,11 @@ export interface PlatformTenantDetail extends PlatformTenantSummary {
   address?: string | null;
   website?: string | null;
   staff_users: PlatformStaffContact[];
+  readiness: {
+    ready: boolean;
+    checks: Record<string, boolean>;
+    missing: string[];
+  };
 }
 
 export interface PlatformLoginSummary {
@@ -1026,6 +1044,11 @@ export interface Product {
   tenant_id?: number;
   image_filename?: string;
   ingredients?: string;
+  is_available?: boolean;
+  allergens?: string[];
+  dietary_tags?: string[];
+  allergen_notes?: string | null;
+  allergen_reviewed?: boolean;
   image_size_bytes?: number | null;
   image_size_formatted?: string | null;
   category?: string; // Main category: "Starters", "Main Course", "Desserts", "Beverages", "Sides"
@@ -2223,14 +2246,17 @@ export class ApiService {
     return this.http.get<SaasSubscription>(`${this.apiUrl}/saas/subscription`);
   }
 
-  startSaasTrial(): Observable<SaasSubscription> {
-    return this.http.post<SaasSubscription>(`${this.apiUrl}/saas/start-trial`, {});
+  startSaasTrial(planCode?: string): Observable<SaasSubscription> {
+    return this.http.post<SaasSubscription>(`${this.apiUrl}/saas/start-trial`, {
+      plan_code: planCode || null,
+    });
   }
 
-  createSaasCheckoutSession(successUrl: string, cancelUrl: string): Observable<{ url: string }> {
+  createSaasCheckoutSession(successUrl: string, cancelUrl: string, planCode?: string): Observable<{ url: string }> {
     return this.http.post<{ url: string }>(`${this.apiUrl}/saas/checkout-session`, {
       success_url: successUrl,
       cancel_url: cancelUrl,
+      plan_code: planCode || null,
     });
   }
 
@@ -2445,6 +2471,13 @@ export class ApiService {
 
   getPlatformTenant(tenantId: number): Observable<PlatformTenantDetail> {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
+  }
+
+  updatePlatformTenantPlan(tenantId: number, planCode: string, extraTables: number): Observable<PlatformTenantDetail> {
+    return this.http.put<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/plan`, {
+      plan_code: planCode,
+      extra_tables: extraTables,
+    });
   }
 
   createPlatformSmartPlaques(count: number, batchLabel?: string): Observable<SmartPlaque[]> {

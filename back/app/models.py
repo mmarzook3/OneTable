@@ -302,6 +302,10 @@ class Tenant(SQLModel, table=True):
     saas_subscription_ends_at: datetime | None = Field(default=None)
     saas_stripe_customer_id: str | None = Field(default=None, max_length=255)
     saas_stripe_subscription_id: str | None = Field(default=None, max_length=255)
+    saas_plan_code: str = Field(default="lite", max_length=16, index=True)
+    saas_extra_tables: int = Field(default=0, ge=0)
+    invitation_sent_at: datetime | None = None
+    invitation_last_error: str | None = Field(default=None, max_length=500)
 
     users: list["User"] = Relationship(back_populates="tenant")
 
@@ -460,12 +464,18 @@ class PlatformTenantSummary(SQLModel):
     reservation_count: int = 0
     onboarding_status: str = "completed"
     onboarding_step: int = 0
+    saas_plan_code: str = "lite"
+    saas_extra_tables: int = 0
+    table_limit: int = 2
+    invitation_sent_at: datetime | None = None
+    invitation_last_error: str | None = None
 
 
 class PlatformRestaurantCreate(SQLModel):
     restaurant_name: str = Field(min_length=2, max_length=200)
     owner_email: str = Field(min_length=3, max_length=320)
     owner_name: str | None = Field(default=None, max_length=200)
+    plan_code: str = Field(default="lite", max_length=16)
 
 
 class PlatformRestaurantCredentials(SQLModel):
@@ -474,6 +484,14 @@ class PlatformRestaurantCredentials(SQLModel):
     username: str
     temporary_password: str
     password_setup_url: str | None = None
+    plan_code: str = "lite"
+    table_limit: int = 2
+    invitation_email_sent: bool = False
+
+
+class PlatformTenantPlanUpdate(SQLModel):
+    plan_code: str = Field(max_length=16)
+    extra_tables: int = Field(default=0, ge=0, le=500)
 
 
 class RestaurantOnboardingState(SQLModel):
@@ -539,6 +557,7 @@ class PlatformTenantDetail(PlatformTenantSummary):
     address: str | None = None
     website: str | None = None
     staff_users: list[PlatformStaffContact] = []
+    readiness: dict = Field(default_factory=dict)
 
 
 class PlatformLoginSummary(SQLModel):
@@ -621,6 +640,11 @@ class Product(TenantMixin, table=True):
     description: str | None = None
     image_filename: str | None = None  # Stored in uploads/{tenant_id}/products/
     ingredients: str | None = None  # Comma-separated list
+    is_available: bool = Field(default=True, index=True)
+    allergens: list[str] | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    dietary_tags: list[str] | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    allergen_notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    allergen_reviewed: bool = Field(default=False)
     category: str | None = Field(
         default=None, index=True
     )  # Main category: "Starters", "Main Course", "Desserts", "Beverages", "Sides"
@@ -1570,6 +1594,12 @@ class ProductUpdate(SQLModel):
     price_cents: int | None = None
     cost_cents: int | None = None
     ingredients: str | None = None
+    description: str | None = None
+    is_available: bool | None = None
+    allergens: list[str] | None = None
+    dietary_tags: list[str] | None = None
+    allergen_notes: str | None = None
+    allergen_reviewed: bool | None = None
     category: str | None = None
     subcategory: str | None = None
     tax_id: int | None = None  # Override default tax; null = use tenant default

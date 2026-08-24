@@ -13,10 +13,16 @@ from sqlmodel import Session, select
 from . import models, security
 from .contact_validation import normalize_email_address
 from .db import get_session
-from .saas_billing import initial_status_for_new_tenant
+from .email_service import send_restaurant_invitation_email
+from .saas_billing import (
+    initial_status_for_new_tenant,
+    normalize_plan_code,
+    tenant_table_limit,
+)
 from .security import get_current_user
 from .settings import settings
 from .tenant_ui_modules import new_tenant_ui_modules_stored
+from .tenant_payment_credentials import tenant_stripe_secret, tenant_stripe_webhook_secret
 
 router = APIRouter()
 
@@ -80,6 +86,11 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         reservation_count=_count_for_tenant(session, models.Reservation, tenant_id),
         onboarding_status=tenant.onboarding_status,
         onboarding_step=tenant.onboarding_step,
+        saas_plan_code=normalize_plan_code(tenant.saas_plan_code),
+        saas_extra_tables=max(0, int(tenant.saas_extra_tables or 0)),
+        table_limit=tenant_table_limit(tenant),
+        invitation_sent_at=tenant.invitation_sent_at,
+        invitation_last_error=tenant.invitation_last_error,
     )
 
 
@@ -94,6 +105,42 @@ def _tenant_detail(session: Session, tenant: models.Tenant) -> models.PlatformTe
         .where(models.User.tenant_id == tenant_id)
         .order_by(models.User.role, models.User.email)  # type: ignore[arg-type]
     ).all()
+    products = session.exec(select(models.Product).where(models.Product.tenant_id == tenant_id)).all()
+    tables = session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all()
+    assigned_plaques = session.exec(
+        select(models.SmartPlaque).where(models.SmartPlaque.assigned_tenant_id == tenant_id)
+    ).all()
+    payment_ready = bool(
+        tenant.stripe_publishable_key
+        and tenant_stripe_secret(tenant)
+        and tenant_stripe_webhook_secret(tenant)
+    )
+    checks = {
+        "business_profile": bool(tenant.email and tenant.phone and tenant.address),
+        "service_hours": bool(tenant.ordering_service_hours),
+        "menu": bool(products),
+        "menu_prices": bool(products) and all(product.price_cents > 0 for product in products),
+        "allergens_reviewed": bool(products) and all(product.allergen_reviewed for product in products),
+        "tables": bool(tables),
+        "table_plan_limit": len(tables) <= tenant_table_limit(tenant),
+        "plaques_assigned": bool(tables) and len(assigned_plaques) >= len(tables),
+        "nfc_verified": bool(tables) and sum(1 for plaque in assigned_plaques if plaque.nfc_verified_at) >= len(tables),
+        "kitchen_station": tenant.default_kitchen_station_id is not None,
+        "kitchen_account": any(user.role == models.UserRole.kitchen for user in staff_rows),
+        "stripe": payment_ready,
+        "legal_urls": bool(tenant.public_terms_of_service_url and tenant.public_privacy_policy_url),
+        "onboarding": tenant.onboarding_status == "completed",
+    }
+    launch_required = (
+        "business_profile", "service_hours", "menu", "menu_prices", "allergens_reviewed",
+        "tables", "table_plan_limit", "plaques_assigned", "nfc_verified", "kitchen_station",
+        "kitchen_account", "stripe", "legal_urls", "onboarding",
+    )
+    readiness = {
+        "ready": all(checks[name] for name in launch_required),
+        "checks": checks,
+        "missing": [name for name in launch_required if not checks[name]],
+    }
 
     return models.PlatformTenantDetail(
         **summary.model_dump(),
@@ -111,6 +158,7 @@ def _tenant_detail(session: Session, tenant: models.Tenant) -> models.PlatformTe
             )
             for u in staff_rows
         ],
+        readiness=readiness,
     )
 
 
@@ -174,7 +222,7 @@ def _temporary_password() -> str:
     response_model=models.PlatformRestaurantCredentials,
     status_code=status.HTTP_201_CREATED,
 )
-def platform_create_restaurant(
+async def platform_create_restaurant(
     body: models.PlatformRestaurantCreate,
     current_user: Annotated[models.User, Depends(_require_platform_operator)],
     session: Session = Depends(get_session),
@@ -205,6 +253,7 @@ def platform_create_restaurant(
         saas_subscription_status=initial_status_for_new_tenant(),
         onboarding_status="not_started",
         onboarding_step=0,
+        saas_plan_code=normalize_plan_code(body.plan_code),
     )
     session.add(tenant)
     session.flush()
@@ -237,12 +286,27 @@ def platform_create_restaurant(
 
     session.commit()
     session.refresh(tenant)
+    invitation_email_sent = False
+    if password_setup_url:
+        invitation_email_sent = await send_restaurant_invitation_email(
+            owner_email,
+            tenant.name,
+            password_setup_url,
+        )
+        tenant.invitation_sent_at = datetime.now(timezone.utc) if invitation_email_sent else None
+        tenant.invitation_last_error = None if invitation_email_sent else "SMTP delivery failed or is not configured"
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
     return models.PlatformRestaurantCredentials(
         tenant_id=tenant.id,
         restaurant_name=tenant.name,
         username=owner_email,
         temporary_password=temporary_password,
         password_setup_url=password_setup_url,
+        plan_code=normalize_plan_code(tenant.saas_plan_code),
+        table_limit=tenant_table_limit(tenant),
+        invitation_email_sent=invitation_email_sent,
     )
 
 
@@ -255,6 +319,24 @@ def platform_tenant_detail(
     tenant = session.get(models.Tenant, tenant_id)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    return _tenant_detail(session, tenant)
+
+
+@router.put("/tenants/{tenant_id}/plan", response_model=models.PlatformTenantDetail)
+def platform_update_tenant_plan(
+    tenant_id: int,
+    body: models.PlatformTenantPlanUpdate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformTenantDetail:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tenant.saas_plan_code = normalize_plan_code(body.plan_code)
+    tenant.saas_extra_tables = max(0, int(body.extra_tables))
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
     return _tenant_detail(session, tenant)
 
 

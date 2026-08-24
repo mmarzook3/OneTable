@@ -209,6 +209,9 @@ def onboarding_tables(
         select(models.Table).where(models.Table.tenant_id == tenant.id)
     ).all()
     if not existing_tables:
+        from .saas_billing import ensure_table_capacity
+
+        ensure_table_capacity(session, int(tenant.id), additional_tables=body.table_count)
         floor = session.exec(
             select(models.Floor).where(models.Floor.tenant_id == tenant.id).limit(1)
         ).first()

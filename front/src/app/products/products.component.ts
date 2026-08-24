@@ -146,6 +146,44 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                      <label for="ingredients">{{ 'PRODUCTS.INGREDIENTS_LABEL' | translate }}</label>
                      <input id="ingredients" type="text" [(ngModel)]="formData.ingredients" name="ingredients" [placeholder]="'PRODUCTS.INGREDIENTS_PLACEHOLDER' | translate" [readonly]="!canEditProducts()">
                    </div>
+                   <div class="form-group product-readiness-panel">
+                     <label class="availability-checkbox">
+                       <input type="checkbox" [(ngModel)]="formData.is_available" name="is_available" [disabled]="!canEditProducts()">
+                       <span>{{ 'PRODUCTS.AVAILABLE_FOR_ORDERING' | translate }}</span>
+                     </label>
+                     <small class="field-hint">{{ 'PRODUCTS.AVAILABLE_FOR_ORDERING_HINT' | translate }}</small>
+                   </div>
+                   <fieldset class="form-group tag-fieldset">
+                     <legend>{{ 'PRODUCTS.DIETARY_TAGS' | translate }}</legend>
+                     <div class="tag-checkbox-grid">
+                       @for (tag of dietaryTagOptions; track tag) {
+                         <label>
+                           <input type="checkbox" [checked]="formData.dietary_tags.includes(tag)" (change)="toggleDietaryTag(tag, $event)" [disabled]="!canEditProducts()">
+                           <span>{{ ('PRODUCTS.DIETARY_' + tag.toUpperCase()) | translate }}</span>
+                         </label>
+                       }
+                     </div>
+                   </fieldset>
+                   <fieldset class="form-group tag-fieldset">
+                     <legend>{{ 'PRODUCTS.ALLERGENS_TITLE' | translate }}</legend>
+                     <p class="field-hint">{{ 'PRODUCTS.ALLERGENS_HINT' | translate }}</p>
+                     <div class="tag-checkbox-grid allergen-grid">
+                       @for (allergen of allergenOptions; track allergen) {
+                         <label>
+                           <input type="checkbox" [checked]="formData.allergens.includes(allergen)" (change)="toggleAllergen(allergen, $event)" [disabled]="!canEditProducts()">
+                           <span>{{ ('PRODUCTS.ALLERGEN_' + allergen.toUpperCase()) | translate }}</span>
+                         </label>
+                       }
+                     </div>
+                   </fieldset>
+                   <div class="form-group">
+                     <label for="allergen-notes">{{ 'PRODUCTS.ALLERGEN_NOTES' | translate }}</label>
+                     <textarea id="allergen-notes" [(ngModel)]="formData.allergen_notes" name="allergen_notes" rows="2" [readonly]="!canEditProducts()"></textarea>
+                   </div>
+                   <label class="availability-checkbox allergen-review-check">
+                     <input type="checkbox" [(ngModel)]="formData.allergen_reviewed" name="allergen_reviewed" [disabled]="!canEditProducts()">
+                     <span>{{ 'PRODUCTS.ALLERGEN_REVIEWED' | translate }}</span>
+                   </label>
                    <div class="form-group">
                      <label for="description">{{ 'PRODUCTS.DESCRIPTION_LABEL' | translate }}</label>
                      <textarea id="description" [(ngModel)]="formData.description" name="description" [placeholder]="'PRODUCTS.DESCRIPTION_PLACEHOLDER' | translate" rows="3" [readonly]="!canEditProducts()"></textarea>
@@ -479,6 +517,9 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                         </td>
                         <td>
                           <div>{{ product.name }}</div>
+                          @if (product.is_available === false) {
+                            <span class="sold-out-badge">{{ 'PRODUCTS.SOLD_OUT' | translate }}</span>
+                          }
                           @if (product.ingredients) {
                             <small class="ingredients">{{ product.ingredients }}</small>
                           }
@@ -526,6 +567,11 @@ import { ProductBulkImportComponent } from './product-bulk-import.component';
                         <td class="price">{{ product.cost_cents != null ? formatPrice(product.cost_cents) : '—' }}</td>
                         <td class="actions">
                           <div class="actions-inner">
+                          @if (canEditProducts()) {
+                            <button class="availability-action" [class.availability-action--sold-out]="product.is_available === false" (click)="toggleProductAvailability(product)" [disabled]="availabilitySaving() === product.id">
+                              {{ (product.is_available === false ? 'PRODUCTS.MARK_AVAILABLE' : 'PRODUCTS.MARK_SOLD_OUT') | translate }}
+                            </button>
+                          }
                           <button class="icon-btn" (click)="startEdit(product)" [attr.title]="'PRODUCTS.EDIT_TOOLTIP' | translate">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -612,6 +658,7 @@ export class ProductsComponent implements OnInit {
   saving = signal(false);
   deleting = signal<number | null>(null);
   deletingAll = signal(false);
+  availabilitySaving = signal<number | null>(null);
   showAddForm = signal(false);
   editingProduct = signal<Product | null>(null);
   productToDelete = signal<Product | null>(null);
@@ -628,6 +675,11 @@ export class ProductsComponent implements OnInit {
     price: number;
     cost: number | null;
     ingredients: string;
+    is_available: boolean;
+    allergens: string[];
+    dietary_tags: string[];
+    allergen_notes: string;
+    allergen_reviewed: boolean;
     description: string;
     category: string;
     subcategory: string;
@@ -640,11 +692,21 @@ export class ProductsComponent implements OnInit {
     price: 0,
     cost: null,
     ingredients: '',
+    is_available: true,
+    allergens: [],
+    dietary_tags: [],
+    allergen_notes: '',
+    allergen_reviewed: false,
     description: '',
     category: '',
     subcategory: '',
     kitchen_station_id: null,
   };
+  readonly allergenOptions = [
+    'celery', 'gluten', 'crustaceans', 'eggs', 'fish', 'lupin', 'milk',
+    'molluscs', 'mustard', 'nuts', 'peanuts', 'sesame', 'soya', 'sulphites',
+  ];
+  readonly dietaryTagOptions = ['vegetarian', 'vegan', 'gluten_free'];
   productTaxes = signal<Tax[]>([]);
   kitchenStations = signal<KitchenStation[]>([]);
   readonly maxImageUploadMb = MAX_IMAGE_UPLOAD_MB;
@@ -972,6 +1034,11 @@ export class ProductsComponent implements OnInit {
       price: product.price_cents / 100,
       cost: product.cost_cents != null ? product.cost_cents / 100 : null,
       ingredients: product.ingredients || '',
+      is_available: product.is_available !== false,
+      allergens: [...(product.allergens || [])],
+      dietary_tags: [...(product.dietary_tags || [])],
+      allergen_notes: product.allergen_notes || '',
+      allergen_reviewed: product.allergen_reviewed === true,
       description: product.description || '',
       category: product.category || '',
       subcategory: product.subcategory || '',
@@ -996,6 +1063,11 @@ export class ProductsComponent implements OnInit {
       price: 0,
       cost: null,
       ingredients: '',
+      is_available: true,
+      allergens: [],
+      dietary_tags: [],
+      allergen_notes: '',
+      allergen_reviewed: false,
       description: '',
       category: '',
       subcategory: '',
@@ -1016,6 +1088,11 @@ export class ProductsComponent implements OnInit {
       price: 0,
       cost: null,
       ingredients: '',
+      is_available: true,
+      allergens: [],
+      dietary_tags: [],
+      allergen_notes: '',
+      allergen_reviewed: false,
       description: '',
       category: '',
       subcategory: '',
@@ -1285,6 +1362,36 @@ export class ProductsComponent implements OnInit {
     }
   }
 
+  toggleAllergen(code: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.formData.allergens = checked
+      ? Array.from(new Set([...this.formData.allergens, code]))
+      : this.formData.allergens.filter((value) => value !== code);
+  }
+
+  toggleDietaryTag(code: string, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.formData.dietary_tags = checked
+      ? Array.from(new Set([...this.formData.dietary_tags, code]))
+      : this.formData.dietary_tags.filter((value) => value !== code);
+  }
+
+  toggleProductAvailability(product: Product): void {
+    if (!product.id || this.availabilitySaving()) return;
+    this.availabilitySaving.set(product.id);
+    this.api.updateProduct(product.id, { is_available: product.is_available === false }).subscribe({
+      next: (updated) => {
+        this.products.update((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+        this.applyFilters();
+        this.availabilitySaving.set(null);
+      },
+      error: (err) => {
+        this.error.set(err.error?.detail || this.translate.instant('PRODUCTS.AVAILABILITY_FAILED'));
+        this.availabilitySaving.set(null);
+      },
+    });
+  }
+
   saveProduct(event: Event) {
     event.preventDefault();
     if (!this.canEditProducts()) return;
@@ -1305,6 +1412,11 @@ export class ProductsComponent implements OnInit {
       price_cents: Math.round(this.formData.price * 100),
       cost_cents: this.formData.cost != null && this.formData.cost >= 0 ? Math.round(this.formData.cost * 100) : undefined,
       ingredients: this.formData.ingredients || undefined,
+      is_available: this.formData.is_available,
+      allergens: this.formData.allergens,
+      dietary_tags: this.formData.dietary_tags,
+      allergen_notes: this.formData.allergen_notes || null,
+      allergen_reviewed: this.formData.allergen_reviewed,
       description: this.formData.description || undefined,
       category: this.formData.category || undefined,
       subcategory: this.formData.subcategory || undefined,

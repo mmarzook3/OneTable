@@ -274,6 +274,40 @@ async def send_password_reset_email(
     return await send_email(to_email, subject, html_content, text_content, tenant=tenant)
 
 
+async def send_restaurant_invitation_email(
+    to_email: str,
+    restaurant_name: str,
+    setup_url: str,
+) -> bool:
+    """Send the one-time Scanaki owner account setup link using platform SMTP."""
+    safe_name = html.escape(restaurant_name, quote=False)
+    safe_url = html.escape(setup_url, quote=True)
+    subject = f"Set up your Scanaki account for {restaurant_name}"
+    html_content = f"""
+    <!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#202124">
+      <div style="max-width:600px;margin:auto;padding:24px">
+        <p style="font-weight:700;font-size:20px">Scanaki</p>
+        <h1 style="font-size:24px">Your restaurant account is ready</h1>
+        <p>Scanaki has created the account for <strong>{safe_name}</strong>.</p>
+        <p>Use the secure button below to choose your password and begin the guided setup.</p>
+        <p style="margin:28px 0"><a href="{safe_url}" style="background:#d35233;color:#fff;padding:13px 20px;border-radius:8px;text-decoration:none;font-weight:700">Create my password</a></p>
+        <p>This link is single-use and expires automatically. If you were not expecting it, contact the Scanaki team.</p>
+        <p style="word-break:break-all;color:#666;font-size:12px">{safe_url}</p>
+      </div>
+    </body></html>
+    """
+    text_content = f"""Your Scanaki restaurant account is ready
+
+Scanaki has created the account for {restaurant_name}.
+Choose your password and begin setup here:
+
+{setup_url}
+
+This single-use link expires automatically.
+"""
+    return await send_email(to_email, subject, html_content, text_content)
+
+
 async def send_customer_verification_email(
     to_email: str,
     verify_url: str,
