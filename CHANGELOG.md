@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.162] - 2026-08-24
+
+### Added
+
+- **Demo menu photography:** Added a cohesive set of ten generated food and soft-drink photographs for every item in the fictional landing demo menu.
+- **Durable image seeding:** The landing demo seed now packages, installs, and assigns its product images idempotently on every deployment.
+
 ## [2.1.161] - 2026-08-24
 
 ### Changed
