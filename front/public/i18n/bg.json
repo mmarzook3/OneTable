@@ -190,7 +190,6 @@
   "LANDING": {
     "PLATFORM_BADGE": "Поръчване на маса с QR и NFC",
     "PLATFORM_SUBTITLE": "Клиентите сканират QR код или докосват NFC. Поръчката и плащането отиват директно към кухнята или бара.",
-    "PRODUCT_REPOSITORY": "Product repository",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
     "BADGE": "Поръчване на маса с QR и NFC",
@@ -251,7 +250,6 @@
     "FOOTER_ACCOUNT": "Account",
     "FOOTER_PARTNERS": "Partners",
     "FOOTER_SUPPORT": "Support",
-    "LEGACY_REPOSITORY": "Product repository",
     "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "QR код за публичното меню. NFC табелките отварят същия линк.",
     "PUBLIC_MENU_QR_HINT": "Сканирайте или щракнете за менюто (без вход)",
@@ -374,8 +372,6 @@
     "HELP_TITLE": "Имате нужда от помощ?",
     "HELP_DESC": "Тук сме за вас. Докладвайте грешка, задайте въпрос или споделете идея.",
     "HELP_INVITE": "Започнете дискусия за подобрения или отворете issue - ще се радваме да чуем.",
-    "HELP_ISSUES": "Подаване на сигнал за проблем (GitHub)",
-    "HELP_DISCUSSIONS": "Започване на дискусия (GitHub)",
     "WHATS_NEW_TITLE": "Новото в това издание",
     "WHATS_NEW_DESC": "Последни промени и нови функции",
     "MY_SHIFT_TITLE": "Моята смяна",
@@ -2790,7 +2786,6 @@
     "FEAT_I18N_TITLE": "Многоезичност",
     "FEAT_I18N_DESC": "Интерфейс за гости и персонал на няколко езика с подразбиране по наемател.",
     "FEAT_DEPLOYMENT_TITLE": "Deployment options",
-    "FEAT_OPEN_SOURCE_DESC": "Самостоятелен хостинг или облак - преглеждайте, разширявайте и избягвайте заключване към доставчик.",
     "FEAT_TSE_TITLE": "Германски TSE (подготовка за KassenSichV)",
     "FEAT_TSE_DESC": "Опционален tse_mode на наемател (test/live) с подписани заглушки на транзакции, TSE полета на бележки и заглушка за DSFinV-K експорт по дата. Живият режим използва облачен TSE доставчик (Fiskaly SIGN DE), когато е отключен - не се рекламира като сертифициран от BSI, докато продукционните данни не са проверени."
   },
@@ -2816,10 +2811,6 @@
     "INCLUDE_REPORTS": "Отчети за продажби и инструменти за екипа",
     "INCLUDE_LOYALTY": "Клубна лоялност (точки или печати)",
     "CTA_START": "Създайте акаунт",
-    "SELFHOST_NAME": "Self-host",
-    "SELFHOST_LEDE": "Стартирайте Scanaki на собствени сървъри.",
-    "SELFHOST_PRICE": "£0",
-    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
     "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "Цените не можаха да се заредят. Опитайте отново по-късно."
   },
@@ -2924,7 +2915,7 @@
     "TITLE": "За Scanaki",
     "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "Какво създаваме",
-    "PRODUCT_BODY": "Scanaki помага на ресторантите да заменят много отделни приложения с една платформа: дигитални менюта, поръчки, кухненски и бар дисплеи, резервации, плащания и отчети - хоствана или самостоятелно хоствана.",
+    "PRODUCT_BODY": "Scanaki помага на ресторантите да заменят много отделни приложения с една управлявана платформа: дигитални менюта, поръчки, кухненски и бар дисплеи, резервации, плащания и отчети.",
     "COMPANY_TITLE": "Кой я управлява",
     "COMPANY_BODY": "Scanaki се управлява от Amvara Consulting S.L., компания със седалище в El Masnou (Барселона), Испания.",
     "DEPLOYMENT_TITLE": "Deployment",
@@ -3285,14 +3276,14 @@
         "HOW_3": "Персоналът сменя езика в заглавката на приложението."
       },
       "deployment-options": {
-        "HERO_TITLE": "Deployment options",
+        "HERO_TITLE": "Управляван хостинг",
         "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
         "BENEFIT_1": "Managed updates and product support.",
-        "BENEFIT_2": "Самостоятелен хостинг без лицензни такси или хостван Scanaki.",
-        "BENEFIT_3": "Общностна и търговска поддръжка чрез Amvara.",
-        "HOW_1": "Клонирайте хранилището и следвайте настройката в README.",
-        "HOW_2": "Стартирайте с Docker Compose на вашата инфраструктура.",
-        "HOW_3": "Или се регистрирайте за хостван Scanaki с управлявани актуализации."
+        "BENEFIT_2": "Сигурен хостинг, управляван от екипа на Scanaki.",
+        "BENEFIT_3": "Продуктова поддръжка от екипа на Scanaki.",
+        "HOW_1": "Изберете управлявания план за вашия обект.",
+        "HOW_2": "Завършете насочваната настройка на ресторанта.",
+        "HOW_3": "Scanaki се грижи за хостинга, поддръжката и актуализациите."
       },
       "scanaki-delivery": {
         "HERO_TITLE": "Scanaki Delivery",

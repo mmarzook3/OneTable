@@ -190,7 +190,6 @@
   "LANDING": {
     "PLATFORM_BADGE": "Pedidos en mesa con QR y NFC",
     "PLATFORM_SUBTITLE": "Los clientes escanean un código QR o acercan el móvil al NFC. El pedido y el pago llegan directamente a cocina o barra.",
-    "PRODUCT_REPOSITORY": "Product repository",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
     "BADGE": "Pedidos en mesa con QR y NFC",
@@ -251,7 +250,6 @@
     "FOOTER_ACCOUNT": "Cuenta",
     "FOOTER_PARTNERS": "Socios",
     "FOOTER_SUPPORT": "Soporte",
-    "LEGACY_REPOSITORY": "Product repository",
     "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "Código QR del menú público. Las placas NFC abren el mismo enlace.",
     "PUBLIC_MENU_QR_HINT": "Escanee o haga clic para ver la carta (sin iniciar sesión)",
@@ -374,8 +372,6 @@
     "HELP_TITLE": "¿Necesitas ayuda?",
     "HELP_DESC": "Estamos contigo. Reporta un fallo, haz una pregunta o comparte una idea.",
     "HELP_INVITE": "Abre una discusión para mejoras o un issue - nos encantaría saber de ti.",
-    "HELP_ISSUES": "Reportar un problema (GitHub)",
-    "HELP_DISCUSSIONS": "Iniciar una discusión (GitHub)",
     "WHATS_NEW_TITLE": "Qué hay de nuevo",
     "WHATS_NEW_DESC": "Últimos cambios y nuevas funciones",
     "MY_SHIFT_TITLE": "Mi turno",
@@ -2790,7 +2786,6 @@
     "FEAT_I18N_TITLE": "Multilingüe",
     "FEAT_I18N_DESC": "Interfaz de clientes y personal en varios idiomas con valores por defecto por local.",
     "FEAT_DEPLOYMENT_TITLE": "Deployment options",
-    "FEAT_OPEN_SOURCE_DESC": "Autoaloje o ejecute en la nube - inspeccione, amplíe y evite el bloqueo de proveedor.",
     "FEAT_TSE_TITLE": "TSE alemana (preparación KassenSichV)",
     "FEAT_TSE_DESC": "Modo tse_mode opcional por local (test/live) con stubs de transacciones firmadas, campos TSE en el ticket y stub de exportación DSFinV-K por rango de fechas. El modo live usa un proveedor TSE en la nube (Fiskaly SIGN DE) cuando se desbloquea - no se comercializa como certificado BSI hasta verificar las credenciales de producción."
   },
@@ -2816,10 +2811,6 @@
     "INCLUDE_REPORTS": "Informes de ventas y herramientas de equipo",
     "INCLUDE_LOYALTY": "Club de fidelización (puntos o sellos)",
     "CTA_START": "Crear tu cuenta",
-    "SELFHOST_NAME": "Autohospedaje",
-    "SELFHOST_LEDE": "Ejecuta Scanaki en tus propios servidores.",
-    "SELFHOST_PRICE": "£0",
-    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
     "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "No se pudo cargar la tarifa. Inténtalo más tarde."
   },
@@ -2924,7 +2915,7 @@
     "TITLE": "Sobre Scanaki",
     "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "Qué construimos",
-    "PRODUCT_BODY": "Scanaki ayuda a los restaurantes a sustituir varias apps sueltas por una sola plataforma: menús digitales, pedidos, pantallas de cocina y barra, reservas, pagos e informes - alojada o autoalojada.",
+    "PRODUCT_BODY": "Scanaki ayuda a los restaurantes a sustituir varias apps sueltas por una plataforma gestionada: menús digitales, pedidos, pantallas de cocina y barra, reservas, pagos e informes.",
     "COMPANY_TITLE": "Quién la opera",
     "COMPANY_BODY": "Scanaki es operada por Amvara Consulting S.L., una empresa con sede en El Masnou (Barcelona), España.",
     "DEPLOYMENT_TITLE": "Deployment",
@@ -3285,14 +3276,14 @@
         "HOW_3": "El personal cambia el idioma en la cabecera de la app."
       },
       "deployment-options": {
-        "HERO_TITLE": "Deployment options",
+        "HERO_TITLE": "Alojamiento gestionado",
         "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
         "BENEFIT_1": "Managed updates and product support.",
-        "BENEFIT_2": "Autoaloje sin cuotas de licencia o use Scanaki alojado.",
-        "BENEFIT_3": "Soporte comunitario y comercial vía Amvara.",
-        "HOW_1": "Clone el repositorio y siga el setup del README.",
-        "HOW_2": "Ejecute con Docker Compose en su infraestructura.",
-        "HOW_3": "O regístrese en Scanaki alojado con actualizaciones gestionadas."
+        "BENEFIT_2": "Alojamiento seguro gestionado por el equipo de Scanaki.",
+        "BENEFIT_3": "Soporte de producto del equipo de Scanaki.",
+        "HOW_1": "Elija el plan gestionado adecuado para su local.",
+        "HOW_2": "Complete la configuración guiada del restaurante.",
+        "HOW_3": "Scanaki se encarga del alojamiento, mantenimiento y actualizaciones."
       },
       "scanaki-delivery": {
         "HERO_TITLE": "Scanaki Delivery",

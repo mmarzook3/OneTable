@@ -287,7 +287,6 @@
   "LANDING": {
     "PLATFORM_BADGE": "QR and NFC table ordering",
     "PLATFORM_SUBTITLE": "Customers scan a QR code or tap NFC. Their order and payment go straight to your kitchen or bar.",
-    "PRODUCT_REPOSITORY": "Product repository",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
     "BADGE": "QR and NFC table ordering",
@@ -349,7 +348,6 @@
     "FOOTER_ACCOUNT": "Account",
     "FOOTER_PARTNERS": "Partners",
     "FOOTER_SUPPORT": "Support",
-    "LEGACY_REPOSITORY": "Product repository",
     "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "QR code for the public menu. NFC plaques open the same link.",
     "PUBLIC_MENU_QR_HINT": "Scan or click for the menu (no login)",
@@ -433,7 +431,6 @@
     "FEAT_I18N_TITLE": "Multi-language",
     "FEAT_I18N_DESC": "Guest and staff UI in multiple languages with per-tenant defaults.",
     "FEAT_DEPLOYMENT_TITLE": "Deployment options",
-    "FEAT_OPEN_SOURCE_DESC": "Self-host or run in the cloud - inspect, extend, and avoid vendor lock-in.",
     "FEAT_TSE_TITLE": "German TSE (KassenSichV preparation)",
     "FEAT_TSE_DESC": "Optional per-tenant tse_mode (test/live) with signed transaction stubs, receipt TSE fields, and DSFinV-K date-range export stub. Live mode uses a cloud TSE provider (Fiskaly SIGN DE) when unlocked - not marketed as BSI-certified until production credentials are verified."
   },
@@ -459,10 +456,6 @@
     "INCLUDE_REPORTS": "Sales reports and staff tools",
     "INCLUDE_LOYALTY": "Club loyalty (points or stamps)",
     "CTA_START": "Create your account",
-    "SELFHOST_NAME": "Self-host",
-    "SELFHOST_LEDE": "Run Scanaki on your own servers.",
-    "SELFHOST_PRICE": "£0",
-    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
     "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "Could not load pricing. Please try again later."
   },
@@ -587,8 +580,6 @@
     "HELP_TITLE": "Need help?",
     "HELP_DESC": "We're here for you. Report a bug, ask a question, or share an idea.",
     "HELP_INVITE": "Start a discussion for enhancements or open an issue - we'd love to hear from you.",
-    "HELP_ISSUES": "Report an issue (GitHub)",
-    "HELP_DISCUSSIONS": "Start a discussion (GitHub)",
     "WHATS_NEW_TITLE": "What's new",
     "WHATS_NEW_DESC": "Latest changes and new features",
     "MY_SHIFT_TITLE": "My shift",
@@ -3185,7 +3176,7 @@
     "TITLE": "About Scanaki",
     "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "What we build",
-    "PRODUCT_BODY": "Scanaki helps hospitality venues replace a stack of single-purpose apps with one platform: digital menus, guest ordering, kitchen and bar displays, payments, and reports - hosted or self-hosted.",
+    "PRODUCT_BODY": "Scanaki helps hospitality venues replace a stack of single-purpose apps with one managed platform: digital menus, guest ordering, kitchen and bar displays, payments, and reports.",
     "COMPANY_TITLE": "Who operates it",
     "COMPANY_BODY": "Scanaki is a Fixaki product. Venue-specific business and contact details are shown on each customer menu.",
     "DEPLOYMENT_TITLE": "Deployment",
@@ -3512,14 +3503,14 @@
         "HOW_3": "Staff change language in the app header."
       },
       "deployment-options": {
-        "HERO_TITLE": "Deployment options",
+        "HERO_TITLE": "Managed hosting",
         "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
         "BENEFIT_1": "Managed updates and product support.",
-        "BENEFIT_2": "Self-host for zero licence fees or use hosted Scanaki.",
-        "BENEFIT_3": "Community and commercial support from the Scanaki team.",
-        "HOW_1": "Clone the repository and follow README setup.",
-        "HOW_2": "Run with Docker Compose on your infrastructure.",
-        "HOW_3": "Or register for hosted Scanaki with managed updates."
+        "BENEFIT_2": "Secure hosting managed by the Scanaki team.",
+        "BENEFIT_3": "Product support from the Scanaki team.",
+        "HOW_1": "Choose the managed plan that fits your venue.",
+        "HOW_2": "Complete the guided restaurant setup.",
+        "HOW_3": "Scanaki handles hosting, maintenance, and updates."
       },
       "scanaki-delivery": {
         "HERO_TITLE": "Scanaki Delivery",
