@@ -854,21 +854,6 @@ export interface ReservationBookDaySlotsResponse {
   cells: Record<string, ReservationBookWeekSlotState>;
 }
 
-/** One restaurant when several share the same printed table name. */
-export interface PublicTableLookupChoice {
-  table_token: string;
-  tenant_id: number;
-  tenant_name: string;
-  table_name: string;
-}
-
-/** GET /public/table-lookup — token or printed name (e.g. T01) → menu token. */
-export interface PublicTableLookupResponse {
-  table_token: string | null;
-  ambiguous: boolean;
-  choices: PublicTableLookupChoice[];
-}
-
 /** Staff list + public submit response context */
 export interface GuestFeedback {
   id: number;
@@ -4066,13 +4051,6 @@ export class ApiService {
   /** Product-wide legal URLs from server config (landing, auth). Public, no auth. */
   getPublicLegalUrls(): Observable<PublicLegalUrls> {
     return this.http.get<PublicLegalUrls>(`${this.apiUrl}/public/legal-urls`);
-  }
-
-  /** Resolve QR/menu token or printed table name (e.g. T01) to menu token. Public, no auth. */
-  lookupPublicTable(q: string): Observable<PublicTableLookupResponse> {
-    return this.http.get<PublicTableLookupResponse>(`${this.apiUrl}/public/table-lookup`, {
-      params: { q },
-    });
   }
 
   /** Get one tenant's public info (for book/menu branding). Public, no auth. */
