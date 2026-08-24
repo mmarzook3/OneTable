@@ -112,10 +112,27 @@ async function main() {
         '[data-testid="pricing-billing-active"], [data-testid="pricing-billing-inactive"]',
       ).length;
       const planCards = Array.from(document.querySelectorAll('[data-testid="pricing-plan-card"]')).map(
-        (card) => ({
-          id: card.getAttribute('data-plan-id') || '',
-          text: (card.textContent || '').replace(/\s+/g, ' ').trim(),
-        }),
+        (card) => {
+          const rect = card.getBoundingClientRect();
+          const topFor = (selector) => card.querySelector(selector)?.getBoundingClientRect().top ?? null;
+          const decimal = card.querySelector('.pricing-card__decimal');
+          const whole = card.querySelector('.pricing-card__whole');
+          return {
+            id: card.getAttribute('data-plan-id') || '',
+            text: (card.textContent || '').replace(/\s+/g, ' ').trim(),
+            height: rect.height,
+            nameTop: topFor('.pricing-card__name'),
+            ledeTop: topFor('.pricing-card__lede'),
+            priceTop: topFor('.pricing-card__price'),
+            trialTop: topFor('.pricing-card__trial'),
+            extraTop: topFor('.pricing-card__extra'),
+            includesTop: topFor('.pricing-card__includes'),
+            ctaTop: topFor('.pricing-btn'),
+            decimalText: decimal?.textContent?.trim() || '',
+            decimalFontSize: decimal ? parseFloat(getComputedStyle(decimal).fontSize) : 0,
+            wholeFontSize: whole ? parseFloat(getComputedStyle(whole).fontSize) : 0,
+          };
+        },
       );
       const rawKeyDump =
         title.includes('PRICING_PAGE.') ||
@@ -186,11 +203,39 @@ async function main() {
       if (
         !card ||
         !card.text.includes(expected.name) ||
-        !card.text.includes(expected.price) ||
+        !card.text.replace(/\s/g, '').includes(expected.price) ||
         !card.text.includes(expected.tables) ||
         !card.text.includes(expected.extra)
       ) {
         console.error('FAIL: Pricing card mismatch.', expected, card);
+        process.exit(1);
+      }
+    }
+
+    const alignedFields = [
+      'height',
+      'nameTop',
+      'ledeTop',
+      'priceTop',
+      'trialTop',
+      'extraTop',
+      'includesTop',
+      'ctaTop',
+    ];
+    for (const field of alignedFields) {
+      const values = shell.planCards.map((card) => card[field]);
+      if (values.some((value) => typeof value !== 'number')) {
+        console.error(`FAIL: Missing pricing-card alignment metric ${field}.`, shell.planCards);
+        process.exit(1);
+      }
+      if (Math.max(...values) - Math.min(...values) > 2) {
+        console.error(`FAIL: Pricing cards are not symmetrical at ${field}.`, values);
+        process.exit(1);
+      }
+    }
+    for (const card of shell.planCards) {
+      if (!/^\.\d{2}$/.test(card.decimalText) || card.decimalFontSize >= card.wholeFontSize) {
+        console.error('FAIL: Price decimal must contain two digits and render smaller.', card);
         process.exit(1);
       }
     }
