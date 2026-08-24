@@ -42,20 +42,23 @@ def test_path_is_saas_exempt():
     assert not path_is_saas_exempt("/reports/sales")
 
 
-def test_plan_config_includes_plans_catalog():
-    """Public pricing page (#328) expects a multi-tier-ready plans[] array."""
+def test_plan_config_has_managed_pricing_tiers():
     cfg = plan_config()
     assert "enabled" in cfg
     assert isinstance(cfg["trial_days"], int)
     assert isinstance(cfg["price_cents"], int)
     assert isinstance(cfg["currency"], str)
-    assert isinstance(cfg["plans"], list) and len(cfg["plans"]) >= 1
-    hosted = cfg["plans"][0]
-    assert hosted["id"] == "hosted_standard"
-    assert hosted["price_cents"] == cfg["price_cents"]
-    assert hosted["trial_days"] == cfg["trial_days"]
-    assert hosted["currency"] == cfg["currency"]
-    assert hosted["interval"] == "month"
+    assert cfg["currency"] == "gbp"
+    assert cfg["extra_table_price_cents"] == 399
+    assert len(cfg["plans"]) == 3
+    assert [plan["id"] for plan in cfg["plans"]] == ["lite", "pro", "ultra"]
+    assert [plan["name"] for plan in cfg["plans"]] == ["Lite", "Pro", "Ultra"]
+    assert [plan["price_cents"] for plan in cfg["plans"]] == [999, 3999, 8499]
+    assert [plan["included_tables"] for plan in cfg["plans"]] == [2, 20, 45]
+    assert all(plan["currency"] == "gbp" for plan in cfg["plans"])
+    assert all(plan["interval"] == "month" for plan in cfg["plans"])
+    assert all(plan["extra_table_price_cents"] == 399 for plan in cfg["plans"])
+    assert cfg["price_cents"] == 999
 
 
 def test_saas_config_endpoint_returns_plans():
@@ -63,8 +66,8 @@ def test_saas_config_endpoint_returns_plans():
     res = client.get("/saas/config")
     assert res.status_code == 200
     body = res.json()
-    assert isinstance(body.get("plans"), list) and body["plans"]
-    assert body["plans"][0]["id"] == "hosted_standard"
+    assert [plan["id"] for plan in body["plans"]] == ["lite", "pro", "ultra"]
+    assert body["extra_table_price_cents"] == 399
 
 
 def test_tenant_has_access_when_paywall_disabled():

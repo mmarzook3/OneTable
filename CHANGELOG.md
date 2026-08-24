@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.160] - 2026-08-24
+
+### Changed
+
+- **Three managed tiers:** Public pricing now offers Lite (2 tables, £9.99/month), Pro (20 tables, £39.99/month), and Ultra (45 tables, £84.99/month).
+- **Extra tables:** Every tier shows the £3.99 per additional table monthly add-on.
+- **Pricing focus:** The pricing page contains managed tiers only, with Pro highlighted as the most popular option.
+
 ## [2.1.159] - 2026-08-24
 
 ### Changed

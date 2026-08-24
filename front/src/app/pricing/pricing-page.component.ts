@@ -37,8 +37,8 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
       <header class="pricing-hero">
         <p class="pricing-hero__badge">{{ 'PRICING_PAGE.BADGE' | translate }}</p>
-        <h1 class="pricing-hero__title">{{ 'PRICING_PAGE.TITLE' | translate }}</h1>
-        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.MANAGED_SUBTITLE' | translate }}</p>
+        <h1 class="pricing-hero__title">{{ 'PRICING_PAGE.TIERS_TITLE' | translate }}</h1>
+        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.TIERS_SUBTITLE' | translate }}</p>
       </header>
 
       <main class="pricing-main">
@@ -49,9 +49,19 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         } @else {
           <div class="pricing-tiers" data-testid="pricing-tiers">
             @for (plan of plans(); track plan.id) {
-              <article class="pricing-card" [attr.data-plan-id]="plan.id" data-testid="pricing-plan-card">
-                <h2 class="pricing-card__name">{{ 'PRICING_PAGE.HOSTED_NAME' | translate }}</h2>
-                <p class="pricing-card__lede">{{ 'PRICING_PAGE.HOSTED_LEDE' | translate }}</p>
+              <article
+                class="pricing-card"
+                [class.pricing-card--featured]="plan.id === 'pro'"
+                [attr.data-plan-id]="plan.id"
+                data-testid="pricing-plan-card"
+              >
+                @if (plan.id === 'pro') {
+                  <span class="pricing-card__popular">{{ 'PRICING_PAGE.MOST_POPULAR' | translate }}</span>
+                }
+                <h2 class="pricing-card__name">{{ plan.name }}</h2>
+                <p class="pricing-card__lede">
+                  {{ 'PRICING_PAGE.TABLES_INCLUDED' | translate: { count: plan.included_tables } }}
+                </p>
 
                 <div class="pricing-card__price" data-testid="pricing-price">
                   <span class="pricing-card__amount">{{ formatPrice(plan.price_cents, plan.currency) }}</span>
@@ -60,6 +70,16 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
                 <p class="pricing-card__trial" data-testid="pricing-trial">
                   {{ 'PRICING_PAGE.TRIAL_LINE' | translate: { days: plan.trial_days } }}
+                </p>
+
+                <p class="pricing-card__extra" data-testid="pricing-extra-table">
+                  {{
+                    'PRICING_PAGE.EXTRA_TABLE'
+                      | translate
+                        : {
+                            price: formatPrice(plan.extra_table_price_cents, plan.currency),
+                          }
+                  }}
                 </p>
 
                 @if (billingActive()) {
@@ -241,7 +261,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       .pricing-main {
         position: relative;
         z-index: 1;
-        max-width: 56rem;
+        max-width: 72rem;
         margin: 0 auto;
         padding: 0 var(--space-5) var(--space-8);
       }
@@ -264,7 +284,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
       @media (min-width: 768px) {
         .pricing-tiers {
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
         }
       }
 
@@ -280,6 +300,23 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
       .pricing-card--alt {
         background: transparent;
+      }
+
+      .pricing-card--featured {
+        border-color: rgba(255, 107, 71, 0.65);
+        box-shadow: 0 18px 60px rgba(255, 107, 71, 0.12);
+      }
+
+      .pricing-card__popular {
+        align-self: flex-start;
+        padding: 0.3rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(255, 107, 71, 0.16);
+        color: #ff9a7f;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
 
       .pricing-card__name {
@@ -314,7 +351,8 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       }
 
       .pricing-card__trial,
-      .pricing-card__billing-note {
+      .pricing-card__billing-note,
+      .pricing-card__extra {
         margin: 0;
         font-size: 0.875rem;
         line-height: 1.45;
@@ -326,6 +364,11 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         border-radius: 10px;
         border: 1px solid var(--pp-border);
         background: rgba(255, 255, 255, 0.03);
+      }
+
+      .pricing-card__extra {
+        color: rgba(250, 250, 250, 0.82);
+        font-weight: 600;
       }
 
       .pricing-card__includes {
@@ -388,20 +431,26 @@ export class PricingPageComponent implements OnInit {
   private resolvePlans(cfg: SaasSubscription): SaasPlanTier[] {
     if (cfg.plans?.length) {
       return cfg.plans.map((p) => ({
-        id: p.id || 'hosted_standard',
+        id: p.id || 'lite',
+        name: p.name || 'Lite',
         trial_days: p.trial_days,
         price_cents: p.price_cents,
         currency: p.currency || 'gbp',
         interval: p.interval || 'month',
+        included_tables: p.included_tables ?? 2,
+        extra_table_price_cents: p.extra_table_price_cents ?? 399,
       }));
     }
     return [
       {
-        id: 'hosted_standard',
+        id: 'lite',
+        name: 'Lite',
         trial_days: cfg.trial_days,
         price_cents: cfg.price_cents,
         currency: cfg.currency || 'gbp',
         interval: 'month',
+        included_tables: 2,
+        extra_table_price_cents: cfg.extra_table_price_cents ?? 399,
       },
     ];
   }
@@ -411,7 +460,8 @@ export class PricingPageComponent implements OnInit {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
         currency: (currency || 'GBP').toUpperCase(),
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(cents / 100);
     } catch {
       return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;

@@ -331,6 +331,11 @@
     "FEAT_TSE_DESC": "可选按租户 tse_mode（测试/正式），含已签名交易存根、小票 TSE 字段与 DSFinV-K 日期范围导出存根。正式模式在解锁后使用云 TSE 提供商（Fiskaly SIGN DE）--在生产凭证验证前，不以 BSI 认证对外宣传。"
   },
   "PRICING_PAGE": {
+    "TIERS_TITLE": "Choose the right plan for your venue",
+    "TIERS_SUBTITLE": "Three managed tiers with simple monthly pricing. Add more tables to any plan for £3.99 per table each month.",
+    "MOST_POPULAR": "Most popular",
+    "TABLES_INCLUDED": "{{count}} tables included",
+    "EXTRA_TABLE": "Extra tables: {{price}} per table / month",
     "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "简洁托管定价",
     "TITLE": "免费试用，之后统一月费",

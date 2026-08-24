@@ -20,3 +20,8 @@ def test_payment_defaults_use_gbp() -> None:
 
     assert Settings.model_fields["stripe_currency"].default == "gbp"
     assert Settings.model_fields["saas_plan_currency"].default == "gbp"
+    assert Settings.model_fields["saas_plan_price_cents"].default == 999
+    assert Settings.model_fields["saas_lite_price_cents"].default == 999
+    assert Settings.model_fields["saas_pro_price_cents"].default == 3999
+    assert Settings.model_fields["saas_ultra_price_cents"].default == 8499
+    assert Settings.model_fields["saas_extra_table_price_cents"].default == 399

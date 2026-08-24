@@ -76,11 +76,18 @@ class Settings(BaseSettings):
     )
     saas_trial_days: int = Field(default=14, validation_alias="SAAS_TRIAL_DAYS")
     saas_plan_price_cents: int = Field(
-        default=4900,
+        default=999,
         validation_alias="SAAS_PLAN_PRICE_CENTS",
-        description="Displayed monthly plan price in pence (e.g. 4900 = £49)",
+        description="Legacy flat plan amount; Lite is the default managed plan",
     )
     saas_plan_currency: str = Field(default="gbp", validation_alias="SAAS_PLAN_CURRENCY")
+    saas_lite_price_cents: int = Field(default=999, validation_alias="SAAS_LITE_PRICE_CENTS")
+    saas_pro_price_cents: int = Field(default=3999, validation_alias="SAAS_PRO_PRICE_CENTS")
+    saas_ultra_price_cents: int = Field(default=8499, validation_alias="SAAS_ULTRA_PRICE_CENTS")
+    saas_extra_table_price_cents: int = Field(
+        default=399,
+        validation_alias="SAAS_EXTRA_TABLE_PRICE_CENTS",
+    )
     saas_stripe_price_id: str = Field(
         default="",
         validation_alias="SAAS_STRIPE_PRICE_ID",

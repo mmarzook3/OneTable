@@ -2785,6 +2785,11 @@
     "FEAT_TSE_DESC": "اختیاری فی ٹیننٹ tse_mode (ٹیسٹ/لائیو) دستخط شدہ ٹرانزیکشن اسٹبز، رسید TSE فیلڈز اور DSFinV-K تاریخ رینج ایکسپورٹ اسٹب کے ساتھ۔ لائیو موڈ انلاک پر کلاؤڈ TSE پرووائیڈر (Fiskaly SIGN DE) استعمال کرتا ہے - پروڈکشن کریڈنشلز کی تصدیق تک BSI تصدیق شدہ کے طور پر مارکیٹ نہیں کی جاتی۔"
   },
   "PRICING_PAGE": {
+    "TIERS_TITLE": "Choose the right plan for your venue",
+    "TIERS_SUBTITLE": "Three managed tiers with simple monthly pricing. Add more tables to any plan for £3.99 per table each month.",
+    "MOST_POPULAR": "Most popular",
+    "TABLES_INCLUDED": "{{count}} tables included",
+    "EXTRA_TABLE": "Extra tables: {{price}} per table / month",
     "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "سادہ ہوسٹڈ قیمتیں",
     "TITLE": "مفت آزمائیں، پھر ایک فلیٹ ماہانہ پلان",
