@@ -109,16 +109,74 @@
   </header>
 
   <!-- Sticky Category Navigation -->
-  <nav class="category-nav" [class.scrolled]="isScrolled()">
+  <nav class="category-nav" data-testid="ordering-menu-discovery">
+    <div class="menu-search-row">
+      <label for="ordering-menu-search">{{ 'MENU.SEARCH_MENU' | translate }}</label>
+      <div class="menu-search-control">
+        <input
+          id="ordering-menu-search"
+          type="search"
+          data-testid="ordering-menu-search"
+          [value]="searchQuery()"
+          [placeholder]="'MENU.SEARCH_MENU_PLACEHOLDER' | translate"
+          (input)="updateMenuSearch($event)"
+        />
+        @if (searchQuery()) {
+        <button type="button" class="menu-search-clear" (click)="clearMenuSearch()"
+          [attr.aria-label]="'MENU.CLEAR_SEARCH' | translate">×</button>
+        }
+      </div>
+    </div>
+
+    @if (quickFilterCounts().offers + quickFilterCounts().vegetarian + quickFilterCounts().vegan +
+    quickFilterCounts().gluten_free + quickFilterCounts().customisable > 0) {
+    <div class="quick-filter-scroll" role="group" [attr.aria-label]="'MENU.FILTERS_LABEL' | translate">
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'all'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'all'" (click)="selectQuickFilter('all')">
+        {{ 'COMMON.ALL' | translate }}
+      </button>
+      @if (quickFilterCounts().offers > 0) {
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'offers'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'offers'" (click)="selectQuickFilter('offers')">
+        {{ 'MENU.OFFERS' | translate }} <span>{{ quickFilterCounts().offers }}</span>
+      </button>
+      }
+      @if (quickFilterCounts().vegetarian > 0) {
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'vegetarian'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'vegetarian'" (click)="selectQuickFilter('vegetarian')">
+        {{ 'MENU.VEGETARIAN' | translate }} <span>{{ quickFilterCounts().vegetarian }}</span>
+      </button>
+      }
+      @if (quickFilterCounts().vegan > 0) {
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'vegan'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'vegan'" (click)="selectQuickFilter('vegan')">
+        {{ 'MENU.VEGAN' | translate }} <span>{{ quickFilterCounts().vegan }}</span>
+      </button>
+      }
+      @if (quickFilterCounts().gluten_free > 0) {
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'gluten_free'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'gluten_free'" (click)="selectQuickFilter('gluten_free')">
+        {{ 'MENU.GLUTEN_FREE' | translate }} <span>{{ quickFilterCounts().gluten_free }}</span>
+      </button>
+      }
+      @if (quickFilterCounts().customisable > 0) {
+      <button class="quick-filter-chip" [class.active]="selectedQuickFilter() === 'customisable'"
+        [attr.aria-pressed]="selectedQuickFilter() === 'customisable'" (click)="selectQuickFilter('customisable')">
+        {{ 'MENU.CUSTOMISABLE' | translate }} <span>{{ quickFilterCounts().customisable }}</span>
+      </button>
+      }
+    </div>
+    }
+
     <div class="category-scroll-container">
       <button class="category-chip" [class.active]="selectedCategory() === null" (click)="selectCategory(null)">
-        <span class="category-icon">🍽️</span>
         <span class="category-label">{{ 'COMMON.ALL' | translate }}</span>
+        <span class="category-count">{{ products().length }}</span>
       </button>
       @for (category of availableCategories(); track category) {
       <button class="category-chip" [class.active]="selectedCategory() === category" (click)="selectCategory(category)">
-        <span class="category-icon">{{ getCategoryIcon(category) }}</span>
         <span class="category-label">{{ category }}</span>
+        <span class="category-count">{{ categoryProductCount(category) }}</span>
       </button>
       }
     </div>
@@ -150,14 +208,8 @@
   <main class="menu-content">
     <!-- Current order & status (always show this section so client sees ordered/processed state) -->
     <section class="customer-orders-section" aria-label="Your orders">
+      @if (placedOrders().length > 0) {
       <h2 class="customer-orders-heading">{{ 'MENU.CURRENT_ORDER' | translate }}</h2>
-
-      @if (placedOrders().length === 0) {
-      <div class="no-order-card">
-        <p class="no-order-title">{{ 'MENU.NO_ACTIVE_ORDER' | translate }}</p>
-        <p class="no-order-hint">{{ 'MENU.NO_ACTIVE_ORDER_HINT' | translate }}</p>
-      </div>
-      } @else {
       <!-- Order status bar -->
       <section class="order-status-bar" aria-label="Order status">
         @for (order of placedOrders(); track order.id) {
@@ -298,58 +350,6 @@
     </section>
   </section>
 
-    <!-- Featured Items Section -->
-    @if (featuredProducts().length > 0 && selectedCategory() === null) {
-    <section class="featured-section">
-      <div class="section-header-row">
-        <h2 class="section-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-          {{ 'MENU.FEATURED' | translate }}
-        </h2>
-      </div>
-      <div class="featured-scroll">
-        @for (product of featuredProducts(); track getProductKey(product)) {
-        <div class="featured-card" (click)="openProductDetail(product)"
-          [class.in-cart]="isProductInMenuCart(product)" [class.just-added]="isProductJustAdded(product)">
-          <div class="featured-image-container">
-            @if (product.image_filename) {
-            <img [src]="getProductImageUrl(product)" class="featured-image" alt="{{ product.name }}">
-            } @else {
-            <div class="featured-image-placeholder">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="M21 15l-5-5L5 21" />
-              </svg>
-            </div>
-            }
-            <div class="featured-overlay">
-              <span class="featured-badge">⭐ {{ 'MENU.POPULAR' | translate }}</span>
-            </div>
-          </div>
-          <div class="featured-info">
-            <h3 class="featured-name">{{ product.name }}</h3>
-            <span class="featured-price">
-              @if (product.list_price_cents != null && product.list_price_cents > product.price_cents) {
-                <span class="list-price">{{ formatPrice(product.list_price_cents) }}</span>
-              }
-              {{ formatPrice(product.price_cents) }}
-            </span>
-          </div>
-          <button class="quick-add-btn" (click)="addToCartWithQuestions(product); $event.stopPropagation()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        </div>
-        }
-      </div>
-    </section>
-    }
-
     <!-- Products Grid -->
     <section class="products-section">
       <div class="products-header">
@@ -359,12 +359,14 @@
 
       <div class="products-grid">
         @for (product of filteredProducts(); track getProductKey(product)) {
-        <article class="product-card" (click)="openProductDetail(product)"
+        <article class="product-card" data-testid="ordering-product-card" [attr.data-product-name]="product.name"
+          (click)="openProductDetail(product)"
           [class.in-cart]="isProductInMenuCart(product)" [class.just-added]="isProductJustAdded(product)">
           <!-- Product Image -->
           <div class="product-image-container">
             @if (product.image_filename) {
-            <img [src]="getProductImageUrl(product)" class="product-image" alt="{{ product.name }}" loading="lazy">
+            <img [src]="getProductImageUrl(product)" class="product-image" alt="{{ product.name }}" loading="lazy"
+              decoding="async">
             } @else {
             <div class="product-image-placeholder">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -375,31 +377,30 @@
             </div>
             }
 
-            <!-- Badges overlay -->
-            <div class="badges-overlay">
-              @if (product.wine_type) {
-              <span class="type-badge" [class]="'wine-type-' + getWineTypeClass(product.wine_type)">
-                {{ getWineTypeLabel(product.wine_type) }}
-              </span>
-              }
-              @if (hasDietaryInfo(product)) {
-              <div class="dietary-badges">
-                @if (isVegetarian(product)) {
-                <span class="dietary-badge vegetarian" title="Vegetarian">🥬</span>
-                }
-                @if (isVegan(product)) {
-                <span class="dietary-badge vegan" title="Vegan">🌱</span>
-                }
-                @if (isGlutenFree(product)) {
-                <span class="dietary-badge gluten-free" title="Gluten Free">🌾</span>
-                }
-              </div>
-              }
-            </div>
           </div>
 
           <!-- Product Info -->
           <div class="product-info">
+            <div class="product-tags" aria-label="{{ 'MENU.PRODUCT_TAGS' | translate }}">
+              <span class="product-tag product-tag--category">{{ product.category }}</span>
+              @if (product.promo_label) {
+              <span class="product-tag product-tag--offer">{{ product.promo_label }}</span>
+              }
+              @if (isVegan(product)) {
+              <span class="product-tag">{{ 'MENU.VEGAN' | translate }}</span>
+              } @else if (isVegetarian(product)) {
+              <span class="product-tag">{{ 'MENU.VEGETARIAN' | translate }}</span>
+              }
+              @if (isGlutenFree(product)) {
+              <span class="product-tag">{{ 'MENU.GLUTEN_FREE' | translate }}</span>
+              }
+              @if ((product.questions?.length || 0) > 0) {
+              <span class="product-tag">{{ 'MENU.CUSTOMISABLE' | translate }}</span>
+              }
+              @if (product.wine_type) {
+              <span class="product-tag">{{ getWineTypeLabel(product.wine_type) }}</span>
+              }
+            </div>
             <div class="product-header-row">
               <h3 class="product-name">{{ product.name }}</h3>
               <span class="product-price">
@@ -460,6 +461,7 @@
           <!-- Add Button -->
           <button type="button" class="add-to-cart-btn"
             [attr.aria-label]="'Add ' + product.name + ' to order'"
+            [disabled]="!orderingAllowed()"
             (click)="addToCartWithQuestions(product); $event.stopPropagation()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <line x1="12" y1="5" x2="12" y2="19" />
@@ -478,6 +480,10 @@
           <path d="m21 21-4.35-4.35" />
         </svg>
         <p>{{ 'MENU.NO_PRODUCTS' | translate }}</p>
+        <span>{{ 'MENU.NO_PRODUCTS_HINT' | translate }}</span>
+        <button type="button" class="clear-menu-filters-btn" (click)="clearAllMenuFilters()">
+          {{ 'MENU.CLEAR_FILTERS' | translate }}
+        </button>
       </div>
       }
     </section>
@@ -758,7 +764,7 @@
 
       <!-- Add to Cart sticky button -->
       <div class="detail-footer">
-        <button class="detail-add-btn" (click)="addToCartFromDetail()">
+        <button class="detail-add-btn" [disabled]="!orderingAllowed()" (click)="addToCartFromDetail()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />

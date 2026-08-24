@@ -35,6 +35,8 @@ interface PlacedOrder {
   status: string;
 }
 
+type MenuQuickFilter = 'all' | 'offers' | 'vegetarian' | 'vegan' | 'gluten_free' | 'customisable';
+
 @Component({
   selector: 'app-menu',
   standalone: true,
@@ -63,6 +65,25 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectedSubcategory = signal<string | null>(null);
   availableCategories = signal<string[]>([]);
   availableSubcategories = signal<string[]>([]);
+  searchQuery = signal('');
+  selectedQuickFilter = signal<MenuQuickFilter>('all');
+  quickFilterCounts = computed(() => {
+    const products = this.products();
+    return {
+      offers: products.filter((product) => this.matchesQuickFilter(product, 'offers')).length,
+      vegetarian: products.filter((product) => this.matchesQuickFilter(product, 'vegetarian')).length,
+      vegan: products.filter((product) => this.matchesQuickFilter(product, 'vegan')).length,
+      gluten_free: products.filter((product) => this.matchesQuickFilter(product, 'gluten_free')).length,
+      customisable: products.filter((product) => this.matchesQuickFilter(product, 'customisable')).length,
+    };
+  });
+  categoryCounts = computed(() => {
+    const counts = new Map<string, number>();
+    for (const product of this.products()) {
+      if (product.category) counts.set(product.category, (counts.get(product.category) || 0) + 1);
+    }
+    return counts;
+  });
 
   // Tenant info
   tenantName = signal('');
@@ -108,7 +129,6 @@ export class MenuComponent implements OnInit, OnDestroy {
   showDescriptionFor = signal<number | null>(null);
 
   // New UI state
-  isScrolled = signal(false);
   cartExpanded = signal(false);
   /** Product ids in cart — grid/featured cards get a light “in cart” background. */
   productIdsInCart = computed(() => {
@@ -188,19 +208,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     if (orders.length === 0) return false;
     return orders[0].status === 'paid';
   });
-
-  // Featured products (first 5 with images, for now)
-  featuredProducts = computed(() => {
-    return this.products()
-      .filter(p => p.image_filename)
-      .slice(0, 6);
-  });
-
-  // Listen for scroll to update sticky nav state
-  @HostListener('window:scroll')
-  onScroll() {
-    this.isScrolled.set(window.scrollY > 200);
-  }
 
   ngOnInit() {
     this.tableToken = this.route.snapshot.params['token'];
@@ -476,6 +483,34 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.applyFilter(this.selectedCategory(), subcategoryCode);
   }
 
+  updateMenuSearch(event: Event): void {
+    this.searchQuery.set((event.target as HTMLInputElement).value);
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  clearMenuSearch(): void {
+    this.searchQuery.set('');
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  selectQuickFilter(filter: MenuQuickFilter): void {
+    this.selectedQuickFilter.set(filter);
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  clearAllMenuFilters(): void {
+    this.searchQuery.set('');
+    this.selectedQuickFilter.set('all');
+    this.selectedCategory.set(null);
+    this.selectedSubcategory.set(null);
+    this.updateSubcategories(null);
+    this.applyFilter(null, null);
+  }
+
+  categoryProductCount(category: string): number {
+    return this.categoryCounts().get(category) || 0;
+  }
+
   updateSubcategories(category: string | null) {
     if (!category) {
       this.availableSubcategories.set([]);
@@ -593,6 +628,31 @@ export class MenuComponent implements OnInit, OnDestroy {
       }
     }
 
+    const query = this.searchQuery().trim().toLocaleLowerCase();
+    if (query) {
+      filtered = filtered.filter((product) =>
+        [
+          product.name,
+          product.description,
+          product.detailed_description,
+          product.ingredients,
+          product.category,
+          product.subcategory,
+          product.winery,
+          product.grape_variety,
+          product.country,
+          product.region,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLocaleLowerCase().includes(query)),
+      );
+    }
+
+    const quickFilter = this.selectedQuickFilter();
+    if (quickFilter !== 'all') {
+      filtered = filtered.filter((product) => this.matchesQuickFilter(product, quickFilter));
+    }
+
     filtered = filtered.map(p => ({
       ...p,
       _source: p._source || 'unknown'
@@ -601,33 +661,19 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.filteredProducts.set(filtered);
   }
 
-  getSubcategoryLabel(subcategoryCode: string): string {
-    return resolveSubcategoryLabel(subcategoryCode, this.translate);
+  private matchesQuickFilter(product: Product, filter: Exclude<MenuQuickFilter, 'all'>): boolean {
+    if (filter === 'offers') {
+      return !!product.promo_label ||
+        (product.list_price_cents != null && product.list_price_cents > product.price_cents);
+    }
+    if (filter === 'vegetarian') return this.isVegetarian(product);
+    if (filter === 'vegan') return this.isVegan(product);
+    if (filter === 'gluten_free') return this.isGlutenFree(product);
+    return (product.questions?.length || 0) > 0;
   }
 
-  // ============================================
-  // CATEGORY ICONS (for sticky nav)
-  // ============================================
-  getCategoryIcon(category: string): string {
-    const icons: Record<string, string> = {
-      'Starters': '🥗',
-      'Main Course': '🍝',
-      'Desserts': '🍰',
-      'Beverages': '🍷',
-      'Sides': '🥔',
-      'Wine': '🍷',
-      'Appetizers': '🥗',
-      'Entrees': '🍖',
-      'Pasta': '🍝',
-      'Pizza': '🍕',
-      'Seafood': '🦐',
-      'Meat': '🥩',
-      'Salads': '🥗',
-      'Soups': '🍲',
-      'Coffee': '☕',
-      'Tea': '🍵',
-    };
-    return icons[category] || '🍽️';
+  getSubcategoryLabel(subcategoryCode: string): string {
+    return resolveSubcategoryLabel(subcategoryCode, this.translate);
   }
 
   // ============================================

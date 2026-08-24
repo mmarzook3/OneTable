@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.170] - 2026-08-24
+
+### Changed
+
+- **Modern QR and NFC ordering:** Rebuilt the live table-ordering catalogue with a polished mobile-first layout, stronger dish photography, cleaner pricing, modern product tags, and a compact sticky discovery area.
+- **Faster dish discovery:** Added instant dish and ingredient search, dietary and offer filters, customisable-item filtering, category counts, and a one-action reset when no dishes match.
+- **Lighter browsing:** Removed the duplicate featured-product row and scroll-state listener, lazy-loaded dish images, and deferred off-screen card rendering while preserving customisation, cart, payment, and live order tracking.
+- **Responsive service flow:** Added three-column desktop, two-column tablet, and compact phone layouts with accessible labels, touch-sized controls, dark mode, and reduced-motion support.
+
 ## [2.1.169] - 2026-08-24
 
 ### Changed
