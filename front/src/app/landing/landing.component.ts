@@ -49,13 +49,13 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
           <div class="landing-hero__copy">
             <p class="landing-badge">
               <span class="landing-badge__dot" aria-hidden="true"></span>
-              {{ 'LANDING.BADGE' | translate }}
+              {{ 'LANDING.PLATFORM_BADGE' | translate }}
             </p>
             <h1 class="landing-hero__title">
               {{ 'LANDING.TITLE' | translate }}
               <span class="landing-hero__title-accent">{{ 'LANDING.TITLE_ACCENT' | translate }}</span>
             </h1>
-            <p class="landing-hero__subtitle">{{ 'LANDING.SUBTITLE' | translate }}</p>
+            <p class="landing-hero__subtitle">{{ 'LANDING.PLATFORM_SUBTITLE' | translate }}</p>
             <div class="landing-hero__actions">
               <a routerLink="/register" class="landing-btn landing-btn--primary" data-testid="landing-primary-cta">
                 {{ 'LANDING.CTA_CREATE_QR_MENU' | translate }}

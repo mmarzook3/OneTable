@@ -14,13 +14,13 @@ export interface SeoPageConfig {
 
 const BRAND = 'Scanaki';
 const DEFAULT_DESCRIPTION =
-  'Open-source restaurant platform - QR menus, ordering, reservations, payments, kitchen & bar displays, shifts, inventory, and reports.';
+  'Restaurant operations platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.';
 const OG_IMAGE_PATH = '/og-image.png';
 
 /** Exact marketing / public shell pages with fixed English meta (crawler-friendly). */
 const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   '/': {
-    title: `${BRAND} - Open-source restaurant platform`,
+    title: `${BRAND} - Restaurant operations platform`,
     description: DEFAULT_DESCRIPTION,
   },
   '/features': {
@@ -31,7 +31,7 @@ const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   '/about': {
     title: `About us - ${BRAND}`,
     description:
-      'Scanaki is an open-source Fixaki restaurant platform. Learn how it helps pubs and restaurants serve guests with less manual work.',
+      'Scanaki is a Fixaki restaurant platform that helps pubs and restaurants serve guests with less manual work.',
   },
   '/register': {
     title: `Create your restaurant - ${BRAND}`,

@@ -56,7 +56,7 @@ import { environment } from '../../environments/environment';
             rel="noopener noreferrer"
             class="landing-version-github"
             data-testid="landing-github"
-            [attr.aria-label]="'LANDING.GITHUB_REPO' | translate"
+            [attr.aria-label]="'LANDING.PRODUCT_REPOSITORY' | translate"
           >
             <svg
               class="landing-github-icon"
@@ -76,7 +76,7 @@ import { environment } from '../../environments/environment';
         <p class="landing-version-company" data-testid="landing-company">
           {{ 'LANDING.COMPANY_OPERATOR' | translate }}
         </p>
-        <p class="landing-version-tagline">{{ 'LANDING.OPEN_SOURCE_TAGLINE' | translate }}</p>
+        <p class="landing-version-tagline">{{ 'LANDING.PRODUCT_TAGLINE' | translate }}</p>
       </div>
     </footer>
   `,

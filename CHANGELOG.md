@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.158] - 2026-08-24
+
+### Changed
+
+- **Product positioning:** Removed legacy licensing promotional wording from customer-facing marketing, metadata, feature, pricing, About, invoice, and staff-navigation surfaces.
+- **Managed service focus:** Pricing now presents the managed Scanaki plan only, while the required repository access remains neutrally labelled as the product repository.
+
 ## [2.1.157] - 2026-08-24
 
 ### Added

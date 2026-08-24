@@ -38,7 +38,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       <header class="pricing-hero">
         <p class="pricing-hero__badge">{{ 'PRICING_PAGE.BADGE' | translate }}</p>
         <h1 class="pricing-hero__title">{{ 'PRICING_PAGE.TITLE' | translate }}</h1>
-        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.SUBTITLE' | translate }}</p>
+        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.MANAGED_SUBTITLE' | translate }}</p>
       </header>
 
       <main class="pricing-main">
@@ -86,23 +86,6 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
               </article>
             }
 
-            <article class="pricing-card pricing-card--alt" data-plan-id="self_host" data-testid="pricing-self-host">
-              <h2 class="pricing-card__name">{{ 'PRICING_PAGE.SELFHOST_NAME' | translate }}</h2>
-              <p class="pricing-card__lede">{{ 'PRICING_PAGE.SELFHOST_LEDE' | translate }}</p>
-              <div class="pricing-card__price">
-                <span class="pricing-card__amount">{{ 'PRICING_PAGE.SELFHOST_PRICE' | translate }}</span>
-              </div>
-              <p class="pricing-card__trial">{{ 'PRICING_PAGE.SELFHOST_LICENSE' | translate }}</p>
-              <a
-                href="https://github.com/mmarzook3/OneTable"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="pricing-btn pricing-btn--ghost"
-                data-testid="pricing-cta-github"
-              >
-                {{ 'PRICING_PAGE.CTA_GITHUB' | translate }}
-              </a>
-            </article>
           </div>
         }
       </main>

@@ -4009,7 +4009,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     .total-row { font-weight: 700; font-size: 1.1rem; border-top: 2px solid #333; }
     .total-row td { padding-top: 12px; }
     .footer { margin-top: 24px; font-size: 11px; color: #888; text-align: center; }
-    .invoice-oss { margin-top: 24px; padding-top: 12px; border-top: 1px solid #999; font-size: 9px; color: #999; text-align: center; line-height: 1.3; }
+    .invoice-product { margin-top: 24px; padding-top: 12px; border-top: 1px solid #999; font-size: 9px; color: #999; text-align: center; line-height: 1.3; }
   </style>
 </head>
 <body>
@@ -4058,7 +4058,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   ${fiscalBlock}
   ${tseBlock}
   <div class="footer">${this.translate.instant('ORDERS.INVOICE_FOOTER')}</div>
-  <div class="invoice-oss">${this.getInvoiceOssLine()}</div>
+  <div class="invoice-product">${this.getInvoiceProductLine()}</div>
   <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; }</script>
 </body>
 </html>`;
@@ -4070,12 +4070,11 @@ export class OrdersComponent implements OnInit, OnDestroy {
     }
   }
 
-  private getInvoiceOssLine(): string {
-    const prefix = this.translate.instant('ORDERS.INVOICE_OSS_PREFIX');
-    const repoUrl = 'https://github.com/mmarzook3/OneTable';
+  private getInvoiceProductLine(): string {
+    const prefix = this.translate.instant('ORDERS.INVOICE_PRODUCT_PREFIX');
     const version = environment.version || '0.0.0';
     const commit = environment.commitHash || '';
-    return `${this.escapeHtml(prefix)} · ${this.escapeHtml(repoUrl)} · v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
+    return `${this.escapeHtml(prefix)} · v${this.escapeHtml(version)}${commit ? ` (${this.escapeHtml(commit)})` : ''}`;
   }
 
   private escapeHtml(s: string): string {

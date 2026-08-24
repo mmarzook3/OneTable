@@ -106,7 +106,8 @@ async function main() {
       const priceText = (document.querySelector('[data-testid="pricing-price"]')?.textContent || '').trim();
       const trialText = (document.querySelector('[data-testid="pricing-trial"]')?.textContent || '').trim();
       const registerOk = !!document.querySelector('a[data-testid="pricing-cta-register"]');
-      const selfHostOk = !!document.querySelector('[data-testid="pricing-self-host"]');
+      const selfHostPresent = !!document.querySelector('[data-testid="pricing-self-host"]');
+      const bannedPositioning = /open[ -]?source|agpl/i.test(document.body?.innerText || '');
       const billingActive = !!document.querySelector('[data-testid="pricing-billing-active"]');
       const billingInactive = !!document.querySelector('[data-testid="pricing-billing-inactive"]');
       const rawKeyDump =
@@ -121,7 +122,8 @@ async function main() {
         priceText,
         trialText,
         registerOk,
-        selfHostOk,
+        selfHostPresent,
+        bannedPositioning,
         billingActive,
         billingInactive,
         rawKeyDump,
@@ -158,8 +160,8 @@ async function main() {
     }
     console.log('   Trial:', shell.trialText);
 
-    if (!shell.registerOk || !shell.selfHostOk) {
-      console.error('FAIL: Missing register CTA or self-host card.', shell);
+    if (!shell.registerOk || shell.selfHostPresent || shell.bannedPositioning) {
+      console.error('FAIL: Pricing must show managed signup only, without legacy positioning.', shell);
       process.exit(1);
     }
 
@@ -183,7 +185,7 @@ async function main() {
     }
 
     await browser.close();
-    console.log('\n>>> RESULT: /pricing loads with live saas/config price, trial, and self-host tier.');
+    console.log('\n>>> RESULT: /pricing loads with live saas/config price, trial, and managed signup.');
     process.exit(0);
   } catch (err) {
     console.error('Error:', err.message);

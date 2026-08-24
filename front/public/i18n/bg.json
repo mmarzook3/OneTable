@@ -188,11 +188,15 @@
     }
   },
   "LANDING": {
+    "PLATFORM_BADGE": "Restaurant operations platform",
+    "PLATFORM_SUBTITLE": "Replace separate apps with one connected platform for QR menus, ordering, reservations, payments, kitchen and bar displays, shifts, inventory, and reports.",
+    "PRODUCT_REPOSITORY": "Product repository",
+    "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "BRAND_NAME": "Scanaki",
-    "BADGE": "Open source restaurant platform",
+    "BADGE": "Restaurant operations platform",
     "TITLE": "Reduce your application costs",
     "TITLE_ACCENT": "by 50%.",
-    "SUBTITLE": "Replace a stack of single-purpose apps with one open-source platform - QR menus, ordering, reservations, payments, kitchen & bar displays, shifts, inventory, and reports.",
+    "SUBTITLE": "Replace separate apps with one connected restaurant operations platform.",
     "CTA_CREATE_QR_MENU": "Create your QR-Menu now",
     "CTA_VIEW_DEMO": "See live demo",
     "NAV_FEATURES": "Features",
@@ -237,8 +241,8 @@
     "FOOTER_ACCOUNT": "Account",
     "FOOTER_PARTNERS": "Partners",
     "FOOTER_SUPPORT": "Support",
-    "GITHUB_REPO": "Изходен код в GitHub",
-    "OPEN_SOURCE_TAGLINE": "Отворен код с ♥ от Ел Масноу (Барселона) и Лос Мочис (Мексико).",
+    "LEGACY_REPOSITORY": "Product repository",
+    "LEGACY_PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
     "PUBLIC_MENU_QR_LABEL": "QR код за публично меню",
     "PUBLIC_MENU_QR_HINT": "Сканирайте или щракнете за менюто (без вход)",
     "PUBLIC_MENU_QR_LINK_ARIA": "Отвори публичното меню на {{name}}",
@@ -871,6 +875,7 @@
     "SHOW_LESS": "Показване на по-малко"
   },
   "ORDERS": {
+    "INVOICE_PRODUCT_PREFIX": "A Fixaki product",
     "TITLE": "Поръчки",
     "REFRESH": "Обнови",
     "LOADING": "Зареждане на поръчки...",
@@ -981,7 +986,7 @@
     "PRINT_INVOICE": "Отпечатай Фактура",
     "INVOICE": "Фактура",
     "INVOICE_FOOTER": "Благодарим за поръчката.",
-    "INVOICE_OSS_PREFIX": "Отворен код · Създадено с ♥ в Барселона и Мексико",
+    "INVOICE_LEGACY_PREFIX": "A Fixaki product",
     "FISCAL_INVOICE_LABEL": "Fiscal verification (VeriFactu preparation)",
     "FISCAL_INVOICE_NUMBER": "Fiscal document no.",
     "FISCAL_ISSUE_FAILED": "Could not issue fiscal invoice. The order may need to be paid first.",
@@ -2774,15 +2779,16 @@
     "FEAT_PLATFORM_OPERATOR_DESC": "SaaS операторите виждат активност на наематели, контакти и връзки към публични страници от отделен портал.",
     "FEAT_I18N_TITLE": "Многоезичност",
     "FEAT_I18N_DESC": "Интерфейс за гости и персонал на няколко езика с подразбиране по наемател.",
-    "FEAT_OPEN_SOURCE_TITLE": "Отворен код",
+    "FEAT_DEPLOYMENT_TITLE": "Deployment options",
     "FEAT_OPEN_SOURCE_DESC": "Самостоятелен хостинг или облак - преглеждайте, разширявайте и избягвайте заключване към доставчик.",
     "FEAT_TSE_TITLE": "Германски TSE (подготовка за KassenSichV)",
     "FEAT_TSE_DESC": "Опционален tse_mode на наемател (test/live) с подписани заглушки на транзакции, TSE полета на бележки и заглушка за DSFinV-K експорт по дата. Живият режим използва облачен TSE доставчик (Fiskaly SIGN DE), когато е отключен - не се рекламира като сертифициран от BSI, докато продукционните данни не са проверени."
   },
   "PRICING_PAGE": {
+    "MANAGED_SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support for your restaurant.",
     "BADGE": "Прости hosted цени",
     "TITLE": "Безплатен пробен период, после един месечен план",
-    "SUBTITLE": "Hosted Scanaki включва безплатен пробен период без карта. Self-host под AGPLv3 без лицензионна такса, ако предпочитате сами.",
+    "SUBTITLE": "Start with a free trial. Managed Scanaki includes secure hosting, updates, and support.",
     "HOSTED_NAME": "Hosted",
     "HOSTED_LEDE": "Управляван Scanaki за вашия ресторант - ние оперираме платформата.",
     "PER_MONTH": "/ месец",
@@ -2798,8 +2804,8 @@
     "SELFHOST_NAME": "Self-host",
     "SELFHOST_LEDE": "Стартирайте Scanaki на собствени сървъри.",
     "SELFHOST_PRICE": "€0",
-    "SELFHOST_LICENSE": "Отворен код AGPLv3 - без hosted такса",
-    "CTA_GITHUB": "Вижте в GitHub",
+    "SELFHOST_LICENSE": "Custom deployment - contact Scanaki",
+    "LEGACY_REPOSITORY_ACTION": "Product support",
     "LOAD_ERROR": "Цените не можаха да се заредят. Опитайте отново по-късно."
   },
   "WAITLIST": {
@@ -2898,15 +2904,16 @@
     "ADD_GOOGLE_WALLET": "Добави в Google Wallet"
   },
   "ABOUT_PAGE": {
+    "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Компания",
     "TITLE": "За Scanaki",
-    "SUBTITLE": "Отворена платформа за ресторанти - QR менюта, поръчки, резервации и ежедневни операции.",
+    "SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "PRODUCT_TITLE": "Какво създаваме",
     "PRODUCT_BODY": "Scanaki помага на ресторантите да заменят много отделни приложения с една платформа: дигитални менюта, поръчки, кухненски и бар дисплеи, резервации, плащания и отчети - хоствана или самостоятелно хоствана.",
     "COMPANY_TITLE": "Кой я управлява",
     "COMPANY_BODY": "Scanaki се управлява от Amvara Consulting S.L., компания със седалище в El Masnou (Барселона), Испания.",
-    "OPEN_SOURCE_TITLE": "Отворен код",
-    "OPEN_SOURCE_BODY": "Продуктът се разработва открито. Можете да прегледате кода, да го хоствате сами под AGPLv3 или да ползвате управляваната услуга на scanaki.uk.",
+    "DEPLOYMENT_TITLE": "Deployment",
+    "DEPLOYMENT_BODY": "Scanaki is available as a managed service with secure hosting, updates, and support.",
     "CONTACT_TITLE": "Контакт",
     "CONTACT_BODY": "Въпроси за платформата или хостваната услуга:"
   },
@@ -3237,7 +3244,7 @@
         "HERO_SUBTITLE": "По желание изисквайте новите ресторанти да започнат безплатен пробен период или абонамент преди приложението за персонала - за хоствани SaaS оператори.",
         "BENEFIT_1": "Безплатен пробен период без карта намалява триенето при регистрация.",
         "BENEFIT_2": "Paywall след пробния период за устойчиво хоствано ценообразуване.",
-        "BENEFIT_3": "Самостоятелните хостове под AGPLv3 не са засегнати.",
+        "BENEFIT_3": "Existing restaurant accounts are unaffected.",
         "HOW_1": "Операторът на платформата включва таксуване в конфигурацията на внедряването.",
         "HOW_2": "Новите наематели започват пробен период при регистрация.",
         "HOW_3": "Абонирайте се, за да продължите достъпа на персонала след края на пробния период."
@@ -3262,10 +3269,10 @@
         "HOW_2": "Гостите избират език от селектора на публичните страници.",
         "HOW_3": "Персоналът сменя езика в заглавката на приложението."
       },
-      "open-source": {
-        "HERO_TITLE": "Отворен код",
-        "HERO_SUBTITLE": "Самостоятелен хостинг или облак под AGPLv3 - преглеждайте, разширявайте и избягвайте заключване към доставчик.",
-        "BENEFIT_1": "Пълен достъп до кода в GitHub.",
+      "deployment-options": {
+        "HERO_TITLE": "Deployment options",
+        "HERO_SUBTITLE": "Choose the managed Scanaki service for secure hosting, updates, and support.",
+        "BENEFIT_1": "Managed updates and product support.",
         "BENEFIT_2": "Самостоятелен хостинг без лицензни такси или хостван Scanaki.",
         "BENEFIT_3": "Общностна и търговска поддръжка чрез Amvara.",
         "HOW_1": "Клонирайте хранилището и следвайте настройката в README.",
