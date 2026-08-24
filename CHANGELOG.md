@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.178] - 2026-08-25
+
+### Fixed
+
+- **Extra-table subscription billing:** Stripe subscription Checkout now includes the configured recurring extra-table Price with the operator-approved quantity, while refusing checkout if extra tables exist without a billing Price.
+
 ## [2.1.177] - 2026-08-25
 
 ### Added

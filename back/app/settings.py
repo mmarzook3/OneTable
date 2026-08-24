@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     saas_lite_stripe_price_id: str = Field(default="", validation_alias="SAAS_LITE_STRIPE_PRICE_ID")
     saas_pro_stripe_price_id: str = Field(default="", validation_alias="SAAS_PRO_STRIPE_PRICE_ID")
     saas_ultra_stripe_price_id: str = Field(default="", validation_alias="SAAS_ULTRA_STRIPE_PRICE_ID")
+    saas_extra_table_stripe_price_id: str = Field(default="", validation_alias="SAAS_EXTRA_TABLE_STRIPE_PRICE_ID")
     saas_stripe_webhook_secret: str = Field(
         default="",
         validation_alias="SAAS_STRIPE_WEBHOOK_SECRET",
