@@ -108,8 +108,9 @@ async function main() {
       const registerOk = !!document.querySelector('a[data-testid="pricing-cta-register"]');
       const selfHostPresent = !!document.querySelector('[data-testid="pricing-self-host"]');
       const bannedPositioning = /open[ -]?source|agpl/i.test(document.body?.innerText || '');
-      const billingActive = !!document.querySelector('[data-testid="pricing-billing-active"]');
-      const billingInactive = !!document.querySelector('[data-testid="pricing-billing-inactive"]');
+      const billingNotes = document.querySelectorAll(
+        '[data-testid="pricing-billing-active"], [data-testid="pricing-billing-inactive"]',
+      ).length;
       const planCards = Array.from(document.querySelectorAll('[data-testid="pricing-plan-card"]')).map(
         (card) => ({
           id: card.getAttribute('data-plan-id') || '',
@@ -130,8 +131,7 @@ async function main() {
         registerOk,
         selfHostPresent,
         bannedPositioning,
-        billingActive,
-        billingInactive,
+        billingNotes,
         planCards,
         rawKeyDump,
         priceMentionsAmount,
@@ -195,18 +195,9 @@ async function main() {
       }
     }
 
-    if (cfg.enabled) {
-      if (!shell.billingActive || shell.billingInactive) {
-        console.error('FAIL: enabled=true but billing-active note missing.', shell);
-        process.exit(1);
-      }
-      console.log('   Billing note: active (matches SAAS_PAYWALL_ENABLED)');
-    } else {
-      if (!shell.billingInactive || shell.billingActive) {
-        console.error('FAIL: enabled=false but billing-inactive note missing.', shell);
-        process.exit(1);
-      }
-      console.log('   Billing note: inactive (does not imply paywall everywhere)');
+    if (shell.billingNotes !== 0) {
+      console.error('FAIL: Internal billing status note must not appear on public pricing.', shell);
+      process.exit(1);
     }
 
     if (pageErrors.length) {
