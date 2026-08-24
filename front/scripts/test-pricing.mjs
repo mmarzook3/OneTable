@@ -123,6 +123,7 @@ async function main() {
             height: rect.height,
             nameTop: topFor('.pricing-card__name'),
             ledeTop: topFor('.pricing-card__lede'),
+            offerTop: topFor('.pricing-card__offer'),
             priceTop: topFor('.pricing-card__price'),
             trialTop: topFor('.pricing-card__trial'),
             extraTop: topFor('.pricing-card__extra'),
@@ -131,6 +132,10 @@ async function main() {
             decimalText: decimal?.textContent?.trim() || '',
             decimalFontSize: decimal ? parseFloat(getComputedStyle(decimal).fontSize) : 0,
             wholeFontSize: whole ? parseFloat(getComputedStyle(whole).fontSize) : 0,
+            standardText:
+              card.querySelector('[data-testid="pricing-standard-price"]')?.textContent?.trim() || '',
+            dealText: card.querySelector('.pricing-card__deal')?.textContent?.trim() || '',
+            usesStruckReference: !!card.querySelector('s, del'),
           };
         },
       );
@@ -190,9 +195,9 @@ async function main() {
     }
 
     const expectedPlans = [
-      { id: 'lite', name: 'Lite', price: '£9.99', tables: '2 tables', extra: '£3.99' },
-      { id: 'pro', name: 'Pro', price: '£39.99', tables: '20 tables', extra: '£3.99' },
-      { id: 'ultra', name: 'Ultra', price: '£84.99', tables: '45 tables', extra: '£3.99' },
+      { id: 'lite', name: 'Lite', price: '£9.99', standard: '£34.97', tables: '2 tables', extra: '£3.99' },
+      { id: 'pro', name: 'Pro', price: '£39.99', standard: '£139.97', tables: '20 tables', extra: '£3.99' },
+      { id: 'ultra', name: 'Ultra', price: '£84.99', standard: '£297.47', tables: '45 tables', extra: '£3.99' },
     ];
     if (shell.planCards.length !== expectedPlans.length) {
       console.error('FAIL: Expected exactly three managed pricing cards.', shell.planCards);
@@ -204,6 +209,9 @@ async function main() {
         !card ||
         !card.text.includes(expected.name) ||
         !card.text.replace(/\s/g, '').includes(expected.price) ||
+        card.standardText !== expected.standard ||
+        !/launch deal/i.test(card.dealText) ||
+        card.usesStruckReference ||
         !card.text.includes(expected.tables) ||
         !card.text.includes(expected.extra)
       ) {
@@ -216,6 +224,7 @@ async function main() {
       'height',
       'nameTop',
       'ledeTop',
+      'offerTop',
       'priceTop',
       'trialTop',
       'extraTop',

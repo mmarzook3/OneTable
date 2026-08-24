@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.168] - 2026-08-24
+
+### Changed
+
+- **Launch deal pricing:** Marked the existing Lite, Pro, and Ultra monthly charges as launch deals and displayed a planned standard price calculated at 3.5 times each current price.
+- **Transparent comparison:** Used “Planned standard price” without a struck-through “was” claim, keeping the comparison clear while no established full-price sales history exists.
+- **Preserved card rhythm:** Added the offer row to every tier and extended alignment checks so the symmetrical pricing layout and smaller decimal styling remain intact.
+
 ## [2.1.167] - 2026-08-24
 
 ### Changed
