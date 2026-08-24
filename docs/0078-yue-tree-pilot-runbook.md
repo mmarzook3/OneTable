@@ -94,6 +94,12 @@ The `ONETABLE_*` environment names and `onetable-*.sh` script filenames are reta
 
 The core backup command is `ONETABLE_BACKUP_PASSPHRASE=... scripts/onetable-backup.sh`. It writes AES-256-CBC/PBKDF2 encrypted dumps and SHA-256 sidecars under `backups/onetable`, retaining 14 by default. After the first backup and after material database changes, run `ONETABLE_BACKUP_PASSPHRASE=... scripts/onetable-restore-check.sh <backup>`; it restores into a uniquely named temporary database, verifies the schema and Yue Tree tenant, and drops only that temporary database.
 
-Schedule a daily encrypted backup and run `scripts/onetable-health-check.sh` at least every five minutes. The read-only reconciliation monitor fails when a prepayment order is marked successful but not released, released without successful payment, or remains incomplete for more than 15 minutes. Investigate Stripe and application logs before accepting more orders.
+Install the production operations schedule once as root:
+
+```bash
+sudo SCANAKI_APP_DIR=/opt/scanaki/app scripts/install-scanaki-ops.sh
+```
+
+The installer generates a root-only backup passphrase, runs the first encrypted backup and isolated restore check, and installs the following under `/etc/cron.d/scanaki-ops`: health and payment reconciliation every five minutes, backup daily, and restore verification weekly. It also checks containers, TLS expiry and disk usage, rotates `/var/log/scanaki-ops.log`, and supports an optional `SCANAKI_ALERT_WEBHOOK_URL` in `/etc/scanaki/ops.env`.
 
 Do not put backup passphrases directly in cron on a live server. Use a root-owned wrapper that reads the secret from a mode `0600` file into the environment. Store a separate encrypted backup copy off the VPS and test recovery regularly.
