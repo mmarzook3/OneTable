@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.172] - 2026-08-24
+
+### Fixed
+
+- **Direct user manual route:** Served the Angular manual page for both `/manual-usuario` and `/manual-usuario/` instead of allowing the matching static asset directory to redirect direct visits to a 403 response.
+
 ## [2.1.171] - 2026-08-24
 
 ### Fixed
