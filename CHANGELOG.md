@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.164] - 2026-08-24
+
+### Changed
+
+- **QR and NFC consistency:** Updated the landing demo, guest instructions, table help, accessibility labels, and launch prompts so every QR reference also explains the equivalent NFC action.
+- **Multilingual NFC guidance:** Added the same scan-or-tap instructions across all supported landing-page languages.
+
 ## [2.1.163] - 2026-08-24
 
 ### Changed
