@@ -21,6 +21,7 @@ from app.saas_billing import (
     SAAS_STATUS_PAST_DUE,
     SAAS_STATUS_TRIALING,
     construct_saas_webhook_event,
+    create_checkout_session,
     ensure_table_capacity,
     initial_status_for_new_tenant,
     path_is_saas_exempt,
@@ -151,6 +152,47 @@ def test_table_plan_limit_and_extra_table_allowance():
         current, limit = ensure_table_capacity(session, tenant.id, additional_tables=1)
         assert current == 2
         assert limit == 3
+
+
+def test_checkout_bills_extra_table_quantity():
+    with Session(engine) as session:
+        tenant = models.Tenant(
+            name=f"CheckoutExtra-{uuid.uuid4().hex[:8]}",
+            saas_plan_code="pro",
+            saas_extra_tables=3,
+        )
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        user = models.User(
+            email=f"extra-{uuid.uuid4().hex[:8]}@amvara.de",
+            hashed_password="test",
+            role=models.UserRole.owner,
+            tenant_id=tenant.id,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        fake_checkout = type("Checkout", (), {"url": "https://checkout.stripe.test/session"})()
+        with (
+            patch("app.saas_billing.settings.stripe_secret_key", "sk_test_platform"),
+            patch("app.saas_billing.settings.saas_pro_stripe_price_id", "price_pro"),
+            patch("app.saas_billing.settings.saas_extra_table_stripe_price_id", "price_extra"),
+            patch("app.saas_billing.stripe.checkout.Session.create", return_value=fake_checkout) as create,
+        ):
+            url = create_checkout_session(
+                session,
+                tenant,
+                user,
+                success_url="https://scanaki.uk/paywall?ok=1",
+                cancel_url="https://scanaki.uk/paywall",
+                plan_code="pro",
+            )
+        assert url == "https://checkout.stripe.test/session"
+        assert create.call_args.kwargs["line_items"] == [
+            {"price": "price_pro", "quantity": 1},
+            {"price": "price_extra", "quantity": 3},
+        ]
 
 
 def test_webhook_past_due_without_confirm_checkout():

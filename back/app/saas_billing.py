@@ -232,6 +232,9 @@ def plan_config() -> dict[str, Any]:
         "currency": currency,
         "extra_table_price_cents": extra_table_price,
         "stripe_checkout_available": any(bool(secret and value) for value in price_ids.values()),
+        "extra_table_checkout_available": bool(
+            secret and (getattr(settings, "saas_extra_table_stripe_price_id", None) or "").strip()
+        ),
         "plans": plans,
     }
 
@@ -338,9 +341,22 @@ def create_checkout_session(
         subscription_data["trial_period_days"] = trial_days
 
     try:
+        line_items: list[dict[str, Any]] = [{"price": price_id, "quantity": 1}]
+        extra_price_id = (getattr(settings, "saas_extra_table_stripe_price_id", None) or "").strip()
+        if tenant.saas_extra_tables > 0:
+            if not extra_price_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "extra_table_price_not_configured",
+                        "message": "Extra-table Stripe Price is not configured.",
+                    },
+                )
+            line_items.append({"price": extra_price_id, "quantity": int(tenant.saas_extra_tables)})
+
         params: dict[str, Any] = {
             "mode": "subscription",
-            "line_items": [{"price": price_id, "quantity": 1}],
+            "line_items": line_items,
             "success_url": success_url,
             "cancel_url": cancel_url,
             "client_reference_id": str(tenant.id),
