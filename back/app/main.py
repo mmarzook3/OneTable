@@ -5825,6 +5825,98 @@ def create_product(
     return product
 
 
+@app.get("/products/availability")
+def list_product_availability(
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.PRODUCT_AVAILABILITY))
+    ],
+    session: Session = Depends(get_session),
+) -> list[dict]:
+    """Kitchen stock list with resolved display route/station and safe product fields."""
+    tenant_id = current_user.tenant_id
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Restaurant account required")
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    stations = session.exec(
+        select(models.KitchenStation).where(models.KitchenStation.tenant_id == tenant_id)
+    ).all()
+    station_by_id = {int(station.id): station for station in stations}
+    products = session.exec(
+        select(models.Product)
+        .where(models.Product.tenant_id == tenant_id)
+        .order_by(models.Product.category, models.Product.name, models.Product.id)
+    ).all()
+    rows: list[dict] = []
+    for product in products:
+        explicit_station = (
+            station_by_id.get(int(product.kitchen_station_id))
+            if product.kitchen_station_id is not None
+            else None
+        )
+        route = (
+            explicit_station.display_route
+            if explicit_station is not None
+            else ("bar" if product.category == "Beverages" else "kitchen")
+        )
+        resolved_station_id = product.kitchen_station_id or (
+            tenant.default_bar_station_id if route == "bar" else tenant.default_kitchen_station_id
+        )
+        rows.append(
+            {
+                **product.model_dump(mode="json"),
+                "kitchen_station_route": route,
+                "resolved_kitchen_station_id": resolved_station_id,
+            }
+        )
+    return rows
+
+
+@app.put("/products/availability", response_model=list[models.Product])
+def update_product_availability_bulk(
+    body: models.ProductAvailabilityBulkUpdate,
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.PRODUCT_AVAILABILITY))
+    ],
+    session: Session = Depends(get_session),
+) -> list[models.Product]:
+    """Kitchen-safe bulk stock update. Changes availability only, never product content."""
+    tenant_id = current_user.tenant_id
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Restaurant account required")
+    product_ids = [item.product_id for item in body.items]
+    if len(set(product_ids)) != len(product_ids):
+        raise HTTPException(status_code=400, detail="Duplicate product in stock update")
+    products = session.exec(
+        select(models.Product).where(
+            models.Product.tenant_id == tenant_id,
+            models.Product.id.in_(product_ids),
+        )
+    ).all()
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="One or more products were not found")
+    requested = {item.product_id: item.is_available for item in body.items}
+    for product in products:
+        product.is_available = requested[int(product.id)]
+        session.add(product)
+    linked = session.exec(
+        select(models.TenantProduct).where(
+            models.TenantProduct.tenant_id == tenant_id,
+            models.TenantProduct.product_id.in_(product_ids),
+        )
+    ).all()
+    for tenant_product in linked:
+        tenant_product.is_active = requested[int(tenant_product.product_id)]
+        session.add(tenant_product)
+    session.commit()
+    by_id = {int(product.id): product for product in products}
+    ordered = [by_id[product_id] for product_id in product_ids]
+    for product in ordered:
+        session.refresh(product)
+    return ordered
+
+
 @app.put("/products/{product_id}")
 def update_product(
     product_id: int,

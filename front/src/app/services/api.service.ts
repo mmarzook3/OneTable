@@ -1264,6 +1264,11 @@ export interface Product {
   promo_percent_off?: number | null;
 }
 
+export interface KitchenStockProduct extends Product {
+  kitchen_station_route: 'kitchen' | 'bar';
+  resolved_kitchen_station_id?: number | null;
+}
+
 /** Kitchen / bar prep station (owner-defined; filters KDS by station). */
 export interface KitchenStation {
   id: number;
@@ -2818,6 +2823,16 @@ export class ApiService {
 
   updateProduct(id: number, product: Partial<Product>): Observable<Product> {
     return this.http.put<Product>(`${this.apiUrl}/products/${id}`, product);
+  }
+
+  getKitchenStock(): Observable<KitchenStockProduct[]> {
+    return this.http.get<KitchenStockProduct[]>(`${this.apiUrl}/products/availability`);
+  }
+
+  updateProductAvailability(
+    items: Array<{ product_id: number; is_available: boolean }>,
+  ): Observable<Product[]> {
+    return this.http.put<Product[]>(`${this.apiUrl}/products/availability`, { items });
   }
 
   deleteProduct(id: number): Observable<void> {

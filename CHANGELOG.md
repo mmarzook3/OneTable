@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.184] - 2026-08-25
+
+### Added
+
+- **Kitchen stock control:** Added a tablet-friendly Stock workspace to the Kitchen and Bar displays with menu images, search, station-aware filtering, clear available/sold-out states and atomic bulk saving.
+- **Restricted availability permission:** Kitchen and bar staff can now change only product availability while product names, descriptions, prices and other catalogue details remain protected.
+- **Immediate customer-menu updates:** Saving an item as sold out removes it from customer ordering menus and synchronises linked restaurant catalogue entries.
+
 ## [2.1.183] - 2026-08-25
 
 ### Fixed

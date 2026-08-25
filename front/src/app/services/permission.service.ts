@@ -17,6 +17,7 @@ export type Permission =
   // Products
   | 'product:read'
   | 'product:write'
+  | 'product:availability'
   // Catalog
   | 'catalog:read'
   | 'catalog:write'
@@ -72,7 +73,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
   admin: new Set([
     'user:create', 'user:read', 'user:update',
     'settings:read', 'settings:update',
-    'product:read', 'product:write',
+    'product:read', 'product:write', 'product:availability',
     'catalog:read', 'catalog:write',
     'table:read', 'table:write', 'table:activate',
     'reservation:read', 'reservation:write',
@@ -90,7 +91,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
   ]),
 
   kitchen: new Set([
-    'product:read',
+    'product:read', 'product:availability',
     'catalog:read',
     'order:read', 'order:item_status',
     'schedule:read', 'schedule:write',
@@ -98,7 +99,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<Permission | '*'>> = {
   ]),
 
   bartender: new Set([
-    'product:read',
+    'product:read', 'product:availability',
     'catalog:read',
     'order:read', 'order:item_status',
     'schedule:read', 'schedule:write',

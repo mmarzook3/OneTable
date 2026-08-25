@@ -1806,6 +1806,15 @@ class ProductUpdate(SQLModel):
     kitchen_station_id: int | None = None  # null = clear mapping
 
 
+class ProductAvailabilityItem(SQLModel):
+    product_id: int = Field(ge=1)
+    is_available: bool
+
+
+class ProductAvailabilityBulkUpdate(SQLModel):
+    items: list[ProductAvailabilityItem] = Field(min_length=1, max_length=500)
+
+
 class TableCreate(SQLModel):
     name: str
     floor_id: int | None = None

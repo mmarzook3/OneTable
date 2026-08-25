@@ -12,7 +12,14 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { ApiService, KitchenStation, Order, OrderItem, OrderLineModifiers } from '../services/api.service';
+import {
+  ApiService,
+  KitchenStockProduct,
+  KitchenStation,
+  Order,
+  OrderItem,
+  OrderLineModifiers,
+} from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
 import { Subscription } from 'rxjs';
@@ -120,6 +127,11 @@ const VIEW_CATEGORY: Record<string, string> = {
               </select>
             </label>
           }
+          @if (canManageStock()) {
+            <button type="button" class="stock-btn" data-testid="kitchen-stock-button" (click)="openStockModal()">
+              Stock
+            </button>
+          }
           <button
             type="button"
             class="fullscreen-btn"
@@ -155,6 +167,9 @@ const VIEW_CATEGORY: Record<string, string> = {
         <div class="kds-connection-banner" role="status">
           Kitchen connection lost - retrying automatically. Customer ordering may be paused.
         </div>
+      }
+      @if (stockNotice()) {
+        <div class="stock-notice" role="status">{{ stockNotice() }}</div>
       }
 
       <main class="kitchen-main">
@@ -242,6 +257,73 @@ const VIEW_CATEGORY: Record<string, string> = {
           </div>
         }
       </main>
+      @if (stockModalOpen()) {
+        <div class="modal-backdrop stock-backdrop" (click)="closeStockModal()"></div>
+        <section class="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title" appFocusFirstInput data-testid="kitchen-stock-modal">
+          <header class="stock-modal-header">
+            <div>
+              <h2 id="stock-modal-title">Stock</h2>
+              <p>{{ stockScopeLabel() }}. Uncheck an item to stop customers ordering it.</p>
+            </div>
+            <button type="button" class="stock-close" (click)="closeStockModal()" aria-label="Close stock">Close</button>
+          </header>
+
+          <div class="stock-toolbar">
+            <label>Search menu
+              <input
+                [ngModel]="stockSearch()"
+                (ngModelChange)="stockSearch.set($event)"
+                placeholder="Search by item or category"
+                data-testid="kitchen-stock-search"
+              >
+            </label>
+            <div class="stock-summary">
+              <strong>{{ availableStockCount() }}/{{ filteredStockProducts().length }}</strong>
+              <span>available in this view</span>
+            </div>
+          </div>
+
+          @if (stockError()) { <p class="stock-error" role="alert">{{ stockError() }}</p> }
+          @if (stockLoading()) {
+            <div class="stock-loading" aria-label="Loading stock">
+              @for (item of [1,2,3,4,5,6]; track item) { <span></span> }
+            </div>
+          } @else if (filteredStockProducts().length === 0) {
+            <div class="stock-empty"><h3>No menu items found</h3><p>Try another search or station.</p></div>
+          } @else {
+            <div class="stock-grid">
+              @for (product of filteredStockProducts(); track product.id) {
+                <label class="stock-card" [class.stock-card--unavailable]="!stockDraft()[product.id!]" [attr.data-product-id]="product.id">
+                  <span class="stock-image">
+                    <span class="stock-image-placeholder">No image</span>
+                    @if (stockImageUrl(product); as imageUrl) {
+                      <img [src]="imageUrl" [alt]="product.name" (error)="hideBrokenStockImage($event)">
+                    }
+                  </span>
+                  <span class="stock-copy"><strong>{{ product.name }}</strong><small>{{ product.category || 'Uncategorised' }}</small></span>
+                  <input
+                    type="checkbox"
+                    [checked]="stockDraft()[product.id!]"
+                    (change)="setStockAvailability(product.id!, $event)"
+                    [attr.aria-label]="product.name + ' available'"
+                  >
+                  <span class="stock-state">{{ stockDraft()[product.id!] ? 'Available' : 'Sold out' }}</span>
+                </label>
+              }
+            </div>
+          }
+
+          <footer class="stock-actions">
+            <span>{{ stockChangedCount() }} unsaved change{{ stockChangedCount() === 1 ? '' : 's' }}</span>
+            <div>
+              <button type="button" class="btn-secondary" (click)="closeStockModal()">Cancel</button>
+              <button type="button" class="btn-primary" data-testid="kitchen-stock-save" (click)="saveStock()" [disabled]="stockSaving() || stockChangedCount() === 0">
+                {{ stockSaving() ? 'Saving...' : 'Save stock' }}
+              </button>
+            </div>
+          </footer>
+        </section>
+      }
       @if (timerSettingsModalOpen()) {
         <div class="modal-backdrop" (click)="closeTimerSettingsModal()"></div>
         <div class="modal timer-settings-modal" role="dialog" aria-labelledby="timer-settings-title" appFocusFirstInput>
@@ -316,6 +398,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       gap: var(--space-5);
       flex-wrap: wrap;
     }
+    .stock-btn,
     .timer-settings-btn,
     .fullscreen-btn {
       display: inline-flex;
@@ -330,8 +413,18 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: var(--radius-md);
       cursor: pointer;
     }
+    .stock-btn:hover,
     .timer-settings-btn:hover,
     .fullscreen-btn:hover { background: var(--color-bg); }
+    .stock-btn {
+      min-height: 42px;
+      padding-inline: var(--space-4);
+      color: #fff;
+      background: #1f2937;
+      border-color: #1f2937;
+      font-weight: 750;
+    }
+    .stock-btn:hover { background: #111827; }
     .sound-toggle {
       display: flex;
       align-items: center;
@@ -570,6 +663,137 @@ const VIEW_CATEGORY: Record<string, string> = {
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .stock-notice {
+      padding: 10px 24px;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: 700;
+      text-align: center;
+    }
+    .modal-backdrop.stock-backdrop { background: rgba(3, 7, 18, .72); }
+    .stock-modal {
+      position: fixed;
+      inset: 3vh 3vw;
+      z-index: 1001;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      overflow: hidden;
+      border: 1px solid #d8dde5;
+      border-radius: 16px;
+      background: #f6f7f9;
+      color: #1f2937;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+    }
+    .stock-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-modal-header h2 { margin: 0; font-size: 1.4rem; }
+    .stock-modal-header p { margin: 4px 0 0; color: #6b7280; font-size: .88rem; }
+    .stock-close {
+      min-height: 40px;
+      padding: 0 13px;
+      border: 1px solid #d8dde5;
+      border-radius: 9px;
+      background: #fff;
+      color: #374151;
+      font-weight: 700;
+    }
+    .stock-toolbar {
+      display: flex;
+      align-items: end;
+      gap: 16px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-toolbar label { display: grid; flex: 1; gap: 4px; color: #6b7280; font-size: .72rem; font-weight: 700; }
+    .stock-toolbar input {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid #ccd2da;
+      border-radius: 9px;
+      background: #fff;
+      color: #111827;
+      font: inherit;
+    }
+    .stock-toolbar input:focus { border-color: #d35233; outline: 3px solid rgba(211, 82, 51, .15); }
+    .stock-summary { display: grid; min-width: 150px; text-align: right; }
+    .stock-summary strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+    .stock-summary span { color: #6b7280; font-size: .7rem; }
+    .stock-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      align-content: start;
+      overflow: auto;
+      padding: 16px 20px;
+    }
+    .stock-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr) auto;
+      grid-template-rows: 1fr auto;
+      gap: 7px 11px;
+      min-height: 96px;
+      padding: 10px;
+      border: 2px solid #86b89a;
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .15s ease, opacity .15s ease;
+    }
+    .stock-card--unavailable { border-color: #d8dde5; opacity: .66; }
+    .stock-image { position: relative; grid-row: 1 / 3; overflow: hidden; width: 74px; height: 74px; border-radius: 9px; background: #e9ecf0; }
+    .stock-image-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #7b8490; font-size: .65rem; }
+    .stock-image img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
+    .stock-copy { display: grid; align-content: center; min-width: 0; }
+    .stock-copy strong {
+      display: -webkit-box;
+      overflow: hidden;
+      color: #111827;
+      font-size: .9rem;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .stock-copy small { margin-top: 4px; color: #6b7280; font-size: .7rem; }
+    .stock-card>input { width: 26px; height: 26px; margin: 2px; accent-color: #16834f; cursor: pointer; }
+    .stock-state { grid-column: 2 / 4; color: #167248; font-size: .7rem; font-weight: 800; }
+    .stock-card--unavailable .stock-state { color: #9f312b; }
+    .stock-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow: hidden; padding: 16px 20px; }
+    .stock-loading span { height: 96px; border-radius: 12px; background: #e8ebef; }
+    .stock-empty { display: grid; place-items: center; align-content: center; min-height: 220px; color: #6b7280; text-align: center; }
+    .stock-empty h3 { margin: 0; color: #374151; }
+    .stock-empty p { margin: 5px 0 0; }
+    .stock-error { margin: 12px 20px 0; padding: 10px; border-radius: 8px; background: #fee2e2; color: #991b1b; }
+    .stock-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      border-top: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-actions>span { color: #6b7280; font-size: .8rem; }
+    .stock-actions>div { display: flex; gap: 9px; }
+    .stock-actions button { min-height: 44px; padding: 0 16px; border-radius: 9px; font-weight: 750; }
+    @media (max-width: 700px) {
+      .stock-modal { inset: 0; border: 0; border-radius: 0; }
+      .stock-grid { grid-template-columns: 1fr; padding: 12px; }
+      .stock-toolbar { align-items: stretch; flex-direction: column; padding: 10px 12px; }
+      .stock-summary { min-width: 0; text-align: left; }
+      .stock-modal-header,.stock-actions { padding-inline: 12px; }
+      .stock-actions { align-items: stretch; flex-direction: column; }
+      .stock-actions>div,.stock-actions button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .stock-card { transition: none; } }
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -650,6 +874,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private queryParamSub: Subscription | null = null;
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
+  private stockNoticeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -662,6 +887,15 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   kitchenStations = signal<KitchenStation[]>([]);
   /** KDS station filter when tenant has stations for this view */
   stationSelection = signal<number | 'all'>('all');
+  stockModalOpen = signal(false);
+  stockLoading = signal(false);
+  stockSaving = signal(false);
+  stockError = signal('');
+  stockNotice = signal('');
+  stockSearch = signal('');
+  stockProducts = signal<KitchenStockProduct[]>([]);
+  stockOriginal = signal<Record<number, boolean>>({});
+  stockDraft = signal<Record<number, boolean>>({});
   /** Current time for live timer (updates every second). */
   now = signal(Date.now());
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
@@ -690,6 +924,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.permissions.hasPermission(this.permissions.getCurrentUser(), 'order:item_status')
   );
 
+  canManageStock = computed(() =>
+    this.permissions.hasPermission(this.permissions.getCurrentUser(), 'product:availability')
+  );
+
   pageTitle = computed(() =>
     this.viewMode() === 'bar'
       ? this.translate.instant('BAR_DISPLAY.TITLE')
@@ -701,6 +939,37 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return [...this.kitchenStations()]
       .filter((s) => s.display_route === route)
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+  });
+
+  stockProductsForView = computed(() => {
+    const route = this.viewMode();
+    const selection = this.stationSelection();
+    return this.stockProducts().filter((product) => {
+      if (product.kitchen_station_route !== route) return false;
+      if (selection === 'all') return true;
+      return product.resolved_kitchen_station_id === selection;
+    });
+  });
+
+  filteredStockProducts = computed(() => {
+    const query = this.stockSearch().trim().toLowerCase();
+    const products = this.stockProductsForView();
+    if (!query) return products;
+    return products.filter((product) =>
+      `${product.name} ${product.category || ''} ${product.subcategory || ''}`.toLowerCase().includes(query)
+    );
+  });
+
+  availableStockCount = computed(() =>
+    this.filteredStockProducts().filter((product) => !!this.stockDraft()[product.id!]).length
+  );
+
+  stockChangedCount = computed(() => {
+    const original = this.stockOriginal();
+    const draft = this.stockDraft();
+    return this.stockProducts().filter(
+      (product) => product.id != null && original[product.id] !== draft[product.id]
+    ).length;
   });
 
   /** Orders that are active (including paid but not yet delivered); category or station filter. */
@@ -844,6 +1113,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
     }
+    if (this.stockNoticeTimeoutId) {
+      clearTimeout(this.stockNoticeTimeoutId);
+      this.stockNoticeTimeoutId = null;
+    }
     this.wsSub?.unsubscribe();
     this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
@@ -869,6 +1142,100 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       replaceUrl: true,
     });
     this.sendHeartbeat();
+  }
+
+  stockScopeLabel(): string {
+    const selection = this.stationSelection();
+    if (selection !== 'all') {
+      const station = this.kitchenStations().find((item) => item.id === selection);
+      if (station) return station.name;
+    }
+    return this.viewMode() === 'bar' ? 'Bar menu' : 'Kitchen menu';
+  }
+
+  openStockModal(): void {
+    if (!this.canManageStock()) return;
+    this.stockModalOpen.set(true);
+    this.stockLoading.set(true);
+    this.stockError.set('');
+    this.stockSearch.set('');
+    this.api.getKitchenStock().subscribe({
+      next: (products) => {
+        const availability: Record<number, boolean> = {};
+        for (const product of products) {
+          if (product.id != null) availability[product.id] = product.is_available !== false;
+        }
+        this.stockProducts.set(products.filter((product) => product.id != null));
+        this.stockOriginal.set({ ...availability });
+        this.stockDraft.set({ ...availability });
+        this.stockLoading.set(false);
+      },
+      error: (err) => {
+        this.stockError.set(err?.error?.detail || 'Could not load menu stock.');
+        this.stockLoading.set(false);
+      },
+    });
+  }
+
+  closeStockModal(): void {
+    if (this.stockSaving()) return;
+    this.stockModalOpen.set(false);
+    this.stockError.set('');
+    this.stockSearch.set('');
+  }
+
+  setStockAvailability(productId: number, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.stockDraft.update((current) => ({ ...current, [productId]: checked }));
+  }
+
+  saveStock(): void {
+    if (this.stockSaving()) return;
+    const original = this.stockOriginal();
+    const draft = this.stockDraft();
+    const changes = this.stockProducts()
+      .filter((product) => product.id != null && original[product.id] !== draft[product.id])
+      .map((product) => ({ product_id: product.id!, is_available: !!draft[product.id!] }));
+    if (changes.length === 0) {
+      this.closeStockModal();
+      return;
+    }
+    this.stockSaving.set(true);
+    this.stockError.set('');
+    this.api.updateProductAvailability(changes).subscribe({
+      next: (updated) => {
+        const updatedById = new Map(updated.filter((item) => item.id != null).map((item) => [item.id!, item]));
+        this.stockProducts.update((products) => products.map((product) => {
+          const next = updatedById.get(product.id!);
+          return next ? { ...product, ...next } : product;
+        }));
+        this.stockOriginal.set({ ...draft });
+        this.stockSaving.set(false);
+        this.stockModalOpen.set(false);
+        this.showStockNotice(`${changes.length} item${changes.length === 1 ? '' : 's'} updated.`);
+      },
+      error: (err) => {
+        this.stockError.set(err?.error?.detail || 'Could not save menu stock.');
+        this.stockSaving.set(false);
+      },
+    });
+  }
+
+  stockImageUrl(product: KitchenStockProduct): string | null {
+    return this.api.getProductImageUrl(product);
+  }
+
+  hideBrokenStockImage(event: Event): void {
+    (event.target as HTMLImageElement).style.display = 'none';
+  }
+
+  private showStockNotice(message: string): void {
+    this.stockNotice.set(message);
+    if (this.stockNoticeTimeoutId) clearTimeout(this.stockNoticeTimeoutId);
+    this.stockNoticeTimeoutId = setTimeout(() => {
+      this.stockNotice.set('');
+      this.stockNoticeTimeoutId = null;
+    }, 4500);
   }
 
   private getOrCreateDeviceKey(): string {
