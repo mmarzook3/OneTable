@@ -250,8 +250,10 @@ def sync_stripe_plan(
         selected = plan_details("pilot", session)
         tenant.saas_plan_code = "pilot"
         tenant.saas_extra_tables = 0
-        tenant.saas_monthly_price_cents = 0
-        tenant.saas_extra_table_unit_price_cents = 0
+        tenant.saas_monthly_price_cents = int(selected["price_cents"])
+        tenant.saas_extra_table_unit_price_cents = int(
+            selected["extra_table_price_cents"]
+        )
         tenant.saas_included_tables = int(selected["included_tables"])
         tenant.saas_subscription_status = SAAS_STATUS_GRANDFATHERED
         tenant.saas_trial_ends_at = None
