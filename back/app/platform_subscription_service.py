@@ -21,10 +21,12 @@ from .saas_billing import (
     apply_stripe_subscription_object,
     normalize_plan_code,
     plan_config,
-    plan_monthly_cents,
+    plan_details,
     record_subscription_event,
     stripe_customer_dashboard_url,
+    stripe_extra_table_price_id_for_plan,
     stripe_price_id_for_plan,
+    tenant_monthly_cents,
     tenant_table_limit,
 )
 from .settings import settings
@@ -59,7 +61,7 @@ def _tenant_row(session: Session, tenant: models.Tenant) -> dict[str, Any]:
     )
     status_value = (tenant.saas_subscription_status or "none").lower()
     monthly_cents = (
-        plan_monthly_cents(tenant.saas_plan_code, tenant.saas_extra_tables)
+        tenant_monthly_cents(tenant, session)
         if status_value == SAAS_STATUS_ACTIVE
         else 0
     )
@@ -84,7 +86,7 @@ def _tenant_row(session: Session, tenant: models.Tenant) -> dict[str, Any]:
         "table_count": table_count,
         "table_limit": tenant_table_limit(tenant),
         "monthly_cents": monthly_cents,
-        "currency": plan_config()["currency"],
+        "currency": plan_config(session)["currency"],
         "trial_ends_at": _dt(tenant.saas_trial_ends_at),
         "renewal_at": _dt(tenant.saas_subscription_ends_at),
         "cancel_at_period_end": bool(tenant.saas_cancel_at_period_end),
@@ -163,7 +165,7 @@ def subscription_metrics(session: Session) -> dict[str, Any]:
         current = (tenant.saas_subscription_status or "none").lower()
         status_counts[current] = status_counts.get(current, 0) + 1
         if current == SAAS_STATUS_ACTIVE:
-            mrr_cents += plan_monthly_cents(tenant.saas_plan_code, tenant.saas_extra_tables)
+            mrr_cents += tenant_monthly_cents(tenant, session)
 
     since_30d = datetime.now(timezone.utc) - timedelta(days=30)
     churned_30d = int(
@@ -198,7 +200,7 @@ def subscription_metrics(session: Session) -> dict[str, Any]:
         "mrr_cents": mrr_cents,
         "revenue_total_cents": revenue_total,
         "revenue_30d_cents": revenue_30d,
-        "currency": plan_config()["currency"],
+        "currency": plan_config(session)["currency"],
         "active_count": active,
         "trialing_count": status_counts.get(SAAS_STATUS_TRIALING, 0),
         "past_due_count": status_counts.get(SAAS_STATUS_PAST_DUE, 0),
@@ -231,10 +233,20 @@ def sync_stripe_plan(
     old_extra = int(tenant.saas_extra_tables or 0)
     if tenant.saas_stripe_subscription_id:
         secret = _stripe_secret()
-        base_price = stripe_price_id_for_plan(plan_code)
+        base_price = stripe_price_id_for_plan(plan_code, session)
         if not base_price:
             raise HTTPException(status_code=409, detail=f"Stripe Price is missing for {plan_code}")
-        extra_price = (settings.saas_extra_table_stripe_price_id or "").strip()
+        extra_price = stripe_extra_table_price_id_for_plan(plan_code, session)
+        known_extra_prices = {
+            str(value)
+            for value in session.exec(
+                select(models.SaasPlanPricing.stripe_extra_table_price_id).where(
+                    models.SaasPlanPricing.stripe_extra_table_price_id.is_not(None)
+                )
+            ).all()
+            if value
+        }
+        known_extra_prices.add(extra_price)
         if extra_tables and not extra_price:
             raise HTTPException(status_code=409, detail="Stripe extra-table Price is missing")
         try:
@@ -245,25 +257,25 @@ def sync_stripe_plan(
             )
             items = list(_obj_get(_obj_get(subscription, "items"), "data", []) or [])
             updates: list[dict[str, Any]] = []
-            extra_item = None
+            extra_items: list[Any] = []
             base_item = None
             for item in items:
                 price = _obj_get(item, "price")
                 price_id = str(_obj_get(price, "id") or price or "")
-                if extra_price and price_id == extra_price:
-                    extra_item = item
+                if price_id in known_extra_prices:
+                    extra_items.append(item)
                 else:
                     base_item = base_item or item
             if not base_item:
                 raise HTTPException(status_code=409, detail="Stripe base subscription item was not found")
             updates.append({"id": _obj_get(base_item, "id"), "price": base_price, "quantity": 1})
             if extra_tables:
-                if extra_item:
-                    updates.append({"id": _obj_get(extra_item, "id"), "price": extra_price, "quantity": extra_tables})
+                if extra_items:
+                    updates.append({"id": _obj_get(extra_items[0], "id"), "price": extra_price, "quantity": extra_tables})
                 else:
                     updates.append({"price": extra_price, "quantity": extra_tables})
-            elif extra_item:
-                updates.append({"id": _obj_get(extra_item, "id"), "deleted": True})
+            for duplicate in extra_items[1:] if extra_tables else extra_items:
+                updates.append({"id": _obj_get(duplicate, "id"), "deleted": True})
             updated = stripe.Subscription.modify(
                 tenant.saas_stripe_subscription_id,
                 items=updates,
@@ -277,6 +289,10 @@ def sync_stripe_plan(
             raise HTTPException(status_code=502, detail=str(exc.user_message or exc)) from exc
     tenant.saas_plan_code = plan_code
     tenant.saas_extra_tables = extra_tables
+    selected = plan_details(plan_code, session)
+    tenant.saas_monthly_price_cents = int(selected["price_cents"])
+    tenant.saas_extra_table_unit_price_cents = int(selected["extra_table_price_cents"])
+    tenant.saas_included_tables = int(selected["included_tables"])
     session.add(tenant)
     record_subscription_event(
         session,

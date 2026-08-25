@@ -22,7 +22,7 @@ import {
           <h1>Subscriptions</h1>
           <p>Plans, billing health, Stripe lifecycle and recurring revenue.</p>
         </div>
-        <button type="button" class="secondary" (click)="load()" [disabled]="loading()">Refresh</button>
+        <div class="header-links"><a routerLink="/platform/pricing" class="secondary">Pricing & offers</a><button type="button" class="secondary" (click)="load()" [disabled]="loading()">Refresh</button></div>
       </header>
 
       @if (metrics(); as metric) {
@@ -158,7 +158,7 @@ import {
   `,
   styles: [`
     .console-page{max-width:1500px;margin:auto;padding:var(--space-6);color:var(--color-text)}
-    .console-header{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.5rem}.console-header h1{margin:.35rem 0}.console-header p{margin:0;color:var(--color-text-muted)}.back-link{font-size:.85rem}
+    .console-header{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.5rem}.console-header h1{margin:.35rem 0}.console-header p{margin:0;color:var(--color-text-muted)}.back-link{font-size:.85rem}.header-links{display:flex;gap:.5rem;flex-wrap:wrap}.header-links a{text-decoration:none;display:inline-flex;align-items:center}
     .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:.8rem;margin-bottom:1.5rem}.metrics article{padding:1rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}.metrics span{display:block;font-size:.75rem;color:var(--color-text-muted)}.metrics strong{display:block;margin-top:.35rem;font-size:1.5rem}.metric-warning strong{color:var(--color-error)}
     .filters{display:flex;flex-wrap:wrap;align-items:end;gap:.75rem;padding:1rem;margin-bottom:1rem;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.filters label{display:grid;gap:.3rem;font-size:.75rem;color:var(--color-text-muted)}.search-field{flex:1;min-width:220px}.filters input,.filters select,.inline-controls input,.inline-controls select{min-height:40px;padding:0 .65rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font:inherit}
     button,.primary,.secondary{min-height:40px;padding:0 .85rem;border-radius:var(--radius-md);border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:600;cursor:pointer}.primary{background:var(--color-primary);color:#fff;border-color:var(--color-primary)}button:disabled{opacity:.5;cursor:not-allowed}.danger{color:var(--color-error)}

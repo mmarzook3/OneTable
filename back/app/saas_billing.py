@@ -80,28 +80,186 @@ def normalize_plan_code(value: str | None) -> str:
     return code
 
 
-def tenant_table_limit(tenant: models.Tenant) -> int:
-    return SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)] + max(
-        0, int(tenant.saas_extra_tables or 0)
-    )
+def _offer_active(
+    offer_price_cents: int | None,
+    starts_at: datetime | None,
+    ends_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    if offer_price_cents is None:
+        return False
+    current = now or datetime.now(timezone.utc)
+    start = _aware(starts_at)
+    end = _aware(ends_at)
+    return (start is None or start <= current) and (end is None or current < end)
 
 
-def plan_monthly_cents(plan_code: str, extra_tables: int = 0) -> int:
-    prices = {
+def active_plan_pricing(
+    session: Session | None,
+    plan_code: str,
+) -> models.SaasPlanPricing | None:
+    if session is None:
+        return None
+    return session.exec(
+        select(models.SaasPlanPricing)
+        .where(
+            models.SaasPlanPricing.plan_code == normalize_plan_code(plan_code),
+            models.SaasPlanPricing.is_active == True,
+        )
+        .order_by(models.SaasPlanPricing.version.desc())
+        .limit(1)
+    ).first()
+
+
+def _fallback_plan(plan_code: str) -> dict[str, Any]:
+    code = normalize_plan_code(plan_code)
+    offer_prices = {
         "lite": int(getattr(settings, "saas_lite_price_cents", 999) or 999),
         "pro": int(getattr(settings, "saas_pro_price_cents", 3999) or 3999),
         "ultra": int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499),
     }
-    extra_price = int(getattr(settings, "saas_extra_table_price_cents", 399) or 399)
-    return prices[normalize_plan_code(plan_code)] + max(0, int(extra_tables or 0)) * extra_price
+    names = {"lite": "Lite", "pro": "Pro", "ultra": "Ultra"}
+    descriptions = {
+        "lite": "A simple start for small venues.",
+        "pro": "Built for busy restaurants and pubs.",
+        "ultra": "More capacity for larger hospitality teams.",
+    }
+    offer = offer_prices[code]
+    return {
+        "id": code,
+        "name": names[code],
+        "description": descriptions[code],
+        "version": 0,
+        "regular_price_cents": round(offer * 3.5),
+        "offer_price_cents": offer,
+        "price_cents": offer,
+        "offer_active": True,
+        "offer_badge": "Launch deal",
+        "offer_starts_at": None,
+        "offer_ends_at": None,
+        "currency": (getattr(settings, "saas_plan_currency", None) or "gbp").lower(),
+        "interval": "month",
+        "included_tables": SAAS_PLAN_TABLES[code],
+        "extra_table_price_cents": int(
+            getattr(settings, "saas_extra_table_price_cents", 399) or 399
+        ),
+        "trial_days": int(getattr(settings, "saas_trial_days", 14) or 14),
+        "is_featured": code == "pro",
+        "is_public": True,
+        "stripe_product_id": None,
+        "stripe_regular_price_id": stripe_price_id_for_plan(code, use_database=False),
+        "stripe_offer_price_id": stripe_price_id_for_plan(code, use_database=False),
+        "stripe_extra_table_price_id": (
+            getattr(settings, "saas_extra_table_stripe_price_id", None) or ""
+        ).strip(),
+    }
 
 
-def stripe_price_id_for_plan(plan_code: str) -> str:
+def plan_details(
+    plan_code: str,
+    session: Session | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    row = active_plan_pricing(session, plan_code)
+    if row is None:
+        return _fallback_plan(plan_code)
+    active_offer = _offer_active(
+        row.offer_price_cents,
+        row.offer_starts_at,
+        row.offer_ends_at,
+        now=now,
+    )
+    return {
+        "id": row.plan_code,
+        "name": row.name,
+        "description": row.description,
+        "version": row.version,
+        "regular_price_cents": row.regular_price_cents,
+        "offer_price_cents": row.offer_price_cents,
+        "price_cents": row.offer_price_cents if active_offer else row.regular_price_cents,
+        "offer_active": active_offer,
+        "offer_badge": row.offer_badge,
+        "offer_starts_at": row.offer_starts_at.isoformat() if row.offer_starts_at else None,
+        "offer_ends_at": row.offer_ends_at.isoformat() if row.offer_ends_at else None,
+        "currency": row.currency.lower(),
+        "interval": row.billing_interval,
+        "included_tables": row.included_tables,
+        "extra_table_price_cents": row.extra_table_price_cents,
+        "trial_days": row.trial_days,
+        "is_featured": row.is_featured,
+        "is_public": row.is_public,
+        "stripe_product_id": row.stripe_product_id,
+        "stripe_regular_price_id": row.stripe_regular_price_id,
+        "stripe_offer_price_id": row.stripe_offer_price_id,
+        "stripe_extra_table_price_id": row.stripe_extra_table_price_id,
+    }
+
+
+def tenant_table_limit(tenant: models.Tenant) -> int:
+    included = tenant.saas_included_tables
+    if included is None:
+        included = SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)]
+    return max(0, int(included)) + max(
+        0, int(tenant.saas_extra_tables or 0)
+    )
+
+
+def plan_monthly_cents(
+    plan_code: str,
+    extra_tables: int = 0,
+    session: Session | None = None,
+) -> int:
+    plan = plan_details(plan_code, session)
+    return int(plan["price_cents"]) + max(0, int(extra_tables or 0)) * int(
+        plan["extra_table_price_cents"]
+    )
+
+
+def tenant_monthly_cents(tenant: models.Tenant, session: Session | None = None) -> int:
+    base = tenant.saas_monthly_price_cents
+    extra = tenant.saas_extra_table_unit_price_cents
+    if base is None or extra is None:
+        plan = plan_details(tenant.saas_plan_code, session)
+        base = int(plan["price_cents"]) if base is None else base
+        extra = int(plan["extra_table_price_cents"]) if extra is None else extra
+    return max(0, int(base)) + max(0, int(tenant.saas_extra_tables or 0)) * max(0, int(extra))
+
+
+def stripe_price_id_for_plan(
+    plan_code: str,
+    session: Session | None = None,
+    *,
+    use_database: bool = True,
+) -> str:
+    code = normalize_plan_code(plan_code)
+    if use_database:
+        plan = plan_details(code, session)
+        selected = (
+            plan.get("stripe_offer_price_id")
+            if plan.get("offer_active")
+            else plan.get("stripe_regular_price_id")
+        )
+        if selected:
+            return str(selected).strip()
     return {
         "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
         "pro": settings.saas_pro_stripe_price_id.strip(),
         "ultra": settings.saas_ultra_stripe_price_id.strip(),
-    }[normalize_plan_code(plan_code)]
+    }[code]
+
+
+def stripe_extra_table_price_id_for_plan(
+    plan_code: str,
+    session: Session | None = None,
+) -> str:
+    plan = plan_details(plan_code, session)
+    return str(
+        plan.get("stripe_extra_table_price_id")
+        or getattr(settings, "saas_extra_table_stripe_price_id", "")
+        or ""
+    ).strip()
 
 
 def stripe_customer_dashboard_url(customer_id: str | None) -> str | None:
@@ -238,72 +396,44 @@ def ensure_tenant_saas_access(session: Session, tenant_id: int | None) -> None:
     )
 
 
-def plan_config() -> dict[str, Any]:
-    trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
-    currency = (getattr(settings, "saas_plan_currency", None) or "gbp").lower()
-    lite_price = int(getattr(settings, "saas_lite_price_cents", 999) or 999)
-    pro_price = int(getattr(settings, "saas_pro_price_cents", 3999) or 3999)
-    ultra_price = int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499)
-    extra_table_price = int(
-        getattr(settings, "saas_extra_table_price_cents", 399) or 399
-    )
-    price_ids = {
-        "lite": (getattr(settings, "saas_lite_stripe_price_id", None) or settings.saas_stripe_price_id or "").strip(),
-        "pro": (getattr(settings, "saas_pro_stripe_price_id", None) or "").strip(),
-        "ultra": (getattr(settings, "saas_ultra_stripe_price_id", None) or "").strip(),
-    }
+def plan_config(session: Session | None = None, *, include_hidden: bool = False) -> dict[str, Any]:
     secret = (settings.stripe_secret_key or "").strip()
-    plans = [
-        {
-            "id": "lite",
-            "name": "Lite",
-            "trial_days": trial_days,
-            "price_cents": lite_price,
-            "currency": currency,
-            "interval": "month",
-            "included_tables": 2,
-            "extra_table_price_cents": extra_table_price,
-        },
-        {
-            "id": "pro",
-            "name": "Pro",
-            "trial_days": trial_days,
-            "price_cents": pro_price,
-            "currency": currency,
-            "interval": "month",
-            "included_tables": 20,
-            "extra_table_price_cents": extra_table_price,
-        },
-        {
-            "id": "ultra",
-            "name": "Ultra",
-            "trial_days": trial_days,
-            "price_cents": ultra_price,
-            "currency": currency,
-            "interval": "month",
-            "included_tables": 45,
-            "extra_table_price_cents": extra_table_price,
-        },
-    ]
+    plans = [plan_details(code, session) for code in SAAS_PLAN_TABLES]
     for plan in plans:
-        plan["stripe_checkout_available"] = bool(secret and price_ids[plan["id"]])
+        selected_price_id = stripe_price_id_for_plan(str(plan["id"]), session)
+        plan["stripe_checkout_available"] = bool(secret and selected_price_id)
+        plan["compare_at_price_cents"] = (
+            plan["regular_price_cents"] if plan.get("offer_active") else None
+        )
+        # Stripe identifiers are operator-only; public clients need availability, not IDs.
+        plan.pop("stripe_product_id", None)
+        plan.pop("stripe_regular_price_id", None)
+        plan.pop("stripe_offer_price_id", None)
+        plan.pop("stripe_extra_table_price_id", None)
+    if not include_hidden:
+        plans = [plan for plan in plans if plan.get("is_public", True)]
+    lite = next((plan for plan in plans if plan["id"] == "lite"), plans[0] if plans else _fallback_plan("lite"))
     return {
         "enabled": paywall_enabled(),
-        "trial_days": trial_days,
+        "trial_days": int(lite["trial_days"]),
         # Flat fields remain for the existing paywall flow and represent Lite.
-        "price_cents": lite_price,
-        "currency": currency,
-        "extra_table_price_cents": extra_table_price,
-        "stripe_checkout_available": any(bool(secret and value) for value in price_ids.values()),
+        "price_cents": int(lite["price_cents"]),
+        "currency": str(lite["currency"]),
+        "extra_table_price_cents": int(lite["extra_table_price_cents"]),
+        "stripe_checkout_available": any(bool(plan["stripe_checkout_available"]) for plan in plans),
         "extra_table_checkout_available": bool(
-            secret and (getattr(settings, "saas_extra_table_stripe_price_id", None) or "").strip()
+            secret
+            and any(
+                stripe_extra_table_price_id_for_plan(str(plan["id"]), session)
+                for plan in plans
+            )
         ),
         "plans": plans,
     }
 
 
-def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
-    cfg = plan_config()
+def subscription_payload(tenant: models.Tenant, session: Session | None = None) -> dict[str, Any]:
+    cfg = plan_config(session)
     status_val = (tenant.saas_subscription_status or SAAS_STATUS_NONE).strip().lower()
     has_access = tenant_has_saas_access(tenant)
     return {
@@ -311,7 +441,9 @@ def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
         "status": status_val,
         "has_access": has_access,
         "plan_code": normalize_plan_code(tenant.saas_plan_code),
-        "included_tables": SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)],
+        "included_tables": tenant.saas_included_tables
+        if tenant.saas_included_tables is not None
+        else SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)],
         "extra_tables": max(0, int(tenant.saas_extra_tables or 0)),
         "table_limit": tenant_table_limit(tenant),
         "trial_ends_at": tenant.saas_trial_ends_at.isoformat()
@@ -350,10 +482,17 @@ def start_trial(session: Session, tenant: models.Tenant, plan_code: str | None =
             },
         )
 
-    trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
     now = datetime.now(timezone.utc)
     previous_status = tenant.saas_subscription_status
-    tenant.saas_plan_code = normalize_plan_code(plan_code or tenant.saas_plan_code)
+    selected_plan = normalize_plan_code(plan_code or tenant.saas_plan_code)
+    selected = plan_details(selected_plan, session)
+    if not selected.get("is_public", True):
+        raise HTTPException(status_code=400, detail="That Scanaki plan is not currently available")
+    tenant.saas_plan_code = selected_plan
+    trial_days = int(selected["trial_days"])
+    tenant.saas_monthly_price_cents = int(selected["price_cents"])
+    tenant.saas_extra_table_unit_price_cents = int(selected["extra_table_price_cents"])
+    tenant.saas_included_tables = int(selected["included_tables"])
     tenant.saas_subscription_status = SAAS_STATUS_TRIALING
     tenant.saas_trial_ends_at = now + timedelta(days=trial_days)
     session.add(tenant)
@@ -378,9 +517,11 @@ def create_checkout_session(
     cancel_url: str,
     plan_code: str | None = None,
 ) -> str:
-    cfg = plan_config()
+    cfg = plan_config(session)
     selected_plan = normalize_plan_code(plan_code or tenant.saas_plan_code)
-    selected = next(plan for plan in cfg["plans"] if plan["id"] == selected_plan)
+    selected = next((plan for plan in cfg["plans"] if plan["id"] == selected_plan), None)
+    if selected is None:
+        raise HTTPException(status_code=400, detail="That Scanaki plan is not currently available")
     if not selected["stripe_checkout_available"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -389,9 +530,13 @@ def create_checkout_session(
                 "message": "Platform Stripe is not configured for SaaS checkout.",
             },
         )
-    price_id = stripe_price_id_for_plan(selected_plan)
+    price_id = stripe_price_id_for_plan(selected_plan, session)
     secret = settings.stripe_secret_key.strip()
-    trial_days = int(cfg["trial_days"])
+    trial_days = int(selected["trial_days"])
+    tenant.saas_plan_code = selected_plan
+    tenant.saas_monthly_price_cents = int(selected["price_cents"])
+    tenant.saas_extra_table_unit_price_cents = int(selected["extra_table_price_cents"])
+    tenant.saas_included_tables = int(selected["included_tables"])
 
     # Offer trial in Checkout only if tenant has never started one.
     # Always attach tenant_id on the Subscription so billing webhooks can resolve the tenant.
@@ -410,7 +555,7 @@ def create_checkout_session(
 
     try:
         line_items: list[dict[str, Any]] = [{"price": price_id, "quantity": 1}]
-        extra_price_id = (getattr(settings, "saas_extra_table_stripe_price_id", None) or "").strip()
+        extra_price_id = stripe_extra_table_price_id_for_plan(selected_plan, session)
         if tenant.saas_extra_tables > 0:
             if not extra_price_id:
                 raise HTTPException(
@@ -451,6 +596,8 @@ def create_checkout_session(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={"code": "stripe_error", "message": "No checkout URL returned."},
         )
+    session.add(tenant)
+    session.commit()
     return str(url)
 
 
@@ -767,7 +914,7 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
             _obj_get(invoice, "amount_paid" if event_type == "invoice.paid" else "amount_due", 0)
             or 0
         )
-        currency = str(_obj_get(invoice, "currency") or plan_config()["currency"]).lower()
+        currency = str(_obj_get(invoice, "currency") or plan_config(session)["currency"]).lower()
         tenant.saas_last_invoice_id = invoice_id
         tenant.saas_last_invoice_status = invoice_status or (
             "paid" if event_type == "invoice.paid" else "open"

@@ -327,8 +327,19 @@ export interface RegisterResponse {
 export interface SaasPlanTier {
   id: string;
   name: string;
+  description?: string | null;
+  version?: number;
   trial_days: number;
   price_cents: number;
+  regular_price_cents?: number;
+  offer_price_cents?: number | null;
+  compare_at_price_cents?: number | null;
+  offer_active?: boolean;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  is_featured?: boolean;
+  is_public?: boolean;
   currency: string;
   interval: string;
   included_tables: number;
@@ -592,6 +603,69 @@ export interface PlatformBillingHistory {
   events: Array<Record<string, unknown>>;
 }
 
+export interface PlatformPricingPlan {
+  id?: number;
+  plan_code: string;
+  version: number;
+  name: string;
+  description?: string | null;
+  regular_price_cents: number;
+  offer_price_cents?: number | null;
+  effective_price_cents: number;
+  currency: string;
+  billing_interval: string;
+  included_tables: number;
+  extra_table_price_cents: number;
+  trial_days: number;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  offer_active: boolean;
+  is_featured: boolean;
+  is_public: boolean;
+  stripe_product_id?: string | null;
+  stripe_regular_price_id?: string | null;
+  stripe_offer_price_id?: string | null;
+  stripe_extra_table_price_id?: string | null;
+}
+
+export interface PlatformPricingConsole {
+  currency: string;
+  stripe_configured: boolean;
+  plans: PlatformPricingPlan[];
+  events: Array<Record<string, unknown>>;
+  publication?: {
+    plan_code: string;
+    version: number;
+    migration_mode: string;
+    migrated_count: number;
+    failed_count: number;
+    failures: Array<Record<string, unknown>>;
+  };
+}
+
+export interface PlatformPricingPublish {
+  name: string;
+  description?: string | null;
+  regular_price_cents: number;
+  offer_price_cents?: number | null;
+  currency: string;
+  included_tables: number;
+  extra_table_price_cents: number;
+  trial_days: number;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  is_featured: boolean;
+  is_public: boolean;
+  stripe_product_id?: string | null;
+  stripe_regular_price_id?: string | null;
+  stripe_offer_price_id?: string | null;
+  stripe_extra_table_price_id?: string | null;
+  create_stripe_prices: boolean;
+  migration_mode: 'new_customers_only' | 'next_renewal' | 'immediate';
+}
+
 export interface PlatformLoginSummary {
   logged_in_at: string;
   role?: string | null;
@@ -840,6 +914,8 @@ export interface TenantSummary {
   guest_birthday_capture_enabled?: boolean;
   guest_birthday_marketing_enabled?: boolean;
   guest_birthday_consent_text?: string | null;
+  /** Whether this restaurant currently accepts new delivery orders. */
+  delivery_enabled?: boolean;
 }
 
 /** Planned opening-hours baselines and date overrides (issue #194). */
@@ -1806,6 +1882,7 @@ export interface PublicSatisfechoDeliveryOrderResponse {
 }
 
 export interface PublicSatisfechoDeliveryConfig {
+  delivery_enabled: boolean;
   delivery_fee_cents: number;
   delivery_radius_meters: number | null;
   postal_codes_required: boolean;
@@ -1972,6 +2049,7 @@ export interface TenantSettings {
   longitude?: number | null;
   location_radius_meters?: number | null;
   location_check_enabled?: boolean;
+  delivery_enabled?: boolean;
   delivery_fee_cents?: number | null;
   /** Max delivery distance from restaurant lat/lng; null/0 = no radius check */
   delivery_radius_meters?: number | null;
@@ -2559,6 +2637,14 @@ export class ApiService {
 
   getPlatformSubscriptionMetrics(): Observable<PlatformSubscriptionMetrics> {
     return this.http.get<PlatformSubscriptionMetrics>(`${this.apiUrl}/platform/subscriptions/metrics`);
+  }
+
+  getPlatformPricing(): Observable<PlatformPricingConsole> {
+    return this.http.get<PlatformPricingConsole>(`${this.apiUrl}/platform/pricing`);
+  }
+
+  publishPlatformPricing(planCode: string, body: PlatformPricingPublish): Observable<PlatformPricingConsole> {
+    return this.http.post<PlatformPricingConsole>(`${this.apiUrl}/platform/pricing/${planCode}/publish`, body);
   }
 
   runPlatformSubscriptionAction(tenantId: number, action: string, immediate = false): Observable<PlatformTenantDetail> {
@@ -3647,7 +3733,9 @@ export class ApiService {
   }
 
   submitOrder(tableToken: string, order: OrderCreate): Observable<any> {
-    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order);
+    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order, {
+      withCredentials: true,
+    });
   }
 
   getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
@@ -3700,9 +3788,15 @@ export class ApiService {
     );
   }
 
-  getOrderHistory(tableToken: string, limit = 10): Observable<OrderHistoryItem[]> {
+  getOrderHistory(
+    tableToken: string,
+    sessionId: string,
+    limit = 10,
+  ): Observable<OrderHistoryItem[]> {
+    const params = new HttpParams().set('limit', String(limit)).set('session_id', sessionId);
     return this.http.get<OrderHistoryItem[]>(`${this.apiUrl}/menu/${tableToken}/order-history`, {
-      params: { limit }
+      params,
+      withCredentials: true,
     });
   }
 

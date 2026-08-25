@@ -10,6 +10,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 |----------|-----|
 | Understand the Scanaki MVP baseline, gaps and live-pilot blockers | [0077-onetable-mvp-gap-analysis.md](0077-onetable-mvp-gap-analysis.md) |
 | Operate tenant subscriptions, Stripe billing history and SaaS reporting | [0081-subscription-management-console.md](0081-subscription-management-console.md) |
+| Publish tier prices, scheduled offers and Stripe price migrations | [0082-platform-managed-pricing-and-offers.md](0082-platform-managed-pricing-and-offers.md) |
 | Set up Revolut (sandbox, redirects, certificates) | [REVOLUT.md](REVOLUT.md) |
 | Run Puppeteer/UI tests | [testing.md](testing.md) |
 | Multi-agent task loop + GitHub Issues handoff | [agent-loop.md](agent-loop.md) |

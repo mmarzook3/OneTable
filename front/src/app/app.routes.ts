@@ -17,6 +17,10 @@ export const routes: Routes = [
   { path: 'features', loadComponent: () => import('./features/features.component').then(m => m.FeaturesComponent) },
   { path: 'pricing', loadComponent: () => import('./pricing/pricing-page.component').then(m => m.PricingPageComponent) },
   { path: 'about', loadComponent: () => import('./about/about-page.component').then(m => m.AboutPageComponent) },
+  {
+    path: 'manual-usuario',
+    loadComponent: () => import('./user-manual/user-manual-page.component').then((m) => m.UserManualPageComponent),
+  },
   { path: 'login', loadComponent: () => import('./auth/login.component').then(m => m.LoginComponent) },
   { path: 'register', loadComponent: () => import('./auth/register.component').then(m => m.RegisterComponent) },
   { path: 'signup', loadComponent: () => import('./auth/register.component').then(m => m.RegisterComponent) },
@@ -69,6 +73,7 @@ export const routes: Routes = [
   { path: 'platform/restaurants/new', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-create-restaurant.component').then(m => m.PlatformCreateRestaurantComponent) },
   { path: 'platform/smart-plaques', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-smart-plaques.component').then(m => m.PlatformSmartPlaquesComponent) },
   { path: 'platform/subscriptions', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-subscriptions.component').then(m => m.PlatformSubscriptionsComponent) },
+  { path: 'platform/pricing', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-pricing.component').then(m => m.PlatformPricingComponent) },
   { path: 'platform/tenants/:tenantId', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
   { path: 'platform', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
   { path: 'menu/:token', loadComponent: () => import('./menu/menu.component').then(m => m.MenuComponent) },

@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.180] - 2026-08-25
+
+### Added
+
+- **Platform-managed pricing:** Added a Pricing & Offers console where platform operators control tier names, descriptions, monthly prices, included tables, extra-table charges, trials, visibility and featured status without a deployment.
+- **Scheduled discounts:** Added explicit regular and offer prices, percentage assistance, deal badges and optional offer start/end dates; the landing page and public SaaS configuration now reflect the active revision immediately.
+- **Safe Stripe price versioning:** Added optional Stripe Product/Price creation with retained price identifiers and explicit new-customers-only, next-renewal or immediate-proration migration modes.
+- **Contract snapshots and pricing audit:** Existing tenant prices and entitlements are preserved by default, MRR uses contracted values, and every pricing publication records an immutable migration result.
+
 ## [2.1.179] - 2026-08-25
 
 ### Added

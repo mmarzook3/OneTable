@@ -17,9 +17,10 @@ from .email_service import send_restaurant_invitation_email
 from .saas_billing import (
     initial_status_for_new_tenant,
     normalize_plan_code,
+    plan_details,
     tenant_table_limit,
-    plan_monthly_cents,
     stripe_customer_dashboard_url,
+    tenant_monthly_cents,
 )
 from .security import get_current_user
 from .settings import settings
@@ -32,6 +33,7 @@ from .platform_subscription_service import (
     subscription_metrics,
     sync_stripe_plan,
 )
+from .platform_pricing_service import pricing_console, publish_pricing
 
 router = APIRouter()
 
@@ -109,7 +111,7 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         stripe_customer_url=stripe_customer_dashboard_url(tenant.saas_stripe_customer_id),
         last_payment_failed_at=tenant.saas_last_payment_failed_at,
         monthly_cents=(
-            plan_monthly_cents(tenant.saas_plan_code, tenant.saas_extra_tables)
+            tenant_monthly_cents(tenant, session)
             if tenant.saas_subscription_status == "active"
             else 0
         ),
@@ -263,6 +265,8 @@ async def platform_create_restaurant(
 
     now = datetime.now(timezone.utc)
     temporary_password = _temporary_password()
+    plan_code = normalize_plan_code(body.plan_code)
+    selected_plan = plan_details(plan_code, session)
     tenant = models.Tenant(
         name=restaurant_name,
         email=owner_email,
@@ -275,7 +279,10 @@ async def platform_create_restaurant(
         saas_subscription_status=initial_status_for_new_tenant(),
         onboarding_status="not_started",
         onboarding_step=0,
-        saas_plan_code=normalize_plan_code(body.plan_code),
+        saas_plan_code=plan_code,
+        saas_monthly_price_cents=int(selected_plan["price_cents"]),
+        saas_extra_table_unit_price_cents=int(selected_plan["extra_table_price_cents"]),
+        saas_included_tables=int(selected_plan["included_tables"]),
     )
     session.add(tenant)
     session.flush()
@@ -372,6 +379,24 @@ def platform_subscription_metrics(
     session: Session = Depends(get_session),
 ) -> dict:
     return subscription_metrics(session)
+
+
+@router.get("/pricing")
+def platform_pricing(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return pricing_console(session)
+
+
+@router.post("/pricing/{plan_code}/publish")
+def platform_publish_pricing(
+    plan_code: str,
+    body: models.PlatformPricingPublish,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return publish_pricing(session, plan_code, body, current_user)
 
 
 @router.get("/tenants/{tenant_id}/billing-history")

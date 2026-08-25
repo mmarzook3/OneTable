@@ -225,7 +225,8 @@ class Tenant(SQLModel, table=True):
     guest_birthday_marketing_enabled: bool = Field(default=False)
     guest_birthday_consent_text: str | None = Field(default=None)  # GDPR copy when marketing enabled
 
-    # Scanaki Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
+    # Scanaki Delivery: tenant switch, flat fee, and coverage (postal list and/or radius from lat/lng)
+    delivery_enabled: bool = Field(default=True)
     delivery_fee_cents: int = Field(default=0)
     delivery_radius_meters: int | None = Field(default=None)
     delivery_postal_codes: str | None = Field(
@@ -313,6 +314,10 @@ class Tenant(SQLModel, table=True):
     saas_last_invoice_status: str | None = Field(default=None, max_length=32)
     saas_last_invoice_amount_cents: int | None = None
     saas_last_invoice_currency: str | None = Field(default=None, max_length=8)
+    # Contract snapshot. Public pricing changes do not alter existing customers until migrated.
+    saas_monthly_price_cents: int | None = Field(default=None, ge=0)
+    saas_extra_table_unit_price_cents: int | None = Field(default=None, ge=0)
+    saas_included_tables: int | None = Field(default=None, ge=0)
 
     users: list["User"] = Relationship(back_populates="tenant")
 
@@ -333,6 +338,64 @@ class SaasSubscriptionEvent(SQLModel, table=True):
     currency: str | None = Field(default=None, max_length=8)
     stripe_event_id: str | None = Field(default=None, max_length=255, unique=True, index=True)
     detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
+
+
+class SaasPlanPricing(SQLModel, table=True):
+    """Immutable tier revision; one active revision exists for each plan code."""
+
+    __tablename__ = "saas_plan_pricing"
+
+    id: int | None = Field(default=None, primary_key=True)
+    plan_code: str = Field(max_length=16, index=True)
+    version: int = Field(ge=1)
+    name: str = Field(max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    regular_price_cents: int = Field(ge=0)
+    offer_price_cents: int | None = Field(default=None, ge=0)
+    currency: str = Field(default="gbp", max_length=8)
+    billing_interval: str = Field(default="month", max_length=16)
+    included_tables: int = Field(ge=0)
+    extra_table_price_cents: int = Field(ge=0)
+    trial_days: int = Field(default=14, ge=0)
+    offer_badge: str | None = Field(default=None, max_length=80)
+    offer_starts_at: datetime | None = None
+    offer_ends_at: datetime | None = None
+    is_featured: bool = False
+    is_public: bool = True
+    stripe_product_id: str | None = Field(default=None, max_length=255)
+    stripe_regular_price_id: str | None = Field(default=None, max_length=255)
+    stripe_offer_price_id: str | None = Field(default=None, max_length=255)
+    stripe_extra_table_price_id: str | None = Field(default=None, max_length=255)
+    is_active: bool = True
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class SaasPricingEvent(SQLModel, table=True):
+    """Operator audit record for a tier publication and any customer migration."""
+
+    __tablename__ = "saas_pricing_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    pricing_id: int | None = Field(default=None, foreign_key="saas_plan_pricing.id")
+    plan_code: str = Field(max_length=16, index=True)
+    action: str = Field(default="published", max_length=32)
+    migration_mode: str = Field(default="new_customers_only", max_length=32)
+    migrated_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
@@ -536,6 +599,28 @@ class PlatformTenantPlanUpdate(SQLModel):
 class PlatformSubscriptionAction(SQLModel):
     action: str = Field(max_length=32)
     immediate: bool = False
+
+
+class PlatformPricingPublish(SQLModel):
+    name: str = Field(min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    regular_price_cents: int = Field(ge=0, le=10_000_000)
+    offer_price_cents: int | None = Field(default=None, ge=0, le=10_000_000)
+    currency: str = Field(default="gbp", min_length=3, max_length=8)
+    included_tables: int = Field(ge=0, le=10_000)
+    extra_table_price_cents: int = Field(ge=0, le=1_000_000)
+    trial_days: int = Field(default=14, ge=0, le=365)
+    offer_badge: str | None = Field(default=None, max_length=80)
+    offer_starts_at: datetime | None = None
+    offer_ends_at: datetime | None = None
+    is_featured: bool = False
+    is_public: bool = True
+    stripe_product_id: str | None = Field(default=None, max_length=255)
+    stripe_regular_price_id: str | None = Field(default=None, max_length=255)
+    stripe_offer_price_id: str | None = Field(default=None, max_length=255)
+    stripe_extra_table_price_id: str | None = Field(default=None, max_length=255)
+    create_stripe_prices: bool = False
+    migration_mode: str = Field(default="new_customers_only", max_length=32)
 
 
 class RestaurantOnboardingState(SQLModel):
@@ -2166,7 +2251,8 @@ class TenantUpdate(SQLModel):
     guest_birthday_marketing_enabled: bool | None = None
     guest_birthday_consent_text: str | None = None
 
-    # Scanaki Delivery fee + coverage
+    # Scanaki Delivery availability, fee + coverage
+    delivery_enabled: bool | None = None
     delivery_fee_cents: int | None = None
     delivery_radius_meters: int | None = None
     delivery_postal_codes: str | None = None  # JSON array string or empty to clear

@@ -161,6 +161,47 @@ class TestPlatformSubscriptionConsole(PgClientTestCase):
         self.assertIn({"id": "si_base", "price": "price_ultra", "quantity": 1}, updates)
         self.assertIn({"id": "si_extra", "price": "price_extra", "quantity": 4}, updates)
 
+    def test_plan_sync_replaces_historical_extra_table_price_without_double_billing(self) -> None:
+        current = self.session.exec(
+            select(models.SaasPlanPricing).where(
+                models.SaasPlanPricing.plan_code == "pro",
+                models.SaasPlanPricing.is_active == True,
+            )
+        ).one()
+        current.stripe_regular_price_id = "price_pro_new"
+        current.stripe_offer_price_id = "price_pro_new"
+        current.stripe_extra_table_price_id = "price_extra_new"
+        self.session.add(current)
+        self.session.add(models.SaasPlanPricing(
+            plan_code="pro", version=current.version + 1, name="Pro historical",
+            regular_price_cents=3999, offer_price_cents=None, currency="gbp",
+            included_tables=20, extra_table_price_cents=399, trial_days=14,
+            stripe_regular_price_id="price_pro_old",
+            stripe_extra_table_price_id="price_extra_old", is_active=False,
+        ))
+        self.session.commit()
+        subscription = SimpleNamespace(
+            id=self.active.saas_stripe_subscription_id,
+            customer=self.active.saas_stripe_customer_id,
+            status="active",
+            current_period_end=int((datetime.now(timezone.utc) + timedelta(days=20)).timestamp()),
+            cancel_at_period_end=False,
+            metadata={"tenant_id": str(self.active.id), "plan_code": "pro"},
+            items=SimpleNamespace(data=[
+                SimpleNamespace(id="si_base", price=SimpleNamespace(id="price_pro_old")),
+                SimpleNamespace(id="si_extra", price=SimpleNamespace(id="price_extra_old")),
+            ]),
+        )
+        with (
+            patch("app.platform_subscription_service.settings.stripe_secret_key", "sk_test_platform"),
+            patch("app.platform_subscription_service.stripe.Subscription.retrieve", return_value=subscription),
+            patch("app.platform_subscription_service.stripe.Subscription.modify", return_value=subscription) as modify,
+        ):
+            sync_stripe_plan(self.session, self.active, plan_code="pro", extra_tables=3)
+        updates = modify.call_args.kwargs["items"]
+        self.assertIn({"id": "si_extra", "price": "price_extra_new", "quantity": 3}, updates)
+        self.assertNotIn({"price": "price_extra_new", "quantity": 3}, updates)
+
     def test_invoice_webhooks_drive_failed_queue_revenue_and_idempotency(self) -> None:
         paid_event = {
             "id": f"evt_paid_{uuid.uuid4().hex}",

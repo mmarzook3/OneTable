@@ -17,6 +17,9 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
           }
         </div>
         <div class="header-actions">
+          <a routerLink="/platform/pricing" class="btn-secondary" data-testid="platform-pricing-link">
+            Pricing & offers
+          </a>
           <a routerLink="/platform/subscriptions" class="btn-secondary" data-testid="platform-subscriptions-link">
             Subscriptions
           </a>

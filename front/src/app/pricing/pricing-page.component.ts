@@ -58,11 +58,11 @@ interface PriceParts {
             @for (plan of plans(); track plan.id) {
               <article
                 class="pricing-card"
-                [class.pricing-card--featured]="plan.id === 'pro'"
+                [class.pricing-card--featured]="plan.is_featured"
                 [attr.data-plan-id]="plan.id"
                 data-testid="pricing-plan-card"
               >
-                @if (plan.id === 'pro') {
+                @if (plan.is_featured) {
                   <span class="pricing-card__popular">{{ 'PRICING_PAGE.MOST_POPULAR' | translate }}</span>
                 }
                 <h2 class="pricing-card__name">{{ plan.name }}</h2>
@@ -70,14 +70,16 @@ interface PriceParts {
                   {{ 'PRICING_PAGE.TABLES_INCLUDED' | translate: { count: plan.included_tables } }}
                 </p>
 
-                @let standardPrice = priceParts(standardPriceCents(plan.price_cents), plan.currency);
-                <div class="pricing-card__offer" data-testid="pricing-offer">
-                  <span class="pricing-card__deal">{{ 'PRICING_PAGE.LAUNCH_DEAL' | translate }}</span>
-                  <span class="pricing-card__standard">
-                    {{ 'PRICING_PAGE.PLANNED_STANDARD_PRICE' | translate }}
-                    <strong data-testid="pricing-standard-price">{{ standardPrice.formatted }}</strong>
-                  </span>
-                </div>
+                @if (plan.offer_active && plan.compare_at_price_cents) {
+                  @let standardPrice = priceParts(plan.compare_at_price_cents, plan.currency);
+                  <div class="pricing-card__offer" data-testid="pricing-offer">
+                    <span class="pricing-card__deal">{{ plan.offer_badge || ('PRICING_PAGE.LAUNCH_DEAL' | translate) }}</span>
+                    <span class="pricing-card__standard">
+                      {{ 'PRICING_PAGE.PLANNED_STANDARD_PRICE' | translate }}
+                      <strong data-testid="pricing-standard-price">{{ standardPrice.formatted }}</strong>
+                    </span>
+                  </div>
+                }
 
                 @let price = priceParts(plan.price_cents, plan.currency);
                 <div class="pricing-card__price" data-testid="pricing-price">
@@ -517,6 +519,17 @@ export class PricingPageComponent implements OnInit {
         name: p.name || 'Lite',
         trial_days: p.trial_days,
         price_cents: p.price_cents,
+        regular_price_cents: p.regular_price_cents,
+        offer_price_cents: p.offer_price_cents,
+        compare_at_price_cents: p.compare_at_price_cents,
+        offer_active: p.offer_active,
+        offer_badge: p.offer_badge,
+        offer_starts_at: p.offer_starts_at,
+        offer_ends_at: p.offer_ends_at,
+        is_featured: p.is_featured ?? p.id === 'pro',
+        is_public: p.is_public ?? true,
+        description: p.description,
+        version: p.version,
         currency: p.currency || 'gbp',
         interval: p.interval || 'month',
         included_tables: p.included_tables ?? 2,
@@ -548,10 +561,6 @@ export class PricingPageComponent implements OnInit {
     } catch {
       return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
     }
-  }
-
-  standardPriceCents(dealPriceCents: number): number {
-    return Math.round(dealPriceCents * 3.5);
   }
 
   priceParts(cents: number, currency: string): PriceParts {
