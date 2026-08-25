@@ -20,6 +20,8 @@ from app.saas_billing import (
     SAAS_STATUS_NONE,
     SAAS_STATUS_PAST_DUE,
     SAAS_STATUS_TRIALING,
+    SAAS_STATUS_SUSPENDED,
+    apply_stripe_subscription_object,
     construct_saas_webhook_event,
     create_checkout_session,
     ensure_table_capacity,
@@ -100,6 +102,29 @@ def test_grandfathered_and_active_trial_allowed():
             saas_trial_ends_at=datetime.now(timezone.utc) - timedelta(days=1),
         )
         assert tenant_has_saas_access(expired) is False
+
+
+def test_stripe_sync_preserves_manual_suspension_while_collection_paused():
+    with Session(engine) as session:
+        tenant = models.Tenant(
+            name=f"Suspended-{uuid.uuid4().hex[:8]}",
+            saas_subscription_status=SAAS_STATUS_SUSPENDED,
+            saas_stripe_subscription_id=f"sub_{uuid.uuid4().hex[:10]}",
+        )
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        apply_stripe_subscription_object(
+            session,
+            tenant,
+            {
+                "id": tenant.saas_stripe_subscription_id,
+                "status": "active",
+                "pause_collection": {"behavior": "void"},
+                "cancel_at_period_end": False,
+            },
+        )
+        assert tenant.saas_subscription_status == SAAS_STATUS_SUSPENDED
 
 
 def test_initial_status_depends_on_flag():

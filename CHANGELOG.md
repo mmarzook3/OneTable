@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.179] - 2026-08-25
+
+### Added
+
+- **Complete subscription console:** Added a dedicated platform workspace with MRR, revenue and churn reporting; active, trial, overdue, suspended and canceling counts; search, plan/status/health filters and pagination for large tenant portfolios.
+- **Full billing operations:** Added activate, suspend, scheduled cancel, immediate cancel and grandfather controls; existing Stripe subscription plan and extra-table synchronisation with explicit prorations; and direct live/test Stripe customer links.
+- **Invoices, payments and audit history:** Added sanitised Stripe invoice and PaymentIntent history plus an immutable tenant billing-event ledger with unique Stripe event IDs.
+- **Failure and revenue lifecycle:** Added `invoice.paid`, `invoice.payment_failed` and `invoice.payment_action_required` processing, current billing-health snapshots, failed-payment queues and idempotent revenue recording.
+
 ## [2.1.178] - 2026-08-25
 
 ### Fixed

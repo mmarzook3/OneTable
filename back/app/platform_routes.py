@@ -6,7 +6,7 @@ import secrets
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -18,11 +18,20 @@ from .saas_billing import (
     initial_status_for_new_tenant,
     normalize_plan_code,
     tenant_table_limit,
+    plan_monthly_cents,
+    stripe_customer_dashboard_url,
 )
 from .security import get_current_user
 from .settings import settings
 from .tenant_ui_modules import new_tenant_ui_modules_stored
 from .tenant_payment_credentials import tenant_stripe_secret, tenant_stripe_webhook_secret
+from .platform_subscription_service import (
+    apply_admin_action,
+    billing_history,
+    list_subscriptions,
+    subscription_metrics,
+    sync_stripe_plan,
+)
 
 router = APIRouter()
 
@@ -91,6 +100,19 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         table_limit=tenant_table_limit(tenant),
         invitation_sent_at=tenant.invitation_sent_at,
         invitation_last_error=tenant.invitation_last_error,
+        subscription_status=tenant.saas_subscription_status,
+        trial_ends_at=tenant.saas_trial_ends_at,
+        renewal_at=tenant.saas_subscription_ends_at,
+        cancel_at_period_end=tenant.saas_cancel_at_period_end,
+        stripe_customer_id=tenant.saas_stripe_customer_id,
+        stripe_subscription_id=tenant.saas_stripe_subscription_id,
+        stripe_customer_url=stripe_customer_dashboard_url(tenant.saas_stripe_customer_id),
+        last_payment_failed_at=tenant.saas_last_payment_failed_at,
+        monthly_cents=(
+            plan_monthly_cents(tenant.saas_plan_code, tenant.saas_extra_tables)
+            if tenant.saas_subscription_status == "active"
+            else 0
+        ),
     )
 
 
@@ -322,6 +344,63 @@ def platform_tenant_detail(
     return _tenant_detail(session, tenant)
 
 
+@router.get("/subscriptions")
+def platform_subscriptions(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    search: str = Query(default="", max_length=200),
+    status_filter: str = Query(default="", alias="status", max_length=32),
+    plan: str = Query(default="", max_length=16),
+    health: str = Query(default="", max_length=32),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+) -> dict:
+    return list_subscriptions(
+        session,
+        search=search,
+        status_filter=status_filter,
+        plan_filter=plan,
+        health_filter=health,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/subscriptions/metrics")
+def platform_subscription_metrics(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return subscription_metrics(session)
+
+
+@router.get("/tenants/{tenant_id}/billing-history")
+def platform_tenant_billing_history(
+    tenant_id: int,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return billing_history(session, tenant, limit)
+
+
+@router.post("/tenants/{tenant_id}/subscription/action", response_model=models.PlatformTenantDetail)
+def platform_subscription_action(
+    tenant_id: int,
+    body: models.PlatformSubscriptionAction,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformTenantDetail:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    apply_admin_action(session, tenant, action=body.action, immediate=body.immediate)
+    return _tenant_detail(session, tenant)
+
+
 @router.put("/tenants/{tenant_id}/plan", response_model=models.PlatformTenantDetail)
 def platform_update_tenant_plan(
     tenant_id: int,
@@ -332,11 +411,15 @@ def platform_update_tenant_plan(
     tenant = session.get(models.Tenant, tenant_id)
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    tenant.saas_plan_code = normalize_plan_code(body.plan_code)
-    tenant.saas_extra_tables = max(0, int(body.extra_tables))
-    session.add(tenant)
-    session.commit()
-    session.refresh(tenant)
+    if body.proration_behavior not in {"create_prorations", "always_invoice", "none"}:
+        raise HTTPException(status_code=400, detail="Invalid proration behavior")
+    sync_stripe_plan(
+        session,
+        tenant,
+        plan_code=body.plan_code,
+        extra_tables=body.extra_tables,
+        proration_behavior=body.proration_behavior,
+    )
     return _tenant_detail(session, tenant)
 
 

@@ -432,6 +432,15 @@ export interface PlatformTenantSummary {
   table_limit: number;
   invitation_sent_at?: string | null;
   invitation_last_error?: string | null;
+  subscription_status: string;
+  trial_ends_at?: string | null;
+  renewal_at?: string | null;
+  cancel_at_period_end: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_customer_url?: string | null;
+  last_payment_failed_at?: string | null;
+  monthly_cents: number;
 }
 
 export interface PlatformRestaurantCreate {
@@ -523,6 +532,64 @@ export interface PlatformTenantDetail extends PlatformTenantSummary {
     checks: Record<string, boolean>;
     missing: string[];
   };
+}
+
+export interface PlatformSubscriptionRow {
+  tenant_id: number;
+  tenant_name: string;
+  owner_email?: string | null;
+  status: string;
+  plan_code: string;
+  extra_tables: number;
+  table_count: number;
+  table_limit: number;
+  monthly_cents: number;
+  currency: string;
+  trial_ends_at?: string | null;
+  renewal_at?: string | null;
+  cancel_at_period_end: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_customer_url?: string | null;
+  last_payment_at?: string | null;
+  last_payment_failed_at?: string | null;
+  last_invoice_id?: string | null;
+  last_invoice_status?: string | null;
+  last_invoice_amount_cents?: number | null;
+  last_invoice_currency?: string | null;
+  created_at: string;
+}
+
+export interface PlatformSubscriptionList {
+  items: PlatformSubscriptionRow[];
+  page: number;
+  page_size: number;
+  total: number;
+  pages: number;
+}
+
+export interface PlatformSubscriptionMetrics {
+  mrr_cents: number;
+  revenue_total_cents: number;
+  revenue_30d_cents: number;
+  currency: string;
+  active_count: number;
+  trialing_count: number;
+  past_due_count: number;
+  suspended_count: number;
+  canceling_count: number;
+  churned_30d: number;
+  churn_rate_30d: number;
+  status_counts: Record<string, number>;
+}
+
+export interface PlatformBillingHistory {
+  stripe_configured: boolean;
+  stripe_customer_url?: string | null;
+  stripe_error?: string | null;
+  invoices: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
 }
 
 export interface PlatformLoginSummary {
@@ -2473,10 +2540,41 @@ export class ApiService {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
   }
 
-  updatePlatformTenantPlan(tenantId: number, planCode: string, extraTables: number): Observable<PlatformTenantDetail> {
+  updatePlatformTenantPlan(tenantId: number, planCode: string, extraTables: number, prorationBehavior = 'create_prorations'): Observable<PlatformTenantDetail> {
     return this.http.put<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/plan`, {
       plan_code: planCode,
       extra_tables: extraTables,
+      proration_behavior: prorationBehavior,
+    });
+  }
+
+  getPlatformSubscriptions(filters: {
+    search?: string; status?: string; plan?: string; health?: string; page?: number; pageSize?: number;
+  } = {}): Observable<PlatformSubscriptionList> {
+    let params = new HttpParams()
+      .set('page', String(filters.page || 1))
+      .set('page_size', String(filters.pageSize || 25));
+    if (filters.search?.trim()) params = params.set('search', filters.search.trim());
+    if (filters.status) params = params.set('status', filters.status);
+    if (filters.plan) params = params.set('plan', filters.plan);
+    if (filters.health) params = params.set('health', filters.health);
+    return this.http.get<PlatformSubscriptionList>(`${this.apiUrl}/platform/subscriptions`, { params });
+  }
+
+  getPlatformSubscriptionMetrics(): Observable<PlatformSubscriptionMetrics> {
+    return this.http.get<PlatformSubscriptionMetrics>(`${this.apiUrl}/platform/subscriptions/metrics`);
+  }
+
+  runPlatformSubscriptionAction(tenantId: number, action: string, immediate = false): Observable<PlatformTenantDetail> {
+    return this.http.post<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/subscription/action`, {
+      action,
+      immediate,
+    });
+  }
+
+  getPlatformBillingHistory(tenantId: number, limit = 50): Observable<PlatformBillingHistory> {
+    return this.http.get<PlatformBillingHistory>(`${this.apiUrl}/platform/tenants/${tenantId}/billing-history`, {
+      params: new HttpParams().set('limit', String(limit)),
     });
   }
 
