@@ -13,6 +13,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Publish tier prices, scheduled offers and Stripe price migrations | [0082-platform-managed-pricing-and-offers.md](0082-platform-managed-pricing-and-offers.md) |
 | Configure Scanaki company details, legal links and platform SMTP | [0083-platform-settings-and-smtp.md](0083-platform-settings-and-smtp.md) |
 | Navigate and operate the platform CRM workspace | [0084-platform-crm-workspace.md](0084-platform-crm-workspace.md) |
+| Implement multi-location hotel room and table ordering | [0085-multi-location-hotel-ordering-requirements.md](0085-multi-location-hotel-ordering-requirements.md) |
 | Set up Revolut (sandbox, redirects, certificates) | [REVOLUT.md](REVOLUT.md) |
 | Run Puppeteer/UI tests | [testing.md](testing.md) |
 | Multi-agent task loop + GitHub Issues handoff | [agent-loop.md](agent-loop.md) |
