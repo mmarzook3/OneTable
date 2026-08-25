@@ -55,7 +55,10 @@ def _obj_get(obj: Any, key: str, default: Any = None) -> Any:
 def _tenant_row(session: Session, tenant: models.Tenant) -> dict[str, Any]:
     table_count = int(
         session.exec(
-            select(func.count()).select_from(models.Table).where(models.Table.tenant_id == tenant.id)
+            select(func.count()).select_from(models.Table).where(
+                models.Table.tenant_id == tenant.id,
+                models.Table.is_ordering_enabled == True,  # noqa: E712
+            )
         ).one()
         or 0
     )

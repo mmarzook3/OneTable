@@ -14,6 +14,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Configure Scanaki company details, legal links and platform SMTP | [0083-platform-settings-and-smtp.md](0083-platform-settings-and-smtp.md) |
 | Navigate and operate the platform CRM workspace | [0084-platform-crm-workspace.md](0084-platform-crm-workspace.md) |
 | Implement multi-location hotel room and table ordering | [0085-multi-location-hotel-ordering-requirements.md](0085-multi-location-hotel-ordering-requirements.md) |
+| Operate Scanaki locations, hotel rooms, menus, hours and routing | [0087-multi-location-operations-guide.md](0087-multi-location-operations-guide.md) |
 | Mark menu items available or sold out from the Kitchen Display | [0086-kitchen-stock-control.md](0086-kitchen-stock-control.md) |
 | Set up Revolut (sandbox, redirects, certificates) | [REVOLUT.md](REVOLUT.md) |
 | Run Puppeteer/UI tests | [testing.md](testing.md) |

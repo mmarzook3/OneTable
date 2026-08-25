@@ -257,6 +257,24 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
 
     provider_tokens = collect_personal_provider_tokens(session, tenant_id)
 
+    # Multi-location configuration references products, points and users. Remove
+    # its audit/override rows first, while retaining the normal tenant purge order.
+    session.exec(
+        delete(models.LocationAuditEvent).where(
+            models.LocationAuditEvent.tenant_id == tenant_id
+        )
+    )
+    session.exec(
+        delete(models.LocationDateOverride).where(
+            models.LocationDateOverride.tenant_id == tenant_id
+        )
+    )
+    session.exec(
+        delete(models.LocationMenuProduct).where(
+            models.LocationMenuProduct.tenant_id == tenant_id
+        )
+    )
+
     # Clear table -> order pointer before deleting orders
     for tbl in session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all():
         tbl.active_order_id = None
@@ -370,6 +388,9 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
 
     session.exec(delete(models.Table).where(models.Table.tenant_id == tenant_id))
     session.exec(delete(models.Floor).where(models.Floor.tenant_id == tenant_id))
+    session.exec(
+        delete(models.TenantLocation).where(models.TenantLocation.tenant_id == tenant_id)
+    )
 
     session.exec(delete(models.User).where(models.User.tenant_id == tenant_id))
 

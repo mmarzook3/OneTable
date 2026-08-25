@@ -69,6 +69,16 @@ def _count_for_tenant(session: Session, model: type, tenant_id: int) -> int:
     return int(value or 0)
 
 
+def _ordering_point_count(session: Session, tenant_id: int) -> int:
+    value = session.exec(
+        select(func.count()).select_from(models.Table).where(
+            models.Table.tenant_id == tenant_id,
+            models.Table.is_ordering_enabled == True,  # noqa: E712
+        )
+    ).one()
+    return int(value or 0)
+
+
 def _owner_for_tenant(session: Session, tenant_id: int) -> models.User | None:
     return session.exec(
         select(models.User)
@@ -97,7 +107,7 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         tenant_email=tenant.email,
         tenant_phone=tenant.phone,
         product_count=_count_for_tenant(session, models.Product, tenant_id),
-        table_count=_count_for_tenant(session, models.Table, tenant_id),
+        table_count=_ordering_point_count(session, tenant_id),
         user_count=_count_for_tenant(session, models.User, tenant_id),
         order_count=_count_for_tenant(session, models.Order, tenant_id),
         reservation_count=_count_for_tenant(session, models.Reservation, tenant_id),
@@ -152,7 +162,7 @@ def _tenant_detail(session: Session, tenant: models.Tenant) -> models.PlatformTe
         "menu_prices": bool(products) and all(product.price_cents > 0 for product in products),
         "allergens_reviewed": bool(products) and all(product.allergen_reviewed for product in products),
         "tables": bool(tables),
-        "table_plan_limit": len(tables) <= tenant_table_limit(tenant),
+        "table_plan_limit": sum(1 for table in tables if table.is_ordering_enabled) <= tenant_table_limit(tenant),
         "plaques_assigned": bool(tables) and len(assigned_plaques) >= len(tables),
         "nfc_verified": bool(tables) and sum(1 for plaque in assigned_plaques if plaque.nfc_verified_at) >= len(tables),
         "kitchen_station": tenant.default_kitchen_station_id is not None,

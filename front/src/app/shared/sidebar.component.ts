@@ -119,6 +119,11 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
                       <span>{{ 'NAV.TABLES' | translate }}</span>
                     </a>
                   }
+                  @if (canViewSettings()) {
+                    <a routerLink="/locations" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
+                      <span>Locations</span>
+                    </a>
+                  }
                   @if (moduleEnabled('kitchen_bar')) {
                     <a routerLink="/kitchen" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
                       <span>{{ 'NAV.KITCHEN_DISPLAY' | translate }}</span>

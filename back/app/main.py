@@ -67,6 +67,7 @@ from .smart_plaque_routes import (
     router as smart_plaque_router,
     smart_plaque_fields_by_table,
 )
+from .location_routes import router as location_router
 from .saas_routes import router as saas_router
 from .attendance_routes import router as attendance_router
 from .tenant_lifecycle_routes import router as tenant_lifecycle_router
@@ -108,6 +109,7 @@ from .tse_service import (
 from .inventory_service import deduct_inventory_for_order
 from . import inventory_models
 from . import table_cart as table_cart_svc
+from . import location_service as location_svc
 from .translation_service import TranslationService
 from .messages import get_message
 from .api_errors import api_error_payload
@@ -618,6 +620,7 @@ app.include_router(print_agent_router, tags=["Print agent"])
 app.include_router(customer_router, prefix="/customer", tags=["Customer accounts"])
 app.include_router(onetable_ordering_router, tags=["Scanaki ordering"])
 app.include_router(smart_plaque_router, tags=["Smart plaques"])
+app.include_router(location_router, tags=["Locations"])
 
 
 # ============ IMAGE OPTIMIZATION ============
@@ -9416,9 +9419,10 @@ def bulk_create_tables(
     current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
     session: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
-    from .saas_billing import ensure_table_capacity
-
-    ensure_table_capacity(session, int(current_user.tenant_id), additional_tables=body.count)
+    location = location_svc.get_location(session, int(current_user.tenant_id), None)
+    location_svc.ensure_point_capacity(
+        session, int(current_user.tenant_id), additional_active=body.count
+    )
     if body.floor_id is not None:
         floor = session.get(models.Floor, body.floor_id)
         if not floor or floor.tenant_id != current_user.tenant_id:
@@ -9437,6 +9441,10 @@ def bulk_create_tables(
         models.Table(
             tenant_id=current_user.tenant_id,
             name=name,
+            location_id=location.id,
+            service_point_type="table",
+            display_number=location_svc.display_number_from_name(name),
+            is_ordering_enabled=True,
             floor_id=body.floor_id,
             seat_count=body.seat_count,
         )
@@ -9642,13 +9650,33 @@ def create_table(
     current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
     session: Session = Depends(get_session),
 ) -> JSONResponse:
-    from .saas_billing import ensure_table_capacity
-
-    ensure_table_capacity(session, int(current_user.tenant_id), additional_tables=1)
+    location = location_svc.get_location(
+        session, int(current_user.tenant_id), table_data.location_id
+    )
+    point_type = (table_data.service_point_type or "table").strip().lower()
+    if point_type not in location_svc.SERVICE_POINT_TYPES:
+        raise HTTPException(status_code=400, detail="Ordering point type must be table or room")
+    if table_data.is_ordering_enabled:
+        location_svc.ensure_point_capacity(
+            session, int(current_user.tenant_id), additional_active=1
+        )
+    display_number = (
+        table_data.display_number or location_svc.display_number_from_name(table_data.name)
+    ).strip()
+    point_conflicts = session.exec(
+        select(models.Table).where(models.Table.location_id == location.id)
+    ).all()
+    if any((row.display_number or "").casefold() == display_number.casefold() for row in point_conflicts):
+        raise HTTPException(status_code=409, detail=f"Ordering point already exists: {display_number}")
     table = models.Table(
         name=table_data.name,
         tenant_id=current_user.tenant_id,
         floor_id=table_data.floor_id,
+        location_id=location.id,
+        service_point_type=point_type,
+        display_number=display_number,
+        customer_label=(table_data.customer_label or "").strip() or None,
+        is_ordering_enabled=table_data.is_ordering_enabled,
     )
     session.add(table)
     session.commit()
@@ -9683,6 +9711,37 @@ def update_table(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
+    original_location_id = table.location_id
+
+    if table_update.is_ordering_enabled is True and not table.is_ordering_enabled:
+        location_svc.ensure_point_capacity(
+            session, int(current_user.tenant_id), additional_active=1
+        )
+    if table_update.location_id is not None:
+        location_svc.get_location(
+            session, int(current_user.tenant_id), table_update.location_id
+        )
+    next_type = table_update.service_point_type or table.service_point_type
+    if next_type not in location_svc.SERVICE_POINT_TYPES:
+        raise HTTPException(status_code=400, detail="Ordering point type must be table or room")
+    next_location_id = table_update.location_id or table.location_id
+    if table_update.display_number is not None and not table_update.display_number.strip():
+        raise HTTPException(status_code=400, detail="Ordering point number is required")
+    next_display_number = (
+        table_update.display_number.strip()
+        if table_update.display_number is not None
+        else table.display_number
+    )
+    if next_location_id is not None and next_display_number:
+        conflicts = session.exec(
+            select(models.Table).where(
+                models.Table.location_id == next_location_id,
+                models.Table.id != table.id,
+            )
+        ).all()
+        if any((row.display_number or "").casefold() == next_display_number.casefold() for row in conflicts):
+            raise HTTPException(status_code=409, detail=f"Ordering point already exists: {next_display_number}")
+
     # Update all provided fields
     if table_update.name is not None:
         table.name = table_update.name
@@ -9707,6 +9766,20 @@ def update_table(
         table.height = table_update.height
     if table_update.seat_count is not None:
         table.seat_count = table_update.seat_count
+    if table_update.location_id is not None:
+        table.location_id = table_update.location_id
+    if table_update.service_point_type is not None:
+        table.service_point_type = table_update.service_point_type
+    if table_update.display_number is not None:
+        table.display_number = table_update.display_number.strip()
+    if table_update.customer_label is not None:
+        table.customer_label = table_update.customer_label.strip() or None
+    if table_update.is_ordering_enabled is not None:
+        table.is_ordering_enabled = table_update.is_ordering_enabled
+    if table.location_id != original_location_id:
+        table.token = str(uuid4())
+        table.token_rotated_at = datetime.now(timezone.utc)
+        table.plaque_last_tested_at = None
 
     session.add(table)
     session.commit()
@@ -12439,7 +12512,9 @@ def get_menu(
     try:
         result = session.execute(
             text("""
-            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id
+            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id,
+                   location_id, service_point_type, display_number, customer_label,
+                   is_ordering_enabled, assignment_version
             FROM "table"
             WHERE token = :token
         """),
@@ -12460,7 +12535,9 @@ def get_menu(
 
     # Create a simple object with the needed attributes
     class TableData:
-        def __init__(self, id, tenant_id, name, token, is_active, order_pin, active_order_id):
+        def __init__(self, id, tenant_id, name, token, is_active, order_pin, active_order_id,
+                     location_id, service_point_type, display_number, customer_label,
+                     is_ordering_enabled, assignment_version):
             self.id = id
             self.tenant_id = tenant_id
             self.name = name
@@ -12468,6 +12545,12 @@ def get_menu(
             self.is_active = is_active or False
             self.order_pin = order_pin
             self.active_order_id = active_order_id
+            self.location_id = location_id
+            self.service_point_type = service_point_type or "table"
+            self.display_number = display_number
+            self.customer_label = customer_label
+            self.is_ordering_enabled = bool(is_ordering_enabled)
+            self.assignment_version = assignment_version or 1
 
     table = TableData(
         table_row[0],
@@ -12477,13 +12560,22 @@ def get_menu(
         table_row[4],
         table_row[5],
         table_row[6],
+        table_row[7],
+        table_row[8],
+        table_row[9],
+        table_row[10],
+        table_row[11],
+        table_row[12],
     )
 
     tenant = session.get(models.Tenant, table.tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     ordering_mode = normalize_ordering_mode(tenant.ordering_mode)
-    availability = ordering_availability(session, tenant)
+    location, ordering_context = location_svc.location_context(session, table)
+    availability = ordering_availability(
+        session, tenant, location=location, point=table
+    )
 
     if ordering_mode == "activation_pin" and not table.is_active:
         # Return tenant/table info so the frontend can show a branded "table closed" page
@@ -12498,6 +12590,7 @@ def get_menu(
                 "tenant_header_background_filename": tenant.header_background_filename if tenant else None,
                 "tenant_id": table.tenant_id,
                 "tenant_public_background_color": tenant.public_background_color if tenant else None,
+                **ordering_context,
             },
         )
 
@@ -12544,6 +12637,9 @@ def get_menu(
         return True
     tenant_products = [tp for tp in tenant_products if _is_available(tp.available_from, tp.available_until)]
     legacy_products = [p for p in legacy_products if _is_available(p.available_from, p.available_until)]
+    location_tp_overrides, location_product_overrides = location_svc.menu_override_maps(
+        session, location
+    )
 
     linked_legacy_product_ids = {
         tp.product_id for tp in tenant_products if tp.product_id is not None
@@ -12840,7 +12936,10 @@ def get_menu(
             if provider_product.elaboration:
                 product_data["elaboration"] = provider_product.elaboration
 
-        products_list.append(product_data)
+        if location_svc.apply_menu_override(
+            product_data, location_tp_overrides.get(int(tp.id)), today=today
+        ):
+            products_list.append(product_data)
 
     # Add legacy Products (skip rows already represented via TenantProduct.product_id)
     for lp in legacy_products:
@@ -12902,7 +13001,10 @@ def get_menu(
         # Product customization questions
         product_data["questions"] = questions_by_product.get(lp.id, [])
 
-        products_list.append(product_data)
+        if location_svc.apply_menu_override(
+            product_data, location_product_overrides.get(int(lp.id)), today=today
+        ):
+            products_list.append(product_data)
 
     # Live promo prices for QR menu (#322)
     eligible_promos = promo_svc.eligible_promos(
@@ -12961,6 +13063,7 @@ def get_menu(
         ),
         "ordering_mode": ordering_mode,
         "ordering_availability": availability,
+        **ordering_context,
         "tenant_public_background_color": tenant.public_background_color if tenant else None,
         # Table session status (take-away/home ordering tables do not require PIN; staff_access also skips PIN)
         "table_is_active": table.is_active if ordering_mode == "activation_pin" else True,
@@ -13315,6 +13418,10 @@ def get_current_order(
             "session_id": active_order.session_id,
             "customer_name": active_order.customer_name,
             "created_at": active_order.created_at.isoformat(),
+            "location_id": active_order.location_id,
+            "location_name": active_order.location_name_snapshot,
+            "service_point_type": active_order.service_point_type_snapshot,
+            "service_point_label": active_order.service_point_label_snapshot,
             "items": [
                 {
                     "id": item.id,
@@ -13437,6 +13544,10 @@ def get_table_order_history(
             "status": order.status.value,
             "created_at": order.created_at.isoformat(),
             "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+            "location_id": order.location_id,
+            "location_name": order.location_name_snapshot,
+            "service_point_type": order.service_point_type_snapshot,
+            "service_point_label": order.service_point_label_snapshot,
             "items": [
                 {
                     "id": item.id,
@@ -13622,6 +13733,24 @@ def create_order(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     ordering_mode = normalize_ordering_mode(tenant.ordering_mode)
+    location, ordering_context = location_svc.location_context(session, table)
+
+    if (
+        order_data.ordering_point_assignment_version is not None
+        and order_data.ordering_point_assignment_version != int(table.assignment_version or 1)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STALE_ORDERING_POINT",
+                "message": "This QR/NFC plaque assignment changed. Please scan or tap it again.",
+            },
+        )
+    if order_data.location_confirmed is False:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirm the table or room before placing the order",
+        )
 
     if order_data.idempotency_key:
         existing_checkout = session.exec(
@@ -13633,6 +13762,18 @@ def create_order(
         if existing_checkout:
             if existing_checkout.table_id != table.id:
                 raise HTTPException(status_code=409, detail="Idempotency key belongs to another table")
+            if (
+                existing_checkout.ordering_point_assignment_version_snapshot is not None
+                and existing_checkout.ordering_point_assignment_version_snapshot
+                != int(table.assignment_version or 1)
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "STALE_ORDERING_POINT",
+                        "message": "This QR/NFC plaque assignment changed. Please scan or tap it again.",
+                    },
+                )
             return JSONResponse(
                 content={
                     "status": "existing",
@@ -13652,7 +13793,9 @@ def create_order(
     if ordering_mode == "automatic" and not (order_data.session_id or "").strip():
         raise HTTPException(status_code=400, detail="session_id is required")
 
-    availability = ordering_availability(session, tenant)
+    availability = ordering_availability(
+        session, tenant, location=location, point=table
+    )
     if not availability["allowed"]:
         status_code = 503 if availability["code"] == "KDS_OFFLINE" else 409
         raise HTTPException(status_code=status_code, detail=availability)
@@ -13753,6 +13896,9 @@ def create_order(
                 else None
             ),
             public_idempotency_key=order_data.idempotency_key,
+        )
+        location_svc.snapshot_order_context(
+            new_order, table, tenant, location
         )
         session.add(new_order)
         session.flush()
@@ -13950,6 +14096,18 @@ def create_order(
             price_cents=price_cents,
             product_name=product_name,
         )
+        price_cents = location_svc.effective_line_price(
+            session,
+            location,
+            tenant_product_id=(
+                int(line_tenant_product.id)
+                if line_tenant_product is not None and line_tenant_product.id is not None
+                else None
+            ),
+            product_id=effective_product_id,
+            base_price_cents=price_cents,
+            on_date=order_date,
+        )
 
         # Apply eligible line promo (#322) — discount tax-inclusive list price, recompute tax
         product_category = None
@@ -14076,7 +14234,8 @@ def create_order(
             "order_id": order.id,
             "table_name": table.name,
             "status": order.status.value,
-            "created_at": order.created_at.isoformat()
+            "created_at": order.created_at.isoformat(),
+            **ordering_context,
         }, table_id=table.id)
 
     # Remove this device's draft cart lines after they were submitted to the shared order
@@ -14093,6 +14252,7 @@ def create_order(
             order.requires_prepayment and order.kitchen_released_at is None
         ),
         "payment_state": order.payment_state,
+        **ordering_context,
     })
 
 
@@ -14721,6 +14881,16 @@ def list_orders(
     result = []
     for order in orders:
         table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
+        table_location = (
+            session.get(models.TenantLocation, table.location_id)
+            if table and table.location_id
+            else None
+        )
+        location_station_override = (
+            order.kitchen_station_id_snapshot
+            if table_location and table_location.kitchen_mode == "override"
+            else None
+        )
         
         # Get items, optionally including removed ones
         if include_removed:
@@ -14801,7 +14971,12 @@ def list_orders(
         for oi in items:
             prod = product_map.get(oi.product_id) if product_map else None
             if tenant_row:
-                kid, knm, krt = resolve_order_item_kds(prod, tenant_row, station_by_id)
+                kid, knm, krt = resolve_order_item_kds(
+                    prod,
+                    tenant_row,
+                    station_by_id,
+                    location_default_station_id=location_station_override,
+                )
             else:
                 kid, knm, krt = None, None, "kitchen"
             order_items_json.append(
@@ -14847,6 +15022,21 @@ def list_orders(
             "table_name": table_display,
             "table_id": table.id if table else None,
             "table_token": table.token if table else None,
+            "location_id": order.location_id,
+            "location_name": (
+                order.location_name_snapshot
+                or (table_location.display_name if table_location else None)
+            ),
+            "service_point_type": (
+                order.service_point_type_snapshot
+                or (table.service_point_type if table else None)
+            ),
+            "service_point_label": (
+                order.service_point_label_snapshot
+                or (location_svc.service_point_label(table) if table else table_display)
+            ),
+            "kitchen_station_id_snapshot": order.kitchen_station_id_snapshot,
+            "payment_account_snapshot": order.payment_account_snapshot,
             "status": computed_status.value,
             "notes": order.notes,
             "session_id": order.session_id,
@@ -16669,6 +16859,8 @@ def _release_paid_stripe_order(
     metadata = _stripe_object_value(payment_intent, "metadata", {}) or {}
     metadata_order_id = _stripe_object_value(metadata, "order_id")
     metadata_tenant_id = _stripe_object_value(metadata, "tenant_id")
+    metadata_location_id = _stripe_object_value(metadata, "location_id")
+    metadata_payment_account = _stripe_object_value(metadata, "payment_account_snapshot")
 
     if intent_status != "succeeded":
         raise HTTPException(status_code=400, detail="Payment not completed")
@@ -16687,6 +16879,13 @@ def _release_paid_stripe_order(
             status_code=400,
             detail="Payment mismatch: Payment does not belong to this tenant",
         )
+    if metadata_location_id is not None and str(metadata_location_id) != str(order.location_id):
+        raise HTTPException(status_code=400, detail="Payment mismatch: Location does not match order")
+    if (
+        metadata_payment_account is not None
+        and str(metadata_payment_account) != str(order.payment_account_snapshot)
+    ):
+        raise HTTPException(status_code=400, detail="Payment mismatch: Payment account does not match order")
     if order.stripe_payment_intent_id and order.stripe_payment_intent_id != intent_id:
         raise HTTPException(status_code=400, detail="Order is locked to another payment")
 
@@ -16766,6 +16965,10 @@ def _release_paid_stripe_order(
                 "status": order.status.value,
                 "created_at": order.created_at.isoformat(),
                 "kitchen_released_at": order.kitchen_released_at.isoformat(),
+                "location_id": order.location_id,
+                "location_name": order.location_name_snapshot,
+                "service_point_type": order.service_point_type_snapshot,
+                "service_point_label": order.service_point_label_snapshot,
             },
             table_id=order.table_id,
         )
@@ -16784,6 +16987,10 @@ def _release_paid_stripe_order(
             "order_id": order.id,
             "table_name": table_name,
             "status": order.status.value,
+            "location_id": order.location_id,
+            "location_name": order.location_name_snapshot,
+            "service_point_type": order.service_point_type_snapshot,
+            "service_point_label": order.service_point_label_snapshot,
         },
         table_id=order.table_id,
     )
@@ -16888,7 +17095,10 @@ def create_payment_intent(
         metadata = {
             "order_id": str(order.id),
             "tenant_id": str(order.tenant_id),
+            "payment_account_snapshot": order.payment_account_snapshot or "tenant-default",
         }
+        if order.location_id is not None:
+            metadata["location_id"] = str(order.location_id)
         if table is not None:
             metadata["table_id"] = str(table.id)
         else:

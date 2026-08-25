@@ -1055,10 +1055,113 @@ class TableGroup(TenantMixin, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class TenantLocation(TenantMixin, table=True):
+    """Operational service area within one restaurant tenant."""
+
+    __tablename__ = "tenant_location"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "slug", name="uq_tenant_location_tenant_slug"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=120)
+    display_name: str = Field(max_length=160)
+    slug: str = Field(max_length=120, index=True)
+    location_type: str = Field(default="pub", max_length=32)
+    is_active: bool = Field(default=True, index=True)
+    sort_order: int = Field(default=0)
+    menu_mode: str = Field(default="inherit", max_length=16)
+    hours_mode: str = Field(default="inherit", max_length=16)
+    kitchen_mode: str = Field(default="inherit", max_length=16)
+    payment_mode: str = Field(default="inherit", max_length=16)
+    opening_hours_override: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    ordering_hours_override: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    default_kitchen_station_id: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    payment_account_reference: str | None = Field(default=None, max_length=128)
+    ordering_paused: bool = Field(default=False)
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LocationMenuProduct(TenantMixin, table=True):
+    """Location-specific menu visibility/price overrides without duplicating products."""
+
+    __tablename__ = "location_menu_product"
+    __table_args__ = (
+        UniqueConstraint(
+            "location_id",
+            "tenant_product_id",
+            name="uq_location_menu_product_tenant_product",
+        ),
+        UniqueConstraint(
+            "location_id",
+            "product_id",
+            name="uq_location_menu_product_product",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="tenant_location.id", index=True)
+    tenant_product_id: int | None = Field(default=None, foreign_key="tenantproduct.id", index=True)
+    product_id: int | None = Field(default=None, foreign_key="product.id", index=True)
+    enabled: bool | None = None
+    price_cents_override: int | None = Field(default=None, ge=0)
+    category_override: str | None = Field(default=None, max_length=120)
+    sort_order_override: int | None = None
+    available_from: date | None = None
+    available_until: date | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LocationDateOverride(TenantMixin, table=True):
+    """One-day opening/ordering exception for a tenant location."""
+
+    __tablename__ = "location_date_override"
+    __table_args__ = (
+        UniqueConstraint("location_id", "override_date", name="uq_location_date_override"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="tenant_location.id", index=True)
+    override_date: date = Field(index=True)
+    is_closed: bool = Field(default=False)
+    opening_hours: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    ordering_hours: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    note: str | None = Field(default=None, max_length=240)
+
+
+class LocationAuditEvent(TenantMixin, table=True):
+    """Immutable operational audit record for multi-location configuration."""
+
+    __tablename__ = "location_audit_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    table_id: int | None = Field(default=None, foreign_key="table.id", index=True)
+    action: str = Field(max_length=64, index=True)
+    actor_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Table(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str  # e.g., "Table 5"
     token: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    service_point_type: str = Field(default="table", max_length=16, index=True)
+    display_number: str | None = Field(default=None, max_length=64)
+    customer_label: str | None = Field(default=None, max_length=120)
+    is_ordering_enabled: bool = Field(default=True, index=True)
+    assignment_version: int = Field(default=1, ge=1)
     # Canvas layout properties
     floor_id: int | None = Field(default=None, foreign_key="floor.id")
     x_position: float = Field(default=0)
@@ -1575,6 +1678,15 @@ class Order(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     # Null when soft-deleted and unlinked, or legacy cleanup; active orders always have a table.
     table_id: int | None = Field(default=None, foreign_key="table.id")
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    location_name_snapshot: str | None = Field(default=None, max_length=160)
+    service_point_type_snapshot: str | None = Field(default=None, max_length=16)
+    service_point_label_snapshot: str | None = Field(default=None, max_length=120)
+    kitchen_station_id_snapshot: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    payment_account_snapshot: str | None = Field(default=None, max_length=128)
+    ordering_point_assignment_version_snapshot: int | None = None
     status: OrderStatus = Field(default=OrderStatus.pending)
     notes: str | None = None  # General order notes
     session_id: str | None = Field(default=None, index=True)  # Unique session identifier per browser
@@ -1818,6 +1930,11 @@ class ProductAvailabilityBulkUpdate(SQLModel):
 class TableCreate(SQLModel):
     name: str
     floor_id: int | None = None
+    location_id: int | None = None
+    service_point_type: str = "table"
+    display_number: str | None = None
+    customer_label: str | None = None
+    is_ordering_enabled: bool = True
 
 
 class TableUpdate(SQLModel):
@@ -1831,6 +1948,11 @@ class TableUpdate(SQLModel):
     height: float | None = None
     seat_count: int | None = None
     assigned_waiter_id: int | None = None
+    location_id: int | None = None
+    service_point_type: str | None = None
+    display_number: str | None = None
+    customer_label: str | None = None
+    is_ordering_enabled: bool | None = None
 
 
 class TableGroupCreate(SQLModel):
@@ -2098,6 +2220,8 @@ class OrderCreate(SQLModel):
     latitude: float | None = None  # Optional GPS latitude for location verification
     longitude: float | None = None  # Optional GPS longitude for location verification
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=64)
+    ordering_point_assignment_version: int | None = Field(default=None, ge=1)
+    location_confirmed: bool | None = None
 
 
 class SatisfechoDeliveryOrderCreate(SQLModel):

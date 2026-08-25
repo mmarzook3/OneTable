@@ -134,6 +134,7 @@ export const routes: Routes = [
     loadComponent: () => import('./tables/tables-canvas.component').then(m => m.TablesCanvasComponent),
   },
   { path: 'tables', canActivate: [authGuard, uiModuleGuard('tables'), tableAccessGuard], loadComponent: () => import('./tables/tables.component').then(m => m.TablesComponent) },
+  { path: 'locations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./locations/locations.component').then(m => m.LocationsComponent) },
 
   // Staff orders (list and manage orders)
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },

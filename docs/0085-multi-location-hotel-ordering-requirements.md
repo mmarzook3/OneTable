@@ -1,6 +1,6 @@
 # Scanaki multi-location hotel ordering requirements
 
-**Status:** Approved implementation requirements
+**Status:** Implemented in Scanaki 2.2.0
 
 **Pilot customer:** The Yew Trees Pub / Blaby Hotel
 
@@ -770,3 +770,21 @@ The feature is complete when:
 - Three prototype QR/NFC plaques are tested at the venue before mass production.
 - Stripe live payment acceptance is completed after credentials are supplied.
 - Venue signs off location names, service points, menus, hours, legal wording and kitchen workflow.
+
+## 25. Implementation result
+
+Scanaki 2.2.0 implements the reusable multi-location architecture and all software acceptance paths described above:
+
+- tenant locations and location-aware ordering points with idempotent default backfill;
+- preserved legacy table IDs, tokens, plaques and historical orders;
+- Room/Table customer labels and immutable order, kitchen and payment snapshots;
+- master-menu inheritance plus location availability and price overrides;
+- separate location opening/ordering schedules, overnight hours and date/range exceptions;
+- location pause, kitchen routing and disabled-by-default payment-account override support;
+- owner and platform location workspaces with bulk preview and subscription enforcement;
+- customer context through basket, checkout, payment result, status and history;
+- paid-release FIFO KDS origin labels and location filters;
+- combined/location reporting and active ordering-point allowance metrics;
+- tenant-isolation, stale-assignment, migration-retry, mobile/desktop and regression coverage.
+
+The four approved Yew Trees locations are provisioned without inventing operational inputs that remain TBP. Stripe live payment acceptance and physical QR/NFC plaque sign-off remain venue rollout activities, not missing platform functionality. See [0087-multi-location-operations-guide.md](0087-multi-location-operations-guide.md).

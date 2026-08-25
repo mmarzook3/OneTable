@@ -16,6 +16,7 @@ import {
   ApiService,
   KitchenStockProduct,
   KitchenStation,
+  OperationalLocation,
   Order,
   OrderItem,
   OrderLineModifiers,
@@ -112,6 +113,17 @@ const VIEW_CATEGORY: Record<string, string> = {
         </a>
         <h1 class="kitchen-title">{{ pageTitle() }}</h1>
         <div class="header-actions">
+          @if (operationalLocations().length > 1) {
+            <label class="station-filter">
+              <span class="station-filter-label">Location</span>
+              <select class="station-filter-select" [ngModel]="locationSelection()" (ngModelChange)="locationSelection.set($event)">
+                <option [ngValue]="'all'">All locations</option>
+                @for (location of operationalLocations(); track location.id) {
+                  <option [ngValue]="location.id">{{ location.display_name }}</option>
+                }
+              </select>
+            </label>
+          }
           @if (stationsForCurrentView().length > 0) {
             <label class="station-filter">
               <span class="station-filter-label">{{ 'KITCHEN_DISPLAY.STATION' | translate }}</span>
@@ -196,7 +208,8 @@ const VIEW_CATEGORY: Record<string, string> = {
                   <div class="order-meta">
                     <span class="fifo-position">FIFO {{ position + 1 }}</span>
                     <span class="order-id">#{{ order.id }}</span>
-                    <span class="order-table">{{ order.table_name }}</span>
+                    @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
+                    <span class="order-table">{{ order.service_point_label || order.table_name }}</span>
                     @if (order.staff_urgent) {
                       <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
                     }
@@ -558,6 +571,14 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-weight: 600;
       color: #fbbf24;
     }
+    .order-location {
+      width: 100%;
+      color: #bfdbfe;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .045em;
+      text-transform: uppercase;
+    }
     .order-customer { font-size: 1rem; color: #cbd5e1; }
     .order-time { font-size: 1rem; color: #cbd5e1; }
     .order-waiting { font-size: 1.125rem; font-weight: 700; color: #f8fafc; }
@@ -885,6 +906,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   viewMode = signal<'kitchen' | 'bar'>('kitchen');
   /** Loaded prep stations; filtered per view by display_route */
   kitchenStations = signal<KitchenStation[]>([]);
+  operationalLocations = signal<OperationalLocation[]>([]);
+  locationSelection = signal<number | 'all'>('all');
   /** KDS station filter when tenant has stations for this view */
   stationSelection = signal<number | 'all'>('all');
   stockModalOpen = signal(false);
@@ -995,6 +1018,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     };
 
     const list = this.orders().filter((o) => {
+      if (this.locationSelection() !== 'all' && o.location_id !== this.locationSelection()) return false;
       if (!['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status)) return false;
       const items = (o.items ?? []).filter(itemVisible);
       return items.length > 0;
@@ -1059,6 +1083,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.api.getKitchenStations().subscribe({
       next: (list) => this.kitchenStations.set(list),
       error: () => this.kitchenStations.set([]),
+    });
+    this.api.getOperationalLocations().subscribe({
+      next: (list) => this.operationalLocations.set(list.filter((row) => row.is_active)),
+      error: () => this.operationalLocations.set([]),
     });
 
     this.loadTimerSettings();

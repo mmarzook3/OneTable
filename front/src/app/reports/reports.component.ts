@@ -23,6 +23,7 @@ import {
   SalesReport,
   User,
   WorkSession,
+  TenantLocation,
   workSessionNetWorkSeconds,
 } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
@@ -98,6 +99,8 @@ export class ReportsComponent implements OnInit {
   toDate = signal('');
   currency = signal('£');
   currencyCode = signal<string | null>(null);
+  locations = signal<TenantLocation[]>([]);
+  selectedLocationId = signal<number | null>(null);
 
   maxBarValue = computed(() => {
     const r = this.report();
@@ -132,6 +135,7 @@ export class ReportsComponent implements OnInit {
     this.fromDate.set(this.fmtDate(from));
     this.toDate.set(this.fmtDate(today));
     this.loadTenantCurrency();
+    this.api.getLocations().subscribe({ next: (rows) => this.locations.set(rows), error: () => this.locations.set([]) });
     this.loadReport();
     const now = new Date();
     this.attendanceExcelMonth.set(
@@ -237,7 +241,7 @@ export class ReportsComponent implements OnInit {
     if (!from || !to) return;
     this.loading.set(true);
     this.error.set(null);
-    this.api.getSalesReports(from, to).subscribe({
+    this.api.getSalesReports(from, to, this.selectedLocationId()).subscribe({
       next: (data) => {
         this.report.set(data);
         this.loading.set(false);
@@ -725,7 +729,7 @@ export class ReportsComponent implements OnInit {
     this.exporting.set(true);
     const from = this.fromDate();
     const to = this.toDate();
-    this.api.getReportsExport(from, to, 'xlsx', 'summary', this.languageService.getLanguage()).subscribe({
+    this.api.getReportsExport(from, to, 'xlsx', 'summary', this.languageService.getLanguage(), this.selectedLocationId()).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -747,7 +751,7 @@ export class ReportsComponent implements OnInit {
     this.exporting.set(true);
     const from = this.fromDate();
     const to = this.toDate();
-    this.api.getReportsExport(from, to, 'csv', report, this.languageService.getLanguage()).subscribe({
+    this.api.getReportsExport(from, to, 'csv', report, this.languageService.getLanguage(), this.selectedLocationId()).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

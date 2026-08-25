@@ -15,6 +15,8 @@ from . import models
 from .db import get_session
 from .kitchen_stations_util import normalize_display_route
 from .permissions import Permission, require_permission
+from . import location_service as location_svc
+from .opening_hours_effective import opening_service_windows_for_date
 
 
 router = APIRouter()
@@ -99,6 +101,12 @@ def _within_service_hours(tenant: models.Tenant, now: datetime) -> bool:
             hours = json.loads(legacy_hours) if isinstance(legacy_hours, str) else legacy_hours
         except (TypeError, ValueError):
             return True
+    return _within_hours(hours, now)
+
+
+def _within_hours(hours: dict[str, Any] | None, now: datetime) -> bool:
+    if not hours:
+        return True
     try:
         validate_ordering_service_hours(hours)
     except ValueError:
@@ -125,11 +133,34 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _within_effective_tenant_opening_hours(
+    session: Session,
+    tenant: models.Tenant,
+    local_now: datetime,
+) -> bool:
+    """Apply tenant baseline/date exceptions, including overnight carry-over."""
+    today_windows = opening_service_windows_for_date(session, tenant, local_now.date())
+    if today_windows is None:
+        return True
+    local_time = local_now.timetz().replace(tzinfo=None)
+    for opens, closes in today_windows:
+        if opens <= closes and opens <= local_time < closes:
+            return True
+        if opens > closes and local_time >= opens:
+            return True
+    previous_windows = opening_service_windows_for_date(
+        session, tenant, (local_now - timedelta(days=1)).date()
+    ) or []
+    return any(opens > closes and local_time < closes for opens, closes in previous_windows)
+
+
 def ordering_availability(
     session: Session,
     tenant: models.Tenant,
     *,
     now: datetime | None = None,
+    location: models.TenantLocation | None = None,
+    point: models.Table | None = None,
 ) -> dict[str, Any]:
     """Return the public ordering decision and an explanation suitable for UI/API use."""
     mode = normalize_ordering_mode(getattr(tenant, "ordering_mode", None))
@@ -148,6 +179,8 @@ def ordering_availability(
         "strict_fifo_kds": bool(getattr(tenant, "strict_fifo_kds", True)),
         "checked_at": local_now.isoformat(),
         "kds_online": None,
+        "location_id": location.id if location else None,
+        "service_point_id": point.id if point else None,
     }
     if mode == "menu_only":
         result.update(
@@ -166,7 +199,66 @@ def ordering_availability(
             staff_message=reason,
         )
         return result
-    if not _within_service_hours(tenant, local_now):
+    if location is not None and not location.is_active:
+        result.update(
+            allowed=False,
+            code="LOCATION_INACTIVE",
+            customer_message="This location is currently unavailable.",
+            staff_message="The location is archived or inactive.",
+        )
+        return result
+    if location is not None and location.ordering_paused:
+        reason = (location.ordering_pause_reason or "Ordering is temporarily paused at this location.").strip()
+        result.update(
+            allowed=False,
+            code="LOCATION_PAUSED",
+            customer_message=reason,
+            staff_message=reason,
+        )
+        return result
+    if point is not None and not point.is_ordering_enabled:
+        result.update(
+            allowed=False,
+            code="ORDERING_POINT_DISABLED",
+            customer_message="Ordering is currently unavailable for this table or room.",
+            staff_message="The ordering point is disabled.",
+        )
+        return result
+
+    exception = location_svc.date_override(session, location, local_now.date())
+    if exception is not None and exception.is_closed:
+        result.update(
+            allowed=False,
+            code="LOCATION_CLOSED",
+            customer_message="This location is closed today. You can still browse the menu.",
+            staff_message="A location date override closes ordering today.",
+        )
+        return result
+    if location is not None and location.hours_mode == "override":
+        opening_hours = (
+            exception.opening_hours
+            if exception is not None and exception.opening_hours is not None
+            else location_svc.effective_hours(tenant, location, kind="opening")
+        )
+        opening_allowed = _within_hours(opening_hours, local_now)
+    else:
+        opening_allowed = _within_effective_tenant_opening_hours(
+            session, tenant, local_now
+        )
+    if not opening_allowed:
+        result.update(
+            allowed=False,
+            code="LOCATION_CLOSED",
+            customer_message="This location is currently closed. You can still browse the menu.",
+            staff_message="Current time is outside the effective opening hours.",
+        )
+        return result
+    hours = (
+        exception.ordering_hours
+        if exception is not None and exception.ordering_hours is not None
+        else location_svc.effective_hours(tenant, location, kind="ordering")
+    )
+    if not _within_hours(hours, local_now):
         result.update(
             allowed=False,
             code="OUTSIDE_SERVICE_HOURS",

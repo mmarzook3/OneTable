@@ -43,7 +43,7 @@ import {
                     <span class="customer-avatar">{{ initials(tenant.name) }}</span>
                     <span class="customer-name"><strong>{{ tenant.name }}</strong><small>{{ tenant.owner_name || tenant.owner_email || 'Owner not provided' }}</small></span>
                     <span class="customer-plan">{{ tenant.saas_plan_code }}</span>
-                    <span class="customer-usage">{{ tenant.table_count }}/{{ tenant.table_limit }} tables</span>
+                    <span class="customer-usage">{{ tenant.table_count }}/{{ tenant.table_limit }} ordering points</span>
                     <span class="status" [attr.data-status]="tenant.onboarding_status">{{ label(tenant.onboarding_status) }}</span>
                   </a>
                 }

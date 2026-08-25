@@ -1,4 +1,4 @@
-"""Provision the idempotent Scanaki pilot tenant for The Yue Tree Pub.
+"""Provision the idempotent Scanaki pilot tenant for The Yew Trees Pub.
 
 This seed is safe to rerun: it updates the pilot policy, creates only missing
 tables/products/stations, and creates or resets the two pilot accounts only when
@@ -23,23 +23,31 @@ from app.models import (
     Product,
     Table,
     Tenant,
+    TenantLocation,
     User,
     UserRole,
 )
 from app.security import get_password_hash
 
 
-TENANT_NAME = "The Yue Tree Pub"
-TABLE_COUNT = 12
+TENANT_NAME = "The Yew Trees Pub"
+TABLE_COUNT = 10
 SERVICE_HOURS = {
-    "monday": {"open": "11:30", "close": "23:00"},
-    "tuesday": {"open": "11:30", "close": "23:00"},
-    "wednesday": {"open": "11:30", "close": "23:00"},
-    "thursday": {"open": "11:30", "close": "23:00"},
-    "friday": {"open": "11:30", "close": "00:30"},
-    "saturday": {"open": "11:30", "close": "00:30"},
-    "sunday": {"open": "11:30", "close": "22:30"},
+    "monday": {"open": "14:00", "close": "23:00"},
+    "tuesday": {"open": "14:00", "close": "23:00"},
+    "wednesday": {"open": "14:00", "close": "23:00"},
+    "thursday": {"open": "14:00", "close": "23:00"},
+    "friday": {"open": "14:00", "close": "00:00"},
+    "saturday": {"open": "12:00", "close": "00:00"},
+    "sunday": {"open": "12:00", "close": "22:30"},
 }
+
+PILOT_LOCATIONS = (
+    ("The Yew Trees", "The Yew Trees", "the-yew-trees", "pub", 0),
+    ("Sports Lounge", "Sports Lounge", "sports-lounge", "lounge", 10),
+    ("Premium Building", "Blaby Hotel - Premium Building", "premium-building", "hotel_building", 20),
+    ("Main Building", "Blaby Hotel - Main Building", "main-building", "hotel_building", 30),
+)
 
 # Acceptance-test data only. Replace it with the venue's approved menu before launch.
 PILOT_PRODUCTS = (
@@ -60,7 +68,7 @@ PILOT_PRODUCTS = (
     ),
 )
 
-PILOT_DESCRIPTION = "Pilot menu item — confirm before live launch"
+PILOT_DESCRIPTION = "Pilot menu item - confirm before live launch"
 
 
 def _upsert_account(
@@ -123,6 +131,8 @@ def run() -> None:
         tenant.require_kds_online = True
         tenant.kds_heartbeat_timeout_seconds = 120
         tenant.strict_fifo_kds = True
+        tenant.saas_plan_code = "pro"
+        tenant.saas_included_tables = 20
         tenant.ui_modules = {
             "working_plan": False,
             "providers": False,
@@ -135,6 +145,40 @@ def run() -> None:
         session.commit()
         session.refresh(tenant)
         assert tenant.id is not None
+
+        locations_by_slug = {
+            row.slug: row
+            for row in session.exec(
+                select(TenantLocation).where(TenantLocation.tenant_id == tenant.id)
+            ).all()
+        }
+        if "the-yew-trees" not in locations_by_slug and "the-yew-trees-pub" in locations_by_slug:
+            default_location = locations_by_slug.pop("the-yew-trees-pub")
+            default_location.slug = "the-yew-trees"
+            locations_by_slug["the-yew-trees"] = default_location
+        for name, display_name, slug, location_type, sort_order in PILOT_LOCATIONS:
+            location = locations_by_slug.get(slug)
+            if location is None:
+                location = TenantLocation(
+                    tenant_id=tenant.id,
+                    name=name,
+                    display_name=display_name,
+                    slug=slug,
+                    location_type=location_type,
+                )
+            location.name = name
+            location.display_name = display_name
+            location.location_type = location_type
+            location.sort_order = sort_order
+            location.menu_mode = "inherit"
+            location.hours_mode = "inherit"
+            location.kitchen_mode = "inherit"
+            location.payment_mode = "inherit"
+            session.add(location)
+            locations_by_slug[slug] = location
+        session.commit()
+        yew_location = locations_by_slug["the-yew-trees"]
+        session.refresh(yew_location)
 
         floor = session.exec(
             select(Floor).where(Floor.tenant_id == tenant.id, Floor.name == "Main")
@@ -173,6 +217,10 @@ def run() -> None:
             if name in existing_tables:
                 table = existing_tables[name]
                 table.floor_id = floor.id
+                table.location_id = yew_location.id
+                table.service_point_type = "table"
+                table.display_number = str(number)
+                table.is_ordering_enabled = True
                 session.add(table)
                 continue
             column = (number - 1) % 4
@@ -183,6 +231,10 @@ def run() -> None:
                     name=name,
                     token=str(uuid4()),
                     floor_id=floor.id,
+                    location_id=yew_location.id,
+                    service_point_type="table",
+                    display_number=str(number),
+                    is_ordering_enabled=True,
                     seat_count=4,
                     x_position=40 + column * 140,
                     y_position=40 + row * 100,
@@ -197,6 +249,10 @@ def run() -> None:
                 select(Product).where(Product.tenant_id == tenant.id)
             ).all()
         }
+        for existing_product in existing_products.values():
+            if existing_product.description == "Pilot menu item — confirm before live launch":
+                existing_product.description = PILOT_DESCRIPTION
+                session.add(existing_product)
 
         # Migrate the original pilot menu without introducing any restriction logic:
         # Scanaki simply does not promote alcohol-related demo content.

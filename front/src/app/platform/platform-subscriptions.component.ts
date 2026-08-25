@@ -92,7 +92,7 @@ import {
                         </select>
                         <label class="extra-field">+<input type="number" min="0" max="500" [value]="row.extra_tables" (change)="changeExtraTables(row, $event)"></label>
                       </div>
-                      <small>{{ row.table_count }}/{{ row.table_limit }} tables</small>
+                      <small>{{ row.table_count }}/{{ row.table_limit }} ordering points</small>
                     </td>
                     <td>
                       @if (row.status === 'trialing') { <span>Trial ends {{ date(row.trial_ends_at) }}</span> }

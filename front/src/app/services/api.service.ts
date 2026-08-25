@@ -1499,6 +1499,84 @@ export interface Table {
   smart_plaque_nfc_written_at?: string | null;
   smart_plaque_nfc_verified_at?: string | null;
   smart_plaque_nfc_locked_at?: string | null;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room';
+  display_number?: string | null;
+  customer_label?: string | null;
+  service_point_label?: string | null;
+  is_ordering_enabled?: boolean;
+  assignment_version?: number;
+}
+
+export interface TenantLocation {
+  id: number;
+  tenant_id: number;
+  name: string;
+  display_name: string;
+  slug: string;
+  location_type: 'pub' | 'lounge' | 'hotel_building' | 'other';
+  is_active: boolean;
+  sort_order: number;
+  menu_mode: 'inherit' | 'override';
+  hours_mode: 'inherit' | 'override';
+  kitchen_mode: 'inherit' | 'override';
+  payment_mode: 'inherit' | 'override';
+  opening_hours_override?: Record<string, unknown> | null;
+  ordering_hours_override?: Record<string, unknown> | null;
+  default_kitchen_station_id?: number | null;
+  payment_account_reference?: string | null;
+  ordering_paused: boolean;
+  ordering_pause_reason?: string | null;
+  ordering_point_count: number;
+  active_ordering_point_count: number;
+  table_count: number;
+  room_count: number;
+  assigned_plaque_count: number;
+  unassigned_plaque_count: number;
+  ordering_point_usage: number;
+  ordering_point_limit: number;
+  ordering_points_available: number;
+  readiness: Record<string, boolean>;
+}
+
+export interface OperationalLocation {
+  id: number;
+  display_name: string;
+  location_type: string;
+  is_active: boolean;
+}
+
+export interface LocationMenuResponse {
+  location_id: number;
+  menu_mode: 'inherit' | 'override';
+  products: Array<{
+    id: number;
+    source: 'tenant_product' | 'product';
+    name: string;
+    price_cents: number;
+    master_enabled: boolean;
+    override?: Record<string, unknown> | null;
+  }>;
+}
+
+export interface LocationHoursResponse {
+  hours_mode: 'inherit' | 'override';
+  opening_hours_override?: Record<string, unknown> | null;
+  ordering_hours_override?: Record<string, unknown> | null;
+  effective_opening_hours?: Record<string, unknown> | null;
+  effective_ordering_hours?: Record<string, unknown> | null;
+  date_overrides: Array<Record<string, unknown>>;
+}
+
+export interface LocationRoutingResponse {
+  kitchen_mode: 'inherit' | 'override';
+  default_kitchen_station_id?: number | null;
+  resolved_kitchen_station_id?: number | null;
+  payment_mode: 'inherit' | 'override';
+  payment_account_reference?: string | null;
+  resolved_payment_account: string;
+  payment_override_enabled: boolean;
 }
 
 export interface TableActivateResponse {
@@ -1864,6 +1942,12 @@ export interface Order {
   requires_prepayment?: boolean;
   kitchen_released_at?: string | null;
   payment_state?: string | null;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room' | null;
+  service_point_label?: string | null;
+  kitchen_station_id_snapshot?: number | null;
+  payment_account_snapshot?: string | null;
 }
 
 /** Staff create first-party Scanaki Delivery order (no table). */
@@ -1989,6 +2073,14 @@ export interface MenuResponse {
   ordering_mode?: 'activation_pin' | 'automatic' | 'menu_only';
   ordering_availability?: OrderingAvailability;
   products: Product[];
+  location_id?: number | null;
+  location_name?: string | null;
+  location_type?: string | null;
+  service_point_type?: 'table' | 'room';
+  service_point_number?: string | null;
+  service_point_label?: string | null;
+  ordering_context_label?: string | null;
+  ordering_point_assignment_version?: number;
 }
 
 export interface OrderingAvailability {
@@ -2182,6 +2274,8 @@ export interface OrderCreate {
   latitude?: number | null;  // Optional GPS latitude for location verification
   longitude?: number | null;  // Optional GPS longitude for location verification
   idempotency_key?: string;
+  ordering_point_assignment_version?: number | null;
+  location_confirmed?: boolean | null;
 }
 
 export interface OrderHistoryItem {
@@ -2191,6 +2285,10 @@ export interface OrderHistoryItem {
   paid_at: string | null;
   items: { id: number; product_name: string; quantity: number; price_cents: number }[];
   total_cents: number;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room' | null;
+  service_point_label?: string | null;
 }
 
 /** Sales report payload from GET /reports/sales */
@@ -2216,6 +2314,7 @@ export interface SalesReport {
   by_product: { product_id: number; product_name: string; category?: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_category: { category: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_table: { table_name: string; revenue_cents: number; cost_cents?: number; profit_cents?: number; order_count: number }[];
+  by_location?: { location_id: number | null; location_name: string; revenue_cents: number; order_count: number; quantity: number; average_order_value_cents: number }[];
   by_waiter: {
     waiter_name: string;
     revenue_cents: number;
@@ -2660,6 +2759,22 @@ export class ApiService {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
   }
 
+  getPlatformTenantLocations(tenantId: number): Observable<TenantLocation[]> {
+    return this.http.get<TenantLocation[]>(`${this.apiUrl}/platform/tenants/${tenantId}/locations`);
+  }
+
+  createPlatformTenantLocation(tenantId: number, body: Record<string, unknown>): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations`, body);
+  }
+
+  updatePlatformTenantLocation(tenantId: number, locationId: number, body: Partial<TenantLocation>): Observable<TenantLocation> {
+    return this.http.patch<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations/${locationId}`, body);
+  }
+
+  archivePlatformTenantLocation(tenantId: number, locationId: number): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations/${locationId}/archive`, {});
+  }
+
   updatePlatformTenantPlan(tenantId: number, planCode: string, extraTables: number, prorationBehavior = 'create_prorations'): Observable<PlatformTenantDetail> {
     return this.http.put<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/plan`, {
       plan_code: planCode,
@@ -2952,6 +3067,110 @@ export class ApiService {
   // Tables
   getTables(): Observable<Table[]> {
     return this.http.get<Table[]>(`${this.apiUrl}/tables`);
+  }
+
+  getLocations(): Observable<TenantLocation[]> {
+    return this.http.get<TenantLocation[]>(`${this.apiUrl}/locations`);
+  }
+
+  getOperationalLocations(): Observable<OperationalLocation[]> {
+    return this.http.get<OperationalLocation[]>(`${this.apiUrl}/operational-locations`);
+  }
+
+  createLocation(body: {
+    name: string;
+    display_name: string;
+    slug?: string | null;
+    location_type: string;
+    sort_order?: number;
+  }): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/locations`, body);
+  }
+
+  updateLocation(id: number, body: Partial<TenantLocation>): Observable<TenantLocation> {
+    return this.http.patch<TenantLocation>(`${this.apiUrl}/locations/${id}`, body);
+  }
+
+  archiveLocation(id: number): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/locations/${id}/archive`, {});
+  }
+
+  getLocationOrderingPoints(id: number): Observable<Table[]> {
+    return this.http.get<Table[]>(`${this.apiUrl}/locations/${id}/ordering-points`);
+  }
+
+  createLocationOrderingPoint(id: number, body: Record<string, unknown>): Observable<Table> {
+    return this.http.post<Table>(`${this.apiUrl}/locations/${id}/ordering-points`, body);
+  }
+
+  previewLocationOrderingPoints(id: number, body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/ordering-points/bulk/preview`, body);
+  }
+
+  bulkCreateLocationOrderingPoints(id: number, body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/ordering-points/bulk`, body);
+  }
+
+  updateLocationOrderingPoint(locationId: number, pointId: number, body: Partial<Table>): Observable<Table> {
+    return this.http.patch<Table>(
+      `${this.apiUrl}/locations/${locationId}/ordering-points/${pointId}`,
+      body,
+    );
+  }
+
+  getLocationMenu(id: number): Observable<LocationMenuResponse> {
+    return this.http.get<LocationMenuResponse>(`${this.apiUrl}/locations/${id}/menu`);
+  }
+
+  updateLocationMenuMode(id: number, mode: 'inherit' | 'override'): Observable<any> {
+    return this.http.put(`${this.apiUrl}/locations/${id}/menu-mode`, { mode });
+  }
+
+  updateLocationMenuProduct(
+    locationId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+  ): Observable<any> {
+    return this.http.put(`${this.apiUrl}/locations/${locationId}/menu/${itemId}`, body);
+  }
+
+  getLocationHours(id: number): Observable<LocationHoursResponse> {
+    return this.http.get<LocationHoursResponse>(`${this.apiUrl}/locations/${id}/hours`);
+  }
+
+  updateLocationHours(id: number, body: Record<string, unknown>): Observable<LocationHoursResponse> {
+    return this.http.put<LocationHoursResponse>(`${this.apiUrl}/locations/${id}/hours`, body);
+  }
+
+  pauseLocation(id: number, reason?: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/pause`, { reason: reason || null });
+  }
+
+  resumeLocation(id: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/resume`, {});
+  }
+
+  getLocationRouting(id: number): Observable<LocationRoutingResponse> {
+    return this.http.get<LocationRoutingResponse>(`${this.apiUrl}/locations/${id}/routing`);
+  }
+
+  updateLocationKitchenRouting(
+    id: number,
+    mode: 'inherit' | 'override',
+    stationId?: number | null,
+  ): Observable<LocationRoutingResponse> {
+    return this.http.put<LocationRoutingResponse>(`${this.apiUrl}/locations/${id}/kitchen-routing`, {
+      mode,
+      default_kitchen_station_id: stationId ?? null,
+    });
+  }
+
+  getLocationAnalytics(fromDate?: string, toDate?: string, locationId?: number | null): Observable<any> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('from_date', fromDate);
+    if (toDate) params = params.set('to_date', toDate);
+    if (locationId != null) params = params.set('location_id', String(locationId));
+    return this.http.get(`${this.apiUrl}/location-analytics/summary`, { params });
   }
 
   getTablesWithStatus(): Observable<CanvasTable[]> {
@@ -3747,8 +3966,9 @@ export class ApiService {
   }
 
   // Reports (sales / revenue analysis)
-  getSalesReports(fromDate: string, toDate: string): Observable<SalesReport> {
-    const params = { from_date: fromDate, to_date: toDate };
+  getSalesReports(fromDate: string, toDate: string, locationId?: number | null): Observable<SalesReport> {
+    const params: Record<string, string> = { from_date: fromDate, to_date: toDate };
+    if (locationId != null) params['location_id'] = String(locationId);
     return this.http.get<SalesReport>(`${this.apiUrl}/reports/sales`, { params });
   }
 
@@ -3758,11 +3978,13 @@ export class ApiService {
     format: 'csv' | 'xlsx',
     report: string,
     lang?: string | null,
+    locationId?: number | null,
   ): Observable<Blob> {
     const params: Record<string, string> = { from_date: fromDate, to_date: toDate, format, report };
     if (lang && lang.trim()) {
       params['lang'] = lang.trim();
     }
+    if (locationId != null) params['location_id'] = String(locationId);
     return this.http.get(`${this.apiUrl}/reports/export`, {
       params,
       responseType: 'blob',

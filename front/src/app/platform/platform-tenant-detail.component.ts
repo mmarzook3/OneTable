@@ -2,7 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
-import { ApiService, PlatformTenantDetail } from '../services/api.service';
+import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/api.service';
 
 @Component({
   selector: 'app-platform-tenant-detail',
@@ -87,6 +87,28 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
           </div>
         </section>
 
+        <section class="platform-section location-oversight">
+          <div class="subscription-heading"><div><h2>Locations</h2><p class="platform-muted">Ordering-point usage, inheritance and launch readiness</p></div><button type="button" class="link-btn" (click)="beginLocationCreate()">Add location</button></div>
+          @if (locationFormOpen()) {
+            <form class="platform-location-form" (submit)="saveLocation($event)">
+              <label>Internal name <input [(ngModel)]="locationForm.name" name="platformLocationName" required></label>
+              <label>Customer display name <input [(ngModel)]="locationForm.display_name" name="platformLocationDisplay" required></label>
+              <label>Type <select [(ngModel)]="locationForm.location_type" name="platformLocationType"><option value="pub">Pub</option><option value="lounge">Lounge</option><option value="hotel_building">Hotel building</option><option value="other">Other</option></select></label>
+              <button type="button" class="link-btn secondary" (click)="locationFormOpen.set(false)">Cancel</button><button type="submit" class="link-btn">Save</button>
+            </form>
+          }
+          <div class="platform-location-list">
+            @for (location of locations(); track location.id) {
+              <article>
+                <div><strong>{{ location.display_name }}</strong><small>{{ location.location_type }} · {{ location.active_ordering_point_count }} active points</small></div>
+                <div><span>Menu {{ location.menu_mode }}</span><span>Hours {{ location.hours_mode }}</span><span>Kitchen {{ location.kitchen_mode }}</span></div>
+                <div class="location-row-actions"><b [class.attention]="location.ordering_paused || !location.is_active">{{ !location.is_active ? 'Archived' : location.ordering_paused ? 'Paused' : 'Active' }}</b><button type="button" (click)="beginLocationEdit(location)">Edit</button>@if (location.is_active) { <button type="button" (click)="archiveLocation(location)">Archive</button> }</div>
+              </article>
+            } @empty { <p class="platform-muted">No location data is available.</p> }
+          </div>
+          @if (locations().length) { <p class="platform-muted">Plan usage: {{ locations()[0].ordering_point_usage }}/{{ locations()[0].ordering_point_limit }} active ordering points</p> }
+        </section>
+
         <section class="platform-section readiness-card" [class.readiness-card--ready]="tenant()!.readiness.ready">
           <h2>Launch readiness</h2>
           <p class="readiness-summary">{{ tenant()!.readiness.ready ? 'Ready for controlled-beta launch' : tenant()!.readiness.missing.length + ' launch checks still need attention' }}</p>
@@ -97,14 +119,14 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
               </span>
             }
           </div>
-          <p class="platform-muted">Plan: {{ tenant()!.saas_plan_code }} · {{ tenant()!.table_count }}/{{ tenant()!.table_limit }} tables</p>
+          <p class="platform-muted">Plan: {{ tenant()!.saas_plan_code }} · {{ tenant()!.table_count }}/{{ tenant()!.table_limit }} active ordering points</p>
           <div class="plan-controls">
             <label>Plan
               <select [(ngModel)]="planCode">
                 <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option>
               </select>
             </label>
-            <label>Extra tables <input type="number" min="0" max="500" [(ngModel)]="extraTables"></label>
+            <label>Extra ordering points <input type="number" min="0" max="500" [(ngModel)]="extraTables"></label>
             <button type="button" class="link-btn" (click)="savePlan()" [disabled]="planSaving()">Save plan</button>
           </div>
         </section>
@@ -273,6 +295,22 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
     .subscription-heading { display: flex; justify-content: space-between; align-items: start; gap: var(--space-3); }
     .subscription-heading h2, .subscription-heading p { margin-top: 0; }
     code { word-break: break-all; }
+    .location-oversight { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+    .platform-location-list { display: grid; }
+    .platform-location-list article { display: grid; grid-template-columns: minmax(200px,1fr) minmax(260px,1fr) auto; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
+    .platform-location-list article:last-child { border-bottom: 0; }
+    .platform-location-list article>div { display: grid; gap: 4px; }
+    .platform-location-list article>div:nth-child(2) { grid-template-columns: repeat(3,1fr); color: var(--color-text-muted); font-size: .78rem; text-transform: capitalize; }
+    .platform-location-list small { color: var(--color-text-muted); }
+    .platform-location-list b { color: #18794e; font-size: .78rem; }
+    .platform-location-list b.attention { color: var(--color-error); }
+    .platform-location-form { display: grid; grid-template-columns: 1fr 1fr 180px auto auto; align-items: end; gap: var(--space-2); margin: var(--space-3) 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-bg); }
+    .platform-location-form label { display: grid; gap: 4px; color: var(--color-text-muted); font-size: .75rem; }
+    .platform-location-form input,.platform-location-form select { min-height: 38px; padding: 0 var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); }
+    .link-btn.secondary { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); }
+    .location-row-actions { display: flex!important; align-items: center; gap: 7px!important; }
+    .location-row-actions button { border: 0; background: transparent; color: var(--color-primary); font-size: .75rem; cursor: pointer; }
+    @media(max-width:720px){.platform-location-list article,.platform-location-form{grid-template-columns:1fr}.platform-location-list article>div:nth-child(2){grid-template-columns:1fr}}
   `]
 })
 export class PlatformTenantDetailComponent implements OnInit {
@@ -285,6 +323,10 @@ export class PlatformTenantDetailComponent implements OnInit {
   planCode = 'lite';
   extraTables = 0;
   planSaving = signal(false);
+  locations = signal<TenantLocation[]>([]);
+  locationFormOpen = signal(false);
+  editingLocationId = signal<number | null>(null);
+  locationForm = { name: '', display_name: '', location_type: 'pub' };
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('tenantId'));
@@ -304,6 +346,10 @@ export class PlatformTenantDetailComponent implements OnInit {
         this.error.set('PLATFORM_DASHBOARD.TENANT_NOT_FOUND');
         this.loading.set(false);
       },
+    });
+    this.api.getPlatformTenantLocations(id).subscribe({
+      next: (rows) => this.locations.set(rows),
+      error: () => this.locations.set([]),
     });
   }
 
@@ -338,5 +384,11 @@ export class PlatformTenantDetailComponent implements OnInit {
       error: () => { this.planSaving.set(false); },
     });
   }
+
+  beginLocationCreate(): void { this.editingLocationId.set(null); this.locationForm = { name: '', display_name: '', location_type: 'pub' }; this.locationFormOpen.set(true); }
+  beginLocationEdit(location: TenantLocation): void { this.editingLocationId.set(location.id); this.locationForm = { name: location.name, display_name: location.display_name, location_type: location.location_type }; this.locationFormOpen.set(true); }
+  saveLocation(event: Event): void { event.preventDefault(); const tenant = this.tenant(); if (!tenant) return; const request = this.editingLocationId() == null ? this.api.createPlatformTenantLocation(tenant.id, this.locationForm) : this.api.updatePlatformTenantLocation(tenant.id, this.editingLocationId()!, this.locationForm as any); request.subscribe({ next: () => { this.locationFormOpen.set(false); this.reloadLocations(tenant.id); }, error: () => {} }); }
+  archiveLocation(location: TenantLocation): void { const tenant = this.tenant(); if (!tenant || !confirm(`Archive ${location.display_name} and disable its ordering points?`)) return; this.api.archivePlatformTenantLocation(tenant.id, location.id).subscribe({ next: () => this.reloadLocations(tenant.id), error: () => {} }); }
+  private reloadLocations(tenantId: number): void { this.api.getPlatformTenantLocations(tenantId).subscribe({ next: (rows) => this.locations.set(rows), error: () => this.locations.set([]) }); }
 
 }

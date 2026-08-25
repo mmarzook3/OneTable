@@ -52,7 +52,7 @@ import { ApiService, PlatformTenantSummary } from '../services/api.service';
                   <tr>
                     <td><a [routerLink]="['/platform/tenants',tenant.id]" class="restaurant-name">{{ tenant.name }}</a><small>Customer ID {{ tenant.id }}</small></td>
                     <td>@if(tenant.owner_email){<a [href]="'mailto:'+tenant.owner_email">{{ tenant.owner_name || tenant.owner_email }}</a><small>{{ tenant.owner_name ? tenant.owner_email : '' }}</small>}@else{<span class="muted">Not provided</span>}</td>
-                    <td><strong class="plan-name">{{ tenant.saas_plan_code }}</strong><small>{{ tenant.table_limit }} table allowance</small></td>
+                    <td><strong class="plan-name">{{ tenant.saas_plan_code }}</strong><small>{{ tenant.table_limit }} ordering-point allowance</small></td>
                     <td><strong>{{ tenant.table_count }}</strong> tables<small>{{ tenant.product_count }} products, {{ tenant.user_count }} users</small></td>
                     <td><span class="status" [attr.data-status]="tenant.onboarding_status">{{ label(tenant.onboarding_status) }}</span></td>
                     <td>{{ date(tenant.created_at) }}</td>

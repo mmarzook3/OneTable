@@ -88,6 +88,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Tenant info
   tenantName = signal('');
   tableName = signal('');
+  locationName = signal('');
+  servicePointType = signal<'table' | 'room'>('table');
+  orderingContextLabel = signal('');
+  orderingPointAssignmentVersion = signal<number | null>(null);
   tenantLogo = signal<string | null>(null);
   tenantDescription = signal<string | null>(null);
   tenantPhone = signal<string | null>(null);
@@ -289,7 +293,13 @@ export class MenuComponent implements OnInit, OnDestroy {
         }));
         this.products.set(productsWithSource);
         this.tenantName.set(data.tenant_name);
-        this.tableName.set(data.table_name);
+        this.tableName.set(data.service_point_label || data.table_name);
+        this.locationName.set(data.location_name || '');
+        this.servicePointType.set(data.service_point_type || 'table');
+        this.orderingContextLabel.set(
+          data.ordering_context_label || `Ordering from ${data.service_point_label || data.table_name}`
+        );
+        this.orderingPointAssignmentVersion.set(data.ordering_point_assignment_version ?? null);
         this.tenantId = data.tenant_id;
 
         this.connectWebSocket();
@@ -1289,6 +1299,8 @@ export class MenuComponent implements OnInit, OnDestroy {
       latitude,
       longitude,
       idempotency_key: this.pendingOrderIdempotencyKey,
+      ordering_point_assignment_version: this.orderingPointAssignmentVersion(),
+      location_confirmed: this.automaticMode() ? this.tableConfirmed() : true,
     }).subscribe({
       next: (response: any) => {
         const orderId = response.order_id;

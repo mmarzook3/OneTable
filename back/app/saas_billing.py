@@ -277,7 +277,10 @@ def ensure_table_capacity(
         raise HTTPException(status_code=404, detail="Tenant not found")
     current = int(
         session.exec(
-            select(func.count()).select_from(models.Table).where(models.Table.tenant_id == tenant_id)
+            select(func.count()).select_from(models.Table).where(
+                models.Table.tenant_id == tenant_id,
+                models.Table.is_ordering_enabled == True,  # noqa: E712
+            )
         ).one()
         or 0
     )
@@ -287,9 +290,11 @@ def ensure_table_capacity(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "code": "table_plan_limit",
-                "message": f"Your {normalize_plan_code(tenant.saas_plan_code).title()} plan allows {limit} tables.",
+                "message": f"Your {normalize_plan_code(tenant.saas_plan_code).title()} plan allows {limit} active ordering points.",
                 "current_tables": current,
                 "table_limit": limit,
+                "current_ordering_points": current,
+                "ordering_point_limit": limit,
             },
         )
     return current, limit

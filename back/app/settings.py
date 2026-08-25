@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         validation_alias="STRIPE_GUEST_WEBHOOK_SECRET",
         description="Signing secret for guest-order Stripe or Connect webhook events",
     )
+    location_payment_override_enabled: bool = Field(
+        default=False,
+        validation_alias="LOCATION_PAYMENT_OVERRIDE_ENABLED",
+        description="Allows location-specific payment account references; disabled for the pilot",
+    )
 
     # Platform SaaS paywall (restaurant signup monetization — not guest order Stripe keys)
     saas_paywall_enabled: bool = Field(

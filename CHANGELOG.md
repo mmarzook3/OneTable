@@ -8,6 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-25
+
+### Added
+
+- **Multi-location ordering:** Added tenant-scoped pubs, lounges and hotel buildings with permanent room/table ordering points, subscription allowance enforcement and backward-compatible QR/NFC tokens.
+- **Location-aware customer journey:** Location and Room/Table context now persists through menus, baskets, confirmation, checkout, payment success, receipts, order status and customer history; stale plaque assignments are rejected safely.
+- **Location inheritance and overrides:** Added master-menu inheritance with location price/availability overrides, separate opening and ordering schedules, date/range exceptions, emergency pauses, kitchen-station routing and payment-account separation readiness.
+- **Location operations workspace:** Added responsive owner and platform CRM controls for location identity, room/table bulk creation and preview, plan impact, menus, hours, routing, plaques and launch readiness.
+- **Location-aware kitchen and reporting:** KDS cards now show and filter by origin while preserving paid-release FIFO; sales reports support location filters, subtotals, average order value, failures, refunds, busiest points and preparation-time metrics.
+
+### Changed
+
+- **Ordering-point subscriptions:** Active rooms and tables now share the existing plan allowance; disabled draft points do not consume capacity, while backward-compatible table billing fields remain intact.
+- **Yew Trees pilot:** Provisioning now creates The Yew Trees, Sports Lounge, Premium Building and Main Building with the approved names, Pro allowance, confirmed hours and inherited main menu/kitchen/payment configuration without inventing TBP room or lounge numbers.
+
 ## [2.1.184] - 2026-08-25
 
 ### Added

@@ -164,6 +164,7 @@ def _assert_safe_to_reassign(session: Session, table: models.Table) -> None:
 
 def _rotate_table_access(table: models.Table, now: datetime) -> None:
     table.token = secrets.token_hex(16)
+    table.assignment_version = int(table.assignment_version or 1) + 1
     table.token_rotated_at = now
     table.plaque_status = "not_created"
     table.plaque_last_tested_at = None

@@ -41,7 +41,7 @@ import {
 
           <div class="form-field">
             <label for="plan-code">Scanaki plan</label>
-            <p class="field-help" id="plan-code-help">Choose the table allowance agreed with the restaurant.</p>
+            <p class="field-help" id="plan-code-help">Choose the active ordering-point allowance agreed with the restaurant.</p>
             <select id="plan-code" formControlName="plan_code" aria-describedby="plan-code-help" data-testid="platform-plan-code">
               <option value="lite">Lite, 2 tables</option>
               <option value="pro">Pro, 20 tables</option>
@@ -101,7 +101,7 @@ import {
             <strong>{{ 'PLATFORM_CREATE.SAVE_NOW' | translate }}</strong>
             <p>{{ 'PLATFORM_CREATE.SAVE_NOW_HELP' | translate }}</p>
           </aside>
-          <p class="field-help">Plan: {{ credentials()!.plan_code }} · {{ credentials()!.table_limit }} tables</p>
+          <p class="field-help">Plan: {{ credentials()!.plan_code }} · {{ credentials()!.table_limit }} ordering points</p>
           <p class="field-help">Invitation email: {{ credentials()!.invitation_email_sent ? 'sent' : 'not sent; share the secure link manually' }}</p>
 
           <div class="result-actions">
