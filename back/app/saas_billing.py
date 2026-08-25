@@ -23,6 +23,7 @@ SAAS_STATUS_ACTIVE = "active"
 SAAS_STATUS_CANCELED = "canceled"
 SAAS_STATUS_PAST_DUE = "past_due"
 SAAS_STATUS_GRANDFATHERED = "grandfathered"
+SAAS_STATUS_SUSPENDED = "suspended"
 
 ACTIVE_STATUSES = frozenset(
     {
@@ -33,6 +34,43 @@ ACTIVE_STATUSES = frozenset(
 )
 
 SAAS_PLAN_TABLES = {"lite": 2, "pro": 20, "ultra": 45}
+
+
+def record_subscription_event(
+    session: Session,
+    tenant: models.Tenant,
+    event_type: str,
+    *,
+    source: str = "system",
+    old_status: str | None = None,
+    new_status: str | None = None,
+    amount_cents: int | None = None,
+    currency: str | None = None,
+    stripe_event_id: str | None = None,
+    detail: dict[str, Any] | None = None,
+) -> models.SaasSubscriptionEvent | None:
+    if stripe_event_id:
+        existing = session.exec(
+            select(models.SaasSubscriptionEvent).where(
+                models.SaasSubscriptionEvent.stripe_event_id == stripe_event_id
+            )
+        ).first()
+        if existing:
+            return None
+    row = models.SaasSubscriptionEvent(
+        tenant_id=int(tenant.id),
+        event_type=event_type[:64],
+        source=source[:32],
+        old_status=old_status,
+        new_status=new_status,
+        plan_code=normalize_plan_code(tenant.saas_plan_code),
+        amount_cents=amount_cents,
+        currency=(currency or "").lower()[:8] or None,
+        stripe_event_id=stripe_event_id,
+        detail=detail,
+    )
+    session.add(row)
+    return row
 
 
 def normalize_plan_code(value: str | None) -> str:
@@ -46,6 +84,31 @@ def tenant_table_limit(tenant: models.Tenant) -> int:
     return SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)] + max(
         0, int(tenant.saas_extra_tables or 0)
     )
+
+
+def plan_monthly_cents(plan_code: str, extra_tables: int = 0) -> int:
+    prices = {
+        "lite": int(getattr(settings, "saas_lite_price_cents", 999) or 999),
+        "pro": int(getattr(settings, "saas_pro_price_cents", 3999) or 3999),
+        "ultra": int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499),
+    }
+    extra_price = int(getattr(settings, "saas_extra_table_price_cents", 399) or 399)
+    return prices[normalize_plan_code(plan_code)] + max(0, int(extra_tables or 0)) * extra_price
+
+
+def stripe_price_id_for_plan(plan_code: str) -> str:
+    return {
+        "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
+        "pro": settings.saas_pro_stripe_price_id.strip(),
+        "ultra": settings.saas_ultra_stripe_price_id.strip(),
+    }[normalize_plan_code(plan_code)]
+
+
+def stripe_customer_dashboard_url(customer_id: str | None) -> str | None:
+    if not customer_id:
+        return None
+    prefix = "test/" if (settings.stripe_secret_key or "").startswith("sk_test_") else ""
+    return f"https://dashboard.stripe.com/{prefix}customers/{customer_id}"
 
 
 def ensure_table_capacity(
@@ -289,10 +352,19 @@ def start_trial(session: Session, tenant: models.Tenant, plan_code: str | None =
 
     trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
     now = datetime.now(timezone.utc)
+    previous_status = tenant.saas_subscription_status
     tenant.saas_plan_code = normalize_plan_code(plan_code or tenant.saas_plan_code)
     tenant.saas_subscription_status = SAAS_STATUS_TRIALING
     tenant.saas_trial_ends_at = now + timedelta(days=trial_days)
     session.add(tenant)
+    record_subscription_event(
+        session,
+        tenant,
+        "trial_started",
+        source="tenant",
+        old_status=previous_status,
+        new_status=SAAS_STATUS_TRIALING,
+    )
     session.commit()
     session.refresh(tenant)
     return tenant
@@ -317,11 +389,7 @@ def create_checkout_session(
                 "message": "Platform Stripe is not configured for SaaS checkout.",
             },
         )
-    price_id = {
-        "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
-        "pro": settings.saas_pro_stripe_price_id.strip(),
-        "ultra": settings.saas_ultra_stripe_price_id.strip(),
-    }[selected_plan]
+    price_id = stripe_price_id_for_plan(selected_plan)
     secret = settings.stripe_secret_key.strip()
     trial_days = int(cfg["trial_days"])
 
@@ -397,6 +465,8 @@ def _stripe_status_to_saas(stripe_status: str | None) -> str | None:
         return SAAS_STATUS_ACTIVE
     if s == "past_due":
         return SAAS_STATUS_PAST_DUE
+    if s == "paused":
+        return SAAS_STATUS_SUSPENDED
     if s in ("canceled", "unpaid", "incomplete_expired"):
         return SAAS_STATUS_CANCELED
     # incomplete / paused / etc. — do not invent a status
@@ -431,6 +501,8 @@ def apply_stripe_subscription_object(
     if isinstance(metadata, dict) and metadata.get("plan_code"):
         tenant.saas_plan_code = normalize_plan_code(str(metadata["plan_code"]))
     mapped = _stripe_status_to_saas(stripe_status)
+    if current == SAAS_STATUS_SUSPENDED and _obj_get(sub, "pause_collection"):
+        mapped = SAAS_STATUS_SUSPENDED
     if mapped is None and stripe_status:
         # Unknown status: still store ids, leave status unchanged unless canceled via deleted
         mapped = None
@@ -442,6 +514,11 @@ def apply_stripe_subscription_object(
 
     if mapped is not None:
         tenant.saas_subscription_status = mapped
+        tenant.saas_suspended_at = (
+            datetime.now(timezone.utc) if mapped == SAAS_STATUS_SUSPENDED else None
+        )
+
+    tenant.saas_cancel_at_period_end = bool(_obj_get(sub, "cancel_at_period_end"))
 
     trial_end = _obj_get(sub, "trial_end")
     if trial_end:
@@ -617,6 +694,7 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
     Returns a small result dict for logging/tests (no secrets).
     """
     event_type = str(_obj_get(event, "type") or "")
+    stripe_event_id = str(_obj_get(event, "id") or "") or None
     data_object = _obj_get(_obj_get(event, "data"), "object") or {}
 
     if event_type == "checkout.session.completed":
@@ -648,7 +726,81 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
         if not tenant:
             return {"handled": False, "reason": "tenant_not_found", "type": event_type}
 
+        old_status = tenant.saas_subscription_status
         apply_checkout_session_to_tenant(session, tenant, data_object)
+        record_subscription_event(
+            session,
+            tenant,
+            "checkout_completed",
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            stripe_event_id=stripe_event_id,
+        )
+        session.commit()
+        return {
+            "handled": True,
+            "type": event_type,
+            "tenant_id": tenant.id,
+            "status": tenant.saas_subscription_status,
+        }
+
+    if event_type in {"invoice.paid", "invoice.payment_failed", "invoice.payment_action_required"}:
+        invoice = data_object
+        customer_id = _obj_get(invoice, "customer")
+        subscription_id = _obj_get(invoice, "subscription")
+        parent = _obj_get(invoice, "parent") or {}
+        subscription_details = _obj_get(parent, "subscription_details") or {}
+        subscription_id = subscription_id or _obj_get(subscription_details, "subscription")
+        tenant = find_tenant_for_stripe_subscription(
+            session,
+            subscription_id=str(subscription_id) if subscription_id else None,
+            customer_id=str(customer_id) if customer_id else None,
+        )
+        if not tenant:
+            return {"handled": False, "reason": "tenant_not_found", "type": event_type}
+        old_status = tenant.saas_subscription_status
+        now = datetime.now(timezone.utc)
+        invoice_id = str(_obj_get(invoice, "id") or "") or None
+        invoice_status = str(_obj_get(invoice, "status") or "") or None
+        amount = int(
+            _obj_get(invoice, "amount_paid" if event_type == "invoice.paid" else "amount_due", 0)
+            or 0
+        )
+        currency = str(_obj_get(invoice, "currency") or plan_config()["currency"]).lower()
+        tenant.saas_last_invoice_id = invoice_id
+        tenant.saas_last_invoice_status = invoice_status or (
+            "paid" if event_type == "invoice.paid" else "open"
+        )
+        tenant.saas_last_invoice_amount_cents = amount
+        tenant.saas_last_invoice_currency = currency
+        if event_type == "invoice.paid":
+            tenant.saas_last_payment_at = now
+            tenant.saas_last_payment_failed_at = None
+            if tenant.saas_subscription_status not in {
+                SAAS_STATUS_GRANDFATHERED,
+                SAAS_STATUS_SUSPENDED,
+            }:
+                tenant.saas_subscription_status = SAAS_STATUS_ACTIVE
+        else:
+            tenant.saas_last_payment_failed_at = now
+            if tenant.saas_subscription_status != SAAS_STATUS_SUSPENDED:
+                tenant.saas_subscription_status = SAAS_STATUS_PAST_DUE
+        session.add(tenant)
+        record_subscription_event(
+            session,
+            tenant,
+            event_type.replace(".", "_"),
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            amount_cents=amount,
+            currency=currency,
+            stripe_event_id=stripe_event_id,
+            detail={"invoice_id": invoice_id, "invoice_status": tenant.saas_last_invoice_status},
+        )
+        session.commit()
+        session.refresh(tenant)
         return {
             "handled": True,
             "type": event_type,
@@ -674,6 +826,7 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
         if not tenant:
             return {"handled": False, "reason": "tenant_not_found", "type": event_type}
 
+        old_status = tenant.saas_subscription_status
         if event_type == "customer.subscription.deleted":
             if isinstance(sub, dict):
                 apply_stripe_subscription_object(
@@ -688,6 +841,18 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
                     session.refresh(tenant)
         else:
             apply_stripe_subscription_object(session, tenant, sub)
+
+        record_subscription_event(
+            session,
+            tenant,
+            event_type.replace(".", "_"),
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            stripe_event_id=stripe_event_id,
+            detail={"cancel_at_period_end": tenant.saas_cancel_at_period_end},
+        )
+        session.commit()
 
         return {
             "handled": True,

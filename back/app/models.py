@@ -305,8 +305,38 @@ class Tenant(SQLModel, table=True):
     saas_extra_tables: int = Field(default=0, ge=0)
     invitation_sent_at: datetime | None = None
     invitation_last_error: str | None = Field(default=None, max_length=500)
+    saas_cancel_at_period_end: bool = Field(default=False)
+    saas_suspended_at: datetime | None = None
+    saas_last_payment_failed_at: datetime | None = None
+    saas_last_payment_at: datetime | None = None
+    saas_last_invoice_id: str | None = Field(default=None, max_length=255)
+    saas_last_invoice_status: str | None = Field(default=None, max_length=32)
+    saas_last_invoice_amount_cents: int | None = None
+    saas_last_invoice_currency: str | None = Field(default=None, max_length=8)
 
     users: list["User"] = Relationship(back_populates="tenant")
+
+
+class SaasSubscriptionEvent(SQLModel, table=True):
+    """Immutable platform billing lifecycle event for audit and reporting."""
+
+    __tablename__ = "saas_subscription_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    event_type: str = Field(max_length=64, index=True)
+    source: str = Field(default="system", max_length=32)
+    old_status: str | None = Field(default=None, max_length=32)
+    new_status: str | None = Field(default=None, max_length=32)
+    plan_code: str | None = Field(default=None, max_length=16)
+    amount_cents: int | None = None
+    currency: str | None = Field(default=None, max_length=8)
+    stripe_event_id: str | None = Field(default=None, max_length=255, unique=True, index=True)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
 
 
 class User(SQLModel, table=True):
@@ -468,6 +498,15 @@ class PlatformTenantSummary(SQLModel):
     table_limit: int = 2
     invitation_sent_at: datetime | None = None
     invitation_last_error: str | None = None
+    subscription_status: str = "none"
+    trial_ends_at: datetime | None = None
+    renewal_at: datetime | None = None
+    cancel_at_period_end: bool = False
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    stripe_customer_url: str | None = None
+    last_payment_failed_at: datetime | None = None
+    monthly_cents: int = 0
 
 
 class PlatformRestaurantCreate(SQLModel):
@@ -491,6 +530,12 @@ class PlatformRestaurantCredentials(SQLModel):
 class PlatformTenantPlanUpdate(SQLModel):
     plan_code: str = Field(max_length=16)
     extra_tables: int = Field(default=0, ge=0, le=500)
+    proration_behavior: str = Field(default="create_prorations", max_length=32)
+
+
+class PlatformSubscriptionAction(SQLModel):
+    action: str = Field(max_length=32)
+    immediate: bool = False
 
 
 class RestaurantOnboardingState(SQLModel):

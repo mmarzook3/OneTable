@@ -53,7 +53,7 @@ Smoke: `npm run test:pricing --prefix front` (see `docs/testing.md`).
 
 ## Stripe webhook
 
-Point a Stripe Dashboard webhook (or CLI forward) at **`{API}/saas/webhook`** (include the app root path if mounted under `/api`).
+Point a Stripe Dashboard webhook (or CLI forward) at **`{API}/saas/webhook`** (include the app root path if mounted under `/api`). Subscribe to Checkout and subscription lifecycle events plus `invoice.paid`, `invoice.payment_failed`, and `invoice.payment_action_required`; the platform console uses these invoice events for revenue and overdue reporting. See [0081-subscription-management-console.md](0081-subscription-management-console.md).
 
 **Events to enable:**
 

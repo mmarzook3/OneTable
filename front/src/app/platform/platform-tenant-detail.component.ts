@@ -113,6 +113,22 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
           </div>
         </section>
 
+        <section class="platform-section subscription-card">
+          <div class="subscription-heading">
+            <div><h2>Subscription</h2><p class="platform-muted">Current entitlement and Stripe identifiers</p></div>
+            <a routerLink="/platform/subscriptions" class="link-btn">Open subscription console</a>
+          </div>
+          <dl class="detail-grid">
+            <dt>Status</dt><dd>{{ tenant()!.subscription_status }} @if (tenant()!.cancel_at_period_end) { · cancels at period end }</dd>
+            <dt>Trial expiry</dt><dd>{{ tenant()!.trial_ends_at ? formatDate(tenant()!.trial_ends_at!) : '—' }}</dd>
+            <dt>Renewal</dt><dd>{{ tenant()!.renewal_at ? formatDate(tenant()!.renewal_at!) : '—' }}</dd>
+            <dt>Monthly value</dt><dd>£{{ (tenant()!.monthly_cents / 100).toFixed(2) }}</dd>
+            <dt>Stripe customer</dt><dd><code>{{ tenant()!.stripe_customer_id || 'Not connected' }}</code> @if (tenant()!.stripe_customer_url) { <a [href]="tenant()!.stripe_customer_url!" target="_blank" rel="noopener noreferrer">Open in Stripe</a> }</dd>
+            <dt>Stripe subscription</dt><dd><code>{{ tenant()!.stripe_subscription_id || '—' }}</code></dd>
+            <dt>Last failed payment</dt><dd>{{ tenant()!.last_payment_failed_at ? formatDate(tenant()!.last_payment_failed_at!) : '—' }}</dd>
+          </dl>
+        </section>
+
         <section class="platform-section">
           <h2>{{ 'PLATFORM_DASHBOARD.PUBLIC_PAGES' | translate }}</h2>
           <p class="platform-muted section-hint">{{ 'PLATFORM_DASHBOARD.PUBLIC_PAGES_HINT' | translate }}</p>
@@ -259,6 +275,10 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
     .plan-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-3); margin-top: var(--space-4); }
     .plan-controls label { display: grid; gap: var(--space-1); font-size: 0.8rem; }
     .plan-controls select, .plan-controls input { min-height: 40px; padding: 0 var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); }
+    .subscription-card { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+    .subscription-heading { display: flex; justify-content: space-between; align-items: start; gap: var(--space-3); }
+    .subscription-heading h2, .subscription-heading p { margin-top: 0; }
+    code { word-break: break-all; }
   `]
 })
 export class PlatformTenantDetailComponent implements OnInit {

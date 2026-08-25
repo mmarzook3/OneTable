@@ -17,6 +17,9 @@ import { ApiService, PlatformInfo, PlatformMetrics, PlatformTenantSummary } from
           }
         </div>
         <div class="header-actions">
+          <a routerLink="/platform/subscriptions" class="btn-secondary" data-testid="platform-subscriptions-link">
+            Subscriptions
+          </a>
           <a routerLink="/platform/smart-plaques" class="btn-secondary" data-testid="platform-smart-plaques-link">
             {{ 'SMART_PLAQUES.INVENTORY' | translate }}
           </a>
