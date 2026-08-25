@@ -9971,8 +9971,15 @@ def _grid_slot_times_for_windows(
     for open_t, close_t in windows:
         om = open_t.hour * 60 + open_t.minute
         cm = close_t.hour * 60 + close_t.minute
+        # A close at or before opening represents an overnight window (for
+        # example 14:00-00:00). Reservations belong to the opening calendar
+        # date, so generate same-day starts up to midnight.
+        if cm <= om:
+            cm += 24 * 60
         t = ((om + step - 1) // step) * step
         while t < cm:
+            if t >= 24 * 60:
+                break
             slot = time(t // 60, t % 60)
             if _reservation_time_allowed_before_closing(slot, close_t):
                 key = slot.hour * 60 + slot.minute

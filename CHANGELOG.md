@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.183] - 2026-08-25
+
+### Fixed
+
+- **Midnight opening hours:** Reservation slot generation now treats a close at `00:00` as midnight after the venue's opening time, preserving same-day booking slots for pubs that close at midnight.
+
 ## [2.1.182] - 2026-08-25
 
 ### Changed
