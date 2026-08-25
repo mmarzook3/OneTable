@@ -74,6 +74,7 @@ export const routes: Routes = [
   { path: 'platform/smart-plaques', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-smart-plaques.component').then(m => m.PlatformSmartPlaquesComponent) },
   { path: 'platform/subscriptions', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-subscriptions.component').then(m => m.PlatformSubscriptionsComponent) },
   { path: 'platform/pricing', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-pricing.component').then(m => m.PlatformPricingComponent) },
+  { path: 'platform/settings', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-settings.component').then(m => m.PlatformSettingsComponent) },
   { path: 'platform/tenants/:tenantId', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
   { path: 'platform', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
   { path: 'menu/:token', loadComponent: () => import('./menu/menu.component').then(m => m.MenuComponent) },

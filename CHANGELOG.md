@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.181] - 2026-08-25
+
+### Added
+
+- **Platform settings console:** Added platform-admin controls for Scanaki legal identity, company and VAT numbers, support/contact details, address, website and product-wide Terms and Privacy links.
+- **Encrypted platform SMTP:** Added platform-managed host, port, TLS, username, sender identity and write-only encrypted password storage with environment fallback, masking and connection status.
+- **SMTP delivery test:** Added a protected real-email test action with sanitised success/failure reporting and retained last-test status.
+- **Username-based operator login:** Platform operators can now sign in with a username as well as an email-form identifier, including case-insensitive matching.
+
 ## [2.1.180] - 2026-08-25
 
 ### Added

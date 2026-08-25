@@ -34,6 +34,12 @@ from .platform_subscription_service import (
     sync_stripe_plan,
 )
 from .platform_pricing_service import pricing_console, publish_pricing
+from .platform_settings_service import (
+    platform_settings_payload,
+    public_platform_settings,
+    test_platform_smtp,
+    update_platform_settings,
+)
 
 router = APIRouter()
 
@@ -221,6 +227,56 @@ def platform_me(
         "full_name": current_user.full_name,
         "role": current_user.role.value,
     }
+
+
+@router.get("/public-settings")
+def platform_public_settings(session: Session = Depends(get_session)) -> dict:
+    """Public-safe Scanaki identity, contact and legal links. Never returns SMTP data."""
+    return public_platform_settings(session)
+
+
+@router.get("/settings")
+def platform_settings_get(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return platform_settings_payload(session)
+
+
+@router.put("/settings")
+def platform_settings_update(
+    body: models.PlatformSettingsUpdate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return update_platform_settings(session, body, current_user)
+
+
+@router.post("/settings/test-smtp")
+async def platform_settings_test_smtp(
+    body: models.PlatformSmtpTestRequest,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return await test_platform_smtp(session, body.recipient_email)
+
+
+@router.post("/settings/change-password")
+def platform_settings_change_password(
+    body: models.PlatformPasswordChange,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    if not security.verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if security.verify_password(body.new_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="New password must be different")
+    current_user.hashed_password = security.get_password_hash(body.new_password)
+    current_user.token_version = int(current_user.token_version or 0) + 1
+    current_user.must_change_password = False
+    session.add(current_user)
+    session.commit()
+    return {"status": "ok", "message": "Password changed. Sign in again."}
 
 
 @router.get("/tenants", response_model=list[models.PlatformTenantSummary])

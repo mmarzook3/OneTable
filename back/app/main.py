@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as _BaseModel, Field
-from sqlalchemy import event, exists, or_
+from sqlalchemy import event, exists, func, or_
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, StatementError
 from sqlmodel import Session, select
 
@@ -1202,11 +1202,15 @@ def list_public_tenants(
 def get_public_legal_urls(
     request: Request,
     response: Response,
+    session: Session = Depends(get_session),
 ) -> dict[str, str | None]:
-    """Product-wide terms and privacy URLs from server config (for landing/auth when no tenant context)."""
+    """Product-wide terms and privacy URLs from platform settings with environment fallback."""
+    from .platform_settings_service import public_platform_settings
+
+    platform = public_platform_settings(session)
     return {
-        "terms_of_service_url": _global_terms_url(),
-        "privacy_policy_url": _global_privacy_url(),
+        "terms_of_service_url": platform["terms_url"] or _global_terms_url(),
+        "privacy_policy_url": platform["privacy_url"] or _global_privacy_url(),
     }
 
 
@@ -2823,7 +2827,8 @@ def login_for_access_token(
     lang: str = Depends(_get_requested_language),
     session: Session = Depends(get_session),
 ) -> dict:
-    statement = select(models.User).where(models.User.email == form_data.username)
+    login_identifier = form_data.username.strip()
+    statement = select(models.User).where(models.User.email == login_identifier)
     if scope == "provider":
         statement = statement.where(
             models.User.provider_id.is_not(None),
@@ -2835,7 +2840,8 @@ def login_for_access_token(
             models.User.tenant_id.is_not(None),
         )
     elif scope == "platform":
-        statement = statement.where(
+        statement = select(models.User).where(
+            func.lower(models.User.email) == login_identifier.lower(),
             models.User.role == models.UserRole.platform_operator,
             models.User.tenant_id.is_(None),
             models.User.provider_id.is_(None),

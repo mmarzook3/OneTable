@@ -36,18 +36,34 @@ def _effective_smtp_config(tenant: Optional["Tenant"] = None) -> dict[str, Any]:
         and tenant.smtp_user
         and tenant.smtp_password
     )
+    # Platform-managed SMTP supersedes VPS values for global Scanaki email.
+    # Import lazily to avoid coupling email module import order to database startup.
+    try:
+        from .platform_settings_service import effective_platform_smtp_config
+
+        platform_cfg = effective_platform_smtp_config()
+    except Exception:
+        platform_cfg = {
+            "host": settings.smtp_host,
+            "port": settings.smtp_port,
+            "use_tls": settings.smtp_use_tls,
+            "user": settings.smtp_user,
+            "password": settings.smtp_password,
+            "from_email": settings.email_from,
+            "from_name": settings.email_from_name,
+        }
     return {
-        "host": (tenant.smtp_host or settings.smtp_host) if use_tenant else settings.smtp_host,
-        "port": (tenant.smtp_port if tenant and tenant.smtp_port is not None else settings.smtp_port)
+        "host": (tenant.smtp_host or platform_cfg["host"]) if use_tenant else platform_cfg["host"],
+        "port": (tenant.smtp_port if tenant and tenant.smtp_port is not None else platform_cfg["port"])
         if use_tenant
-        else settings.smtp_port,
-        "use_tls": (tenant.smtp_use_tls if tenant and tenant.smtp_use_tls is not None else settings.smtp_use_tls)
+        else platform_cfg["port"],
+        "use_tls": (tenant.smtp_use_tls if tenant and tenant.smtp_use_tls is not None else platform_cfg["use_tls"])
         if use_tenant
-        else settings.smtp_use_tls,
-        "user": (tenant.smtp_user or settings.smtp_user) if use_tenant else settings.smtp_user,
-        "password": (tenant.smtp_password or settings.smtp_password) if use_tenant else settings.smtp_password,
-        "from_email": (tenant.email_from or settings.email_from) if use_tenant else settings.email_from,
-        "from_name": (tenant.email_from_name or settings.email_from_name) if use_tenant else settings.email_from_name,
+        else platform_cfg["use_tls"],
+        "user": (tenant.smtp_user or platform_cfg["user"]) if use_tenant else platform_cfg["user"],
+        "password": (tenant.smtp_password or platform_cfg["password"]) if use_tenant else platform_cfg["password"],
+        "from_email": (tenant.email_from or platform_cfg["from_email"]) if use_tenant else platform_cfg["from_email"],
+        "from_name": (tenant.email_from_name or platform_cfg["from_name"]) if use_tenant else platform_cfg["from_name"],
     }
 
 

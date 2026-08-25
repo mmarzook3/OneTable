@@ -666,6 +666,47 @@ export interface PlatformPricingPublish {
   migration_mode: 'new_customers_only' | 'next_renewal' | 'immediate';
 }
 
+export interface PlatformPublicSettings {
+  company_legal_name?: string | null;
+  support_email?: string | null;
+  contact_email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  website_url?: string | null;
+  company_number?: string | null;
+  vat_number?: string | null;
+  terms_url?: string | null;
+  privacy_url?: string | null;
+}
+
+export interface PlatformSettings extends PlatformPublicSettings {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_use_tls: boolean;
+  smtp_user: string;
+  smtp_password_masked: string;
+  smtp_password_configured: boolean;
+  smtp_source: 'database' | 'environment' | 'not_configured' | string;
+  email_from: string;
+  email_from_name: string;
+  smtp_status: 'not_configured' | 'configured' | 'verified' | 'failed' | string;
+  smtp_last_tested_at?: string | null;
+  smtp_last_test_success?: boolean | null;
+  smtp_last_test_message?: string | null;
+  updated_at: string;
+}
+
+export interface PlatformSettingsUpdate extends PlatformPublicSettings {
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_use_tls: boolean;
+  smtp_user?: string | null;
+  smtp_password?: string | null;
+  clear_smtp_password: boolean;
+  email_from?: string | null;
+  email_from_name?: string | null;
+}
+
 export interface PlatformLoginSummary {
   logged_in_at: string;
   role?: string | null;
@@ -2645,6 +2686,32 @@ export class ApiService {
 
   publishPlatformPricing(planCode: string, body: PlatformPricingPublish): Observable<PlatformPricingConsole> {
     return this.http.post<PlatformPricingConsole>(`${this.apiUrl}/platform/pricing/${planCode}/publish`, body);
+  }
+
+  getPlatformPublicSettings(): Observable<PlatformPublicSettings> {
+    return this.http.get<PlatformPublicSettings>(`${this.apiUrl}/platform/public-settings`);
+  }
+
+  getPlatformSettings(): Observable<PlatformSettings> {
+    return this.http.get<PlatformSettings>(`${this.apiUrl}/platform/settings`);
+  }
+
+  updatePlatformSettings(body: PlatformSettingsUpdate): Observable<PlatformSettings> {
+    return this.http.put<PlatformSettings>(`${this.apiUrl}/platform/settings`, body);
+  }
+
+  testPlatformSmtp(recipientEmail?: string): Observable<{success: boolean; message: string; tested_at: string; status: string}> {
+    return this.http.post<{success: boolean; message: string; tested_at: string; status: string}>(
+      `${this.apiUrl}/platform/settings/test-smtp`,
+      { recipient_email: recipientEmail?.trim() || null },
+    );
+  }
+
+  changePlatformPassword(currentPassword: string, newPassword: string): Observable<{status: string; message: string}> {
+    return this.http.post<{status: string; message: string}>(`${this.apiUrl}/platform/settings/change-password`, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
   }
 
   runPlatformSubscriptionAction(tenantId: number, action: string, immediate = false): Observable<PlatformTenantDetail> {

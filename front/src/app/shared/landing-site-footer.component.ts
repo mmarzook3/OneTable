@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { environment } from '../../environments/environment';
+import { ApiService, PlatformPublicSettings } from '../services/api.service';
 
 /** Dark marketing footer shared by landing and features pages. */
 @Component({
@@ -39,8 +40,14 @@ import { environment } from '../../environments/environment';
             <span class="landing-footer__group-label">{{ 'LANDING.FOOTER_SUPPORT' | translate }}</span>
             <a routerLink="/about" data-testid="landing-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
             <a routerLink="/manual-usuario" data-testid="landing-user-manual">{{ 'LANDING.USER_MANUAL' | translate }}</a>
-            <a routerLink="/terms" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
-            <a routerLink="/privacy" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
+            <a [href]="platform()?.terms_url || '/terms'" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
+            <a [href]="platform()?.privacy_url || '/privacy'" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
+            @if (platform()?.support_email) {
+              <a [href]="'mailto:' + platform()!.support_email" data-testid="landing-support-email">{{ platform()!.support_email }}</a>
+            }
+            @if (platform()?.phone) {
+              <a [href]="'tel:' + platform()!.phone" data-testid="landing-support-phone">{{ platform()!.phone }}</a>
+            }
           </div>
         </nav>
       </div>
@@ -52,8 +59,14 @@ import { environment } from '../../environments/environment';
           >
         </div>
         <p class="landing-version-company" data-testid="landing-company">
-          {{ 'LANDING.COMPANY_OPERATOR' | translate }}
+          {{ platform()?.company_legal_name || ('LANDING.COMPANY_OPERATOR' | translate) }}
         </p>
+        @if (platform()?.company_number || platform()?.vat_number) {
+          <p class="landing-version-company">
+            @if (platform()?.company_number) { <span>Company {{ platform()!.company_number }}</span> }
+            @if (platform()?.vat_number) { <span>VAT {{ platform()!.vat_number }}</span> }
+          </p>
+        }
         <p class="landing-version-tagline">{{ 'LANDING.PRODUCT_TAGLINE' | translate }}</p>
       </div>
     </footer>
@@ -222,7 +235,16 @@ import { environment } from '../../environments/environment';
     }
   `],
 })
-export class LandingSiteFooterComponent {
+export class LandingSiteFooterComponent implements OnInit {
+  private api = inject(ApiService);
   readonly version = environment.version;
   readonly commitHash = environment.commitHash;
+  readonly platform = signal<PlatformPublicSettings | null>(null);
+
+  ngOnInit(): void {
+    this.api.getPlatformPublicSettings().subscribe({
+      next: (settings) => this.platform.set(settings),
+      error: () => this.platform.set(null),
+    });
+  }
 }

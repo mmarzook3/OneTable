@@ -402,6 +402,45 @@ class SaasPricingEvent(SQLModel, table=True):
     )
 
 
+class PlatformSettings(SQLModel, table=True):
+    """Singleton Scanaki operator identity, legal and global email configuration."""
+
+    __tablename__ = "platform_settings"
+
+    id: int = Field(default=1, primary_key=True)
+    company_legal_name: str | None = Field(default=None, max_length=200)
+    support_email: str | None = Field(default=None, max_length=320)
+    contact_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    website_url: str | None = Field(default=None, max_length=2048)
+    company_number: str | None = Field(default=None, max_length=100)
+    vat_number: str | None = Field(default=None, max_length=100)
+    terms_url: str | None = Field(default=None, max_length=2048)
+    privacy_url: str | None = Field(default=None, max_length=2048)
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_use_tls: bool = True
+    smtp_user: str | None = Field(default=None, max_length=320)
+    smtp_password_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    email_from: str | None = Field(default=None, max_length=320)
+    email_from_name: str | None = Field(default=None, max_length=200)
+    smtp_last_tested_at: datetime | None = None
+    smtp_last_test_success: bool | None = None
+    smtp_last_test_message: str | None = Field(default=None, max_length=500)
+    updated_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
@@ -621,6 +660,36 @@ class PlatformPricingPublish(SQLModel):
     stripe_extra_table_price_id: str | None = Field(default=None, max_length=255)
     create_stripe_prices: bool = False
     migration_mode: str = Field(default="new_customers_only", max_length=32)
+
+
+class PlatformSettingsUpdate(SQLModel):
+    company_legal_name: str | None = Field(default=None, max_length=200)
+    support_email: str | None = Field(default=None, max_length=320)
+    contact_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=2000)
+    website_url: str | None = Field(default=None, max_length=2048)
+    company_number: str | None = Field(default=None, max_length=100)
+    vat_number: str | None = Field(default=None, max_length=100)
+    terms_url: str | None = Field(default=None, max_length=2048)
+    privacy_url: str | None = Field(default=None, max_length=2048)
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_use_tls: bool = True
+    smtp_user: str | None = Field(default=None, max_length=320)
+    smtp_password: str | None = Field(default=None, max_length=1000)
+    clear_smtp_password: bool = False
+    email_from: str | None = Field(default=None, max_length=320)
+    email_from_name: str | None = Field(default=None, max_length=200)
+
+
+class PlatformSmtpTestRequest(SQLModel):
+    recipient_email: str | None = Field(default=None, max_length=320)
+
+
+class PlatformPasswordChange(SQLModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
 
 
 class RestaurantOnboardingState(SQLModel):
