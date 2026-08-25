@@ -40,7 +40,6 @@ interface PricingForm {
     <main class="pricing-console">
       <header class="page-header">
         <div>
-          <a routerLink="/platform" class="back-link">Back to platform</a>
           <h1>Pricing & offers</h1>
           <p>Control the public tiers, scheduled deals, Stripe prices and existing-customer migration.</p>
         </div>
@@ -160,19 +159,19 @@ interface PricingForm {
     </main>
   `,
   styles: [`
-    .pricing-console{max-width:1500px;margin:auto;padding:2rem;color:var(--color-text)}
+    .pricing-console{max-width:1500px;margin:auto;padding:28px 0;color:var(--color-text)}
     .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.25rem}.page-header h1{margin:.35rem 0;font-size:2rem}.page-header p{margin:0;color:var(--color-text-muted);max-width:720px}.back-link{font-size:.85rem}.header-actions{display:flex;gap:.6rem;flex-wrap:wrap}
     button,.secondary{min-height:42px;padding:0 .9rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface);color:var(--color-text);font:inherit;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
     .safety-note{display:flex;gap:.75rem;align-items:center;padding:1rem 1.1rem;margin-bottom:1rem;border-radius:var(--radius-lg);background:#eef6ff;border:1px solid #c9e0ff;color:#174d83}.safety-note span{font-size:.88rem}.success,.error,.loading{padding:1rem;border-radius:var(--radius-md)}.success{background:#e8f7ee;color:#18794e}.error{background:#fde8e8;color:#b42318}.loading{color:var(--color-text-muted)}
-    .tier-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;align-items:start}.tier-card{display:grid;gap:1rem;padding:1.2rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm)}.tier-card.featured{border-color:var(--color-primary);box-shadow:0 0 0 1px var(--color-primary)}
+    .tier-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;align-items:start}.tier-card{display:grid;min-width:0;gap:1rem;padding:1.2rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm)}.tier-card>*{min-width:0}.tier-card.featured{border-color:var(--color-primary);box-shadow:0 0 0 1px var(--color-primary)}
     .tier-header{display:flex;justify-content:space-between;gap:.75rem}.tier-header h2{margin:.2rem 0 0}.eyebrow{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-muted)}.visibility{height:max-content;padding:.2rem .55rem;border-radius:999px;background:#e8f7ee;color:#18794e;font-size:.7rem;font-weight:800}.visibility.off{background:#eee;color:#666}
     .price-preview{display:grid;grid-template-columns:auto 1fr;align-items:end;gap:.15rem .55rem;padding:1rem;border-radius:var(--radius-md);background:var(--color-bg)}.price-preview .deal-badge{grid-column:1/-1;width:max-content;padding:.18rem .45rem;border-radius:999px;background:var(--color-primary);color:#fff;font-size:.68rem;font-weight:800}.price-preview s{color:var(--color-text-muted)}.price-preview strong{font-size:1.7rem}.price-preview small{grid-column:1/-1;color:var(--color-text-muted)}
-    label{display:grid;gap:.32rem;font-size:.75rem;font-weight:700;color:var(--color-text-muted)}input,textarea,select{width:100%;min-height:42px;padding:.55rem .65rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font:inherit}textarea{resize:vertical}.fields{display:grid;gap:.75rem}.two-cols{grid-template-columns:1fr 1fr}
+    label{display:grid;min-width:0;gap:.32rem;font-size:.75rem;font-weight:700;color:var(--color-text-muted)}input,textarea,select{width:100%;min-width:0;min-height:42px;padding:.55rem .65rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font:inherit}textarea{resize:vertical}.fields{display:grid;min-width:0;gap:.75rem}.two-cols{grid-template-columns:repeat(2,minmax(0,1fr))}
     fieldset{display:grid;gap:.75rem;margin:0;padding:.9rem;border:1px solid var(--color-border);border-radius:var(--radius-md)}legend{padding:0 .35rem;font-size:.8rem;font-weight:800}.hint,.warning{margin:0;color:var(--color-text-muted);font-size:.72rem;line-height:1.45}.warning{color:#8a5a00}.toggles{display:flex;gap:1rem;flex-wrap:wrap}.toggles label,.check-row,.migration label{display:flex;align-items:flex-start;gap:.5rem;color:var(--color-text);font-weight:600}.toggles input,.check-row input,.migration input{width:auto;min-height:auto;margin-top:.15rem}
     details{padding:.85rem;border:1px solid var(--color-border);border-radius:var(--radius-md)}summary{cursor:pointer;font-size:.8rem;font-weight:800}details[open]{display:grid;gap:.75rem}.migration small{display:block;color:var(--color-text-muted);font-weight:400}.publish{width:100%;background:var(--color-primary);border-color:var(--color-primary);color:#fff}
     .history-card{margin-top:1.5rem;padding:1.2rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}.history-card h2{margin-top:0}.history-scroll{overflow:auto}table{width:100%;border-collapse:collapse;min-width:620px}th,td{text-align:left;padding:.7rem;border-top:1px solid var(--color-border);font-size:.78rem}th{color:var(--color-text-muted)}
     @media(max-width:1100px){.tier-grid{grid-template-columns:1fr 1fr}.tier-card:last-child{grid-column:1/-1}}
-    @media(max-width:700px){.pricing-console{padding:1rem}.page-header{display:block}.header-actions{margin-top:1rem}.safety-note{align-items:flex-start;flex-direction:column}.tier-grid{grid-template-columns:1fr}.tier-card:last-child{grid-column:auto}.two-cols{grid-template-columns:1fr}}
+    @media(max-width:700px){.pricing-console{padding-top:18px}.page-header{display:block}.header-actions{margin-top:1rem}.safety-note{align-items:flex-start;flex-direction:column}.tier-grid{grid-template-columns:1fr}.tier-card:last-child{grid-column:auto}.two-cols{grid-template-columns:1fr}}
   `],
 })
 export class PlatformPricingComponent implements OnInit {
@@ -271,7 +270,7 @@ export class PlatformPricingComponent implements OnInit {
   cents(pounds: number): number { return Math.round(Math.max(0, Number(pounds || 0)) * 100); }
   inputDate(value?: string | null): string { if (!value) return ''; const date = new Date(value); const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().slice(0, 16); }
   isoDate(value: string): string | null { return value ? new Date(value).toISOString() : null; }
-  date(value: string): string { return value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '—'; }
+  date(value: string): string { return value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'Not available'; }
   label(value: string): string { return value.replaceAll('_', ' '); }
   field(row: Record<string, unknown>, key: string): unknown { return row[key]; }
   stringField(row: Record<string, unknown>, key: string): string { return String(row[key] || ''); }

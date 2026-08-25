@@ -1,17 +1,16 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../services/api.service';
 
 @Component({
   selector: 'app-platform-settings',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
     <main class="settings-page">
       <header class="page-header">
         <div>
-          <a routerLink="/platform" class="back-link">Back to platform</a>
           <h1>Platform settings</h1>
           <p>Scanaki company identity, contact information, legal links and platform email delivery.</p>
         </div>
@@ -25,7 +24,7 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
       } @else {
         <form (ngSubmit)="save()" class="settings-grid">
           <section class="settings-card">
-            <div class="section-heading"><span>01</span><div><h2>Company details</h2><p>Used for Scanaki’s public identity and support information.</p></div></div>
+            <div class="section-heading"><div><h2>Company details</h2><p>Used for Scanaki’s public identity and support information.</p></div></div>
             <div class="fields two-cols">
               <label>Legal company name<input [(ngModel)]="form.company_legal_name" name="company_legal_name" maxlength="200" placeholder="Legal registered name"></label>
               <label>Company number<input [(ngModel)]="form.company_number" name="company_number" maxlength="100" placeholder="Companies House number"></label>
@@ -39,7 +38,7 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
           </section>
 
           <section class="settings-card">
-            <div class="section-heading"><span>02</span><div><h2>Legal links</h2><p>Shown across public authentication and marketing pages.</p></div></div>
+            <div class="section-heading"><div><h2>Legal links</h2><p>Shown across public authentication and marketing pages.</p></div></div>
             <label>Terms and conditions URL<input type="url" [(ngModel)]="form.terms_url" name="terms_url" placeholder="https://scanaki.uk/terms"></label>
             <label>Privacy policy URL<input type="url" [(ngModel)]="form.privacy_url" name="privacy_url" placeholder="https://scanaki.uk/privacy"></label>
             <p class="hint">Leave these blank to use Scanaki’s built-in Terms and Privacy pages.</p>
@@ -47,7 +46,6 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
 
           <section class="settings-card smtp-card">
             <div class="section-heading smtp-heading">
-              <span>03</span>
               <div><h2>Platform email (SMTP)</h2><p>Used for Scanaki invitations, password resets and platform notifications when a restaurant does not use its own SMTP.</p></div>
               <span class="status" [attr.data-status]="smtpStatus()">{{ statusLabel(smtpStatus()) }}</span>
             </div>
@@ -67,7 +65,7 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
             <div class="password-panel">
               <label>SMTP password or app password
                 <div class="password-row">
-                  <input [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="smtpPassword" name="smtp_password" autocomplete="new-password" [placeholder]="current()?.smtp_password_configured ? 'Password saved — enter only to replace' : 'Enter SMTP password'">
+                  <input [type]="showPassword() ? 'text' : 'password'" [(ngModel)]="smtpPassword" name="smtp_password" autocomplete="new-password" [placeholder]="current()?.smtp_password_configured ? 'Password saved - enter only to replace' : 'Enter SMTP password'">
                   <button type="button" class="secondary compact" (click)="showPassword.set(!showPassword())">{{ showPassword() ? 'Hide' : 'Show' }}</button>
                 </div>
               </label>
@@ -80,7 +78,7 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
                 <h3>Connection test</h3>
                 <p>Save changes first, then send a real test message to verify authentication and delivery.</p>
                 @if (current()?.smtp_last_tested_at) {
-                  <small>Last tested {{ date(current()!.smtp_last_tested_at!) }} — {{ current()?.smtp_last_test_message }}</small>
+                  <small>Last tested {{ date(current()!.smtp_last_tested_at!) }}: {{ current()?.smtp_last_test_message }}</small>
                 }
               </div>
               <label>Test recipient<input type="email" [(ngModel)]="testRecipient" name="test_recipient" placeholder="you@yourdomain.co.uk"></label>
@@ -89,7 +87,7 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
           </section>
 
           <section class="settings-card">
-            <div class="section-heading"><span>04</span><div><h2>Super-admin password</h2><p>Change your own platform login password. All current sessions are revoked after the change.</p></div></div>
+            <div class="section-heading"><div><h2>Super-admin password</h2><p>Change your own platform login password. All current sessions are revoked after the change.</p></div></div>
             <div class="fields password-change-grid">
               <label>Current password<input type="password" [(ngModel)]="currentPassword" name="current_platform_password" autocomplete="current-password"></label>
               <label>New password<input type="password" [(ngModel)]="newPassword" name="new_platform_password" autocomplete="new-password" minlength="12"></label>
@@ -107,13 +105,13 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
     </main>
   `,
   styles: [`
-    .settings-page{max-width:1180px;margin:auto;padding:2rem;color:var(--color-text)}.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.5rem}.page-header h1{margin:.35rem 0;font-size:2rem}.page-header p{margin:0;color:var(--color-text-muted)}.back-link{font-size:.85rem}
+    .settings-page{max-width:1180px;margin:auto;padding:28px 0;color:var(--color-text)}.page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.5rem}.page-header h1{margin:0;font-size:25px}.page-header p{margin:5px 0 0;color:var(--color-text-muted)}.back-link{font-size:.85rem}
     button{font:inherit;cursor:pointer}.secondary,.primary{min-height:42px;padding:0 .95rem;border-radius:var(--radius-md);font-weight:700}.secondary{border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text)}.primary{border:1px solid var(--color-primary);background:var(--color-primary);color:#fff}.compact{min-height:40px}.success,.error,.notice{padding:.9rem 1rem;border-radius:var(--radius-md)}.success{background:#e8f7ee;color:#18794e}.error{background:#fde8e8;color:#b42318}.notice{background:#eef6ff;color:#174d83;font-size:.82rem}.muted,.hint{color:var(--color-text-muted)}
-    .settings-grid{display:grid;gap:1rem}.settings-card{display:grid;gap:1rem;padding:1.3rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm)}.section-heading{display:flex;gap:.8rem;align-items:flex-start}.section-heading>span:first-child{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--color-primary-light);color:var(--color-primary);font-size:.75rem;font-weight:800}.section-heading h2{margin:0;font-size:1.15rem}.section-heading p{margin:.25rem 0 0;color:var(--color-text-muted);font-size:.82rem}.smtp-heading{display:grid;grid-template-columns:auto 1fr auto}
+    .settings-grid{display:grid;gap:1rem}.settings-card{display:grid;gap:1rem;padding:1.3rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-sm)}.section-heading{display:flex;gap:.8rem;align-items:flex-start}.section-heading h2{margin:0;font-size:1.15rem}.section-heading p{margin:.25rem 0 0;color:var(--color-text-muted);font-size:.82rem}.smtp-heading{display:grid;grid-template-columns:1fr auto}
     .fields{display:grid;gap:.8rem}.two-cols{grid-template-columns:1fr 1fr}.smtp-grid{grid-template-columns:2fr .7fr 1.3fr}.password-change-grid{grid-template-columns:repeat(3,1fr)}.smtp-grid label:nth-child(4),.smtp-grid label:nth-child(5),.smtp-grid label:nth-child(6){grid-column:auto}label{display:grid;gap:.35rem;color:var(--color-text-muted);font-size:.76rem;font-weight:700}input,textarea{width:100%;min-height:42px;padding:.55rem .7rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font:inherit}textarea{resize:vertical}.check{display:flex;align-items:center;gap:.55rem;align-self:end;min-height:42px;color:var(--color-text)}.check input{width:auto;min-height:auto}.danger-check{color:var(--color-error);align-self:auto}
     .status{padding:.25rem .6rem;border-radius:999px;background:#eee;color:#666;font-size:.7rem;font-weight:800;text-transform:capitalize}.status[data-status=verified]{background:#e8f7ee;color:#18794e}.status[data-status=failed]{background:#fde8e8;color:#b42318}.status[data-status=configured]{background:#fff4d8;color:#8a5a00}.password-panel,.test-panel{padding:1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg)}.password-panel{display:grid;gap:.75rem}.password-row{display:grid;grid-template-columns:1fr auto;gap:.5rem}.test-panel{display:grid;grid-template-columns:1.4fr 1fr auto;gap:1rem;align-items:end}.test-panel h3{margin:0;font-size:.9rem}.test-panel p{margin:.25rem 0;color:var(--color-text-muted);font-size:.75rem}.test-panel small{color:var(--color-text-muted)}
     .save-bar{position:sticky;bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 1.1rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:color-mix(in srgb,var(--color-surface) 94%,transparent);backdrop-filter:blur(12px);box-shadow:var(--shadow-lg)}.save-bar div{display:grid}.save-bar small{color:var(--color-text-muted)}button:disabled{opacity:.55;cursor:not-allowed}
-    @media(max-width:760px){.settings-page{padding:1rem}.page-header{display:block}.page-header>button{margin-top:1rem}.two-cols,.smtp-grid,.test-panel,.password-change-grid{grid-template-columns:1fr}.smtp-heading{grid-template-columns:auto 1fr}.smtp-heading .status{grid-column:2;width:max-content}.save-bar{align-items:stretch;flex-direction:column}.save-bar .primary{width:100%}}
+    @media(max-width:760px){.settings-page{padding-top:18px}.page-header{display:block}.page-header>button{margin-top:1rem}.two-cols,.smtp-grid,.test-panel,.password-change-grid{grid-template-columns:1fr}.smtp-heading{grid-template-columns:1fr}.smtp-heading .status{width:max-content}.save-bar{align-items:stretch;flex-direction:column}.save-bar .primary{width:100%}}
   `],
 })
 export class PlatformSettingsComponent implements OnInit {

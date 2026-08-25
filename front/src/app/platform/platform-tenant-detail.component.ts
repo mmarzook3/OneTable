@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService, PlatformTenantDetail } from '../services/api.service';
 
@@ -12,15 +12,11 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
     <div class="platform-page">
       <header class="platform-header">
         <div>
-          <a routerLink="/platform" class="platform-back">{{ 'PLATFORM_DASHBOARD.BACK_TO_OVERVIEW' | translate }}</a>
           @if (tenant()) {
             <h1>{{ tenant()!.name }}</h1>
             <p class="platform-subtitle">{{ 'PLATFORM_DASHBOARD.TENANT_ID' | translate }} {{ tenant()!.id }}</p>
           }
         </div>
-        <button type="button" class="btn-logout" (click)="logout()">
-          {{ 'PLATFORM_DASHBOARD.LOGOUT' | translate }}
-        </button>
       </header>
 
       @if (loading()) {
@@ -47,11 +43,11 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
               @if (tenant()!.tenant_email) {
                 <a [href]="'mailto:' + tenant()!.tenant_email">{{ tenant()!.tenant_email }}</a>
               } @else {
-                <span class="platform-muted">—</span>
+                <span class="platform-muted">Not available</span>
               }
             </dd>
             <dt>{{ 'PLATFORM_DASHBOARD.COL_PHONE' | translate }}</dt>
-            <dd>{{ tenant()!.tenant_phone || '—' }}</dd>
+            <dd>{{ tenant()!.tenant_phone || 'Not available' }}</dd>
             <dt>{{ 'PLATFORM_DASHBOARD.COL_CREATED' | translate }}</dt>
             <dd>{{ formatDate(tenant()!.created_at) }}</dd>
             @if (tenant()!.address) {
@@ -120,12 +116,12 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
           </div>
           <dl class="detail-grid">
             <dt>Status</dt><dd>{{ tenant()!.subscription_status }} @if (tenant()!.cancel_at_period_end) { · cancels at period end }</dd>
-            <dt>Trial expiry</dt><dd>{{ tenant()!.trial_ends_at ? formatDate(tenant()!.trial_ends_at!) : '—' }}</dd>
-            <dt>Renewal</dt><dd>{{ tenant()!.renewal_at ? formatDate(tenant()!.renewal_at!) : '—' }}</dd>
+            <dt>Trial expiry</dt><dd>{{ tenant()!.trial_ends_at ? formatDate(tenant()!.trial_ends_at!) : 'Not available' }}</dd>
+            <dt>Renewal</dt><dd>{{ tenant()!.renewal_at ? formatDate(tenant()!.renewal_at!) : 'Not available' }}</dd>
             <dt>Monthly value</dt><dd>£{{ (tenant()!.monthly_cents / 100).toFixed(2) }}</dd>
             <dt>Stripe customer</dt><dd><code>{{ tenant()!.stripe_customer_id || 'Not connected' }}</code> @if (tenant()!.stripe_customer_url) { <a [href]="tenant()!.stripe_customer_url!" target="_blank" rel="noopener noreferrer">Open in Stripe</a> }</dd>
-            <dt>Stripe subscription</dt><dd><code>{{ tenant()!.stripe_subscription_id || '—' }}</code></dd>
-            <dt>Last failed payment</dt><dd>{{ tenant()!.last_payment_failed_at ? formatDate(tenant()!.last_payment_failed_at!) : '—' }}</dd>
+            <dt>Stripe subscription</dt><dd><code>{{ tenant()!.stripe_subscription_id || 'Not connected' }}</code></dd>
+            <dt>Last failed payment</dt><dd>{{ tenant()!.last_payment_failed_at ? formatDate(tenant()!.last_payment_failed_at!) : 'None' }}</dd>
           </dl>
         </section>
 
@@ -164,7 +160,7 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
               <tbody>
                 @for (u of tenant()!.staff_users; track u.email) {
                   <tr>
-                    <td>{{ u.full_name || '—' }}</td>
+                    <td>{{ u.full_name || 'Not provided' }}</td>
                     <td><a [href]="'mailto:' + u.email">{{ u.email }}</a></td>
                     <td>{{ u.role }}</td>
                   </tr>
@@ -178,9 +174,7 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
   `,
   styles: [`
     .platform-page {
-      min-height: 100vh;
-      padding: var(--space-6);
-      background: var(--color-bg);
+      padding: 28px 0;
       color: var(--color-text);
       max-width: 1100px;
       margin: 0 auto;
@@ -284,7 +278,6 @@ import { ApiService, PlatformTenantDetail } from '../services/api.service';
 export class PlatformTenantDetailComponent implements OnInit {
   private api = inject(ApiService);
   private route = inject(ActivatedRoute);
-  private router = inject(Router);
 
   tenant = signal<PlatformTenantDetail | null>(null);
   loading = signal(true);
@@ -346,7 +339,4 @@ export class PlatformTenantDetailComponent implements OnInit {
     });
   }
 
-  logout(): void {
-    this.api.logout().subscribe(() => this.router.navigate(['/platform/login']));
-  }
 }

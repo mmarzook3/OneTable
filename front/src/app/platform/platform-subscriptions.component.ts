@@ -18,11 +18,10 @@ import {
     <main class="console-page">
       <header class="console-header">
         <div>
-          <a routerLink="/platform" class="back-link">Back to platform</a>
           <h1>Subscriptions</h1>
           <p>Plans, billing health, Stripe lifecycle and recurring revenue.</p>
         </div>
-        <div class="header-links"><a routerLink="/platform/pricing" class="secondary">Pricing & offers</a><button type="button" class="secondary" (click)="load()" [disabled]="loading()">Refresh</button></div>
+        <div class="header-links"><button type="button" class="secondary" (click)="load()" [disabled]="loading()">Refresh</button></div>
       </header>
 
       @if (metrics(); as metric) {
@@ -150,14 +149,14 @@ import {
             @if (data.payments.length === 0) { <p class="muted">No payment intents found.</p> }
             @else { <div class="history-list">@for (payment of data.payments; track field(payment, 'id')) { <article><strong>{{ field(payment, 'id') }}</strong><span>{{ field(payment, 'status') }}</span><span>{{ money(numberField(payment, 'amount_received') || numberField(payment, 'amount'), stringField(payment, 'currency')) }}</span><span>{{ date(stringField(payment, 'created_at')) }}</span></article> }</div> }
             <h3>Audit events</h3>
-            <div class="history-list">@for (event of data.events; track field(event, 'id')) { <article><strong>{{ field(event, 'event_type') }}</strong><span>{{ field(event, 'old_status') || '—' }} → {{ field(event, 'new_status') || '—' }}</span><span>{{ date(stringField(event, 'created_at')) }}</span><span>{{ field(event, 'source') }}</span></article> }</div>
+            <div class="history-list">@for (event of data.events; track field(event, 'id')) { <article><strong>{{ field(event, 'event_type') }}</strong><span>{{ field(event, 'old_status') || 'Unknown' }} to {{ field(event, 'new_status') || 'Unknown' }}</span><span>{{ date(stringField(event, 'created_at')) }}</span><span>{{ field(event, 'source') }}</span></article> }</div>
           }
         </section>
       }
     </main>
   `,
   styles: [`
-    .console-page{max-width:1500px;margin:auto;padding:var(--space-6);color:var(--color-text)}
+    .console-page{max-width:1500px;margin:auto;padding:28px 0;color:var(--color-text)}
     .console-header{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;margin-bottom:1.5rem}.console-header h1{margin:.35rem 0}.console-header p{margin:0;color:var(--color-text-muted)}.back-link{font-size:.85rem}.header-links{display:flex;gap:.5rem;flex-wrap:wrap}.header-links a{text-decoration:none;display:inline-flex;align-items:center}
     .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:.8rem;margin-bottom:1.5rem}.metrics article{padding:1rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}.metrics span{display:block;font-size:.75rem;color:var(--color-text-muted)}.metrics strong{display:block;margin-top:.35rem;font-size:1.5rem}.metric-warning strong{color:var(--color-error)}
     .filters{display:flex;flex-wrap:wrap;align-items:end;gap:.75rem;padding:1rem;margin-bottom:1rem;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.filters label{display:grid;gap:.3rem;font-size:.75rem;color:var(--color-text-muted)}.search-field{flex:1;min-width:220px}.filters input,.filters select,.inline-controls input,.inline-controls select{min-height:40px;padding:0 .65rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font:inherit}
@@ -166,7 +165,7 @@ import {
     .status{display:inline-block;padding:.2rem .55rem;border-radius:999px;background:var(--color-bg);font-weight:700;text-transform:capitalize}.status[data-status=active]{background:#e8f7ee;color:#18794e}.status[data-status=past_due],.status[data-status=canceled]{background:#fde8e8;color:#b42318}.status[data-status=trialing]{background:#e8f1ff;color:#175cd3}.status[data-status=suspended]{background:#fff4d8;color:#8a5a00}.warning-text,.danger-text{color:var(--color-error)!important}.inline-controls{display:flex;gap:.35rem}.extra-field{display:flex;align-items:center}.extra-field input{width:58px}.actions{display:flex;flex-wrap:wrap;gap:.35rem}.actions button{min-height:32px;padding:0 .5rem;font-size:.72rem}
     .pagination{display:flex;justify-content:center;align-items:center;gap:1rem;padding:1rem;border-top:1px solid var(--color-border)}.error{padding:.8rem;background:#fde8e8;color:#b42318;border-radius:var(--radius-md)}.loading,.muted{color:var(--color-text-muted)}
     .modal-backdrop{position:fixed;inset:0;background:#0009;z-index:100}.history-modal{position:fixed;z-index:101;inset:4vh 4vw;overflow:auto;padding:1.25rem;background:var(--color-surface);color:var(--color-text);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg)}.history-modal header{display:flex;justify-content:space-between;gap:1rem}.history-modal h2{margin:0}.history-modal header p{margin:.3rem 0;color:var(--color-text-muted)}.history-list{display:grid;gap:.5rem}.history-list article{display:grid;grid-template-columns:minmax(150px,1.3fr) repeat(4,minmax(100px,1fr));gap:.75rem;padding:.75rem;border:1px solid var(--color-border);border-radius:var(--radius-md);font-size:.78rem;align-items:center}
-    @media(max-width:700px){.console-page{padding:1rem}.console-header{display:block}.console-header button{margin-top:1rem}.history-modal{inset:1rem}.history-list article{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
+    @media(max-width:700px){.console-page{padding-top:18px}.console-header{display:block}.console-header button{margin-top:1rem}.history-modal{inset:1rem}.history-list article{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}}
   `],
 })
 export class PlatformSubscriptionsComponent implements OnInit {
@@ -180,7 +179,7 @@ export class PlatformSubscriptionsComponent implements OnInit {
   load():void{this.loading.set(true);this.error.set('');forkJoin({metrics:this.api.getPlatformSubscriptionMetrics(),list:this.api.getPlatformSubscriptions({search:this.search,status:this.statusFilter,plan:this.planFilter,health:this.healthFilter,page:this.page,pageSize:this.pageSize})}).subscribe({next:({metrics,list})=>{this.metrics.set(metrics);this.list.set(list);this.loading.set(false)},error:(err)=>{this.error.set(err?.error?.detail||'Could not load subscriptions');this.loading.set(false)}})}
   applyFilters():void{this.page=1;this.load()} clearFilters():void{this.search='';this.statusFilter='';this.planFilter='';this.healthFilter='';this.applyFilters()} goPage(page:number):void{this.page=page;this.load()}
   money(cents:number,currency='gbp'):string{return new Intl.NumberFormat('en-GB',{style:'currency',currency:(currency||'gbp').toUpperCase()}).format((cents||0)/100)}
-  date(value?:string|null):string{return value?new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}):'—'}
+  date(value?:string|null):string{return value?new Date(value).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}):'Not available'}
   statusLabel(row:PlatformSubscriptionRow):string{return row.status.replaceAll('_',' ')}
   changePlan(row:PlatformSubscriptionRow,event:Event):void{const plan=(event.target as HTMLSelectElement).value;if(!confirm(`Synchronise ${row.tenant_name} to ${plan.toUpperCase()} with Stripe prorations?`)){(event.target as HTMLSelectElement).value=row.plan_code;return}this.api.updatePlatformTenantPlan(row.tenant_id,plan,row.extra_tables,'create_prorations').subscribe({next:()=>this.load(),error:(err)=>this.error.set(err?.error?.detail||'Plan update failed')})}
   changeExtraTables(row:PlatformSubscriptionRow,event:Event):void{const count=Math.max(0,Number((event.target as HTMLInputElement).value)||0);this.api.updatePlatformTenantPlan(row.tenant_id,row.plan_code,count,'create_prorations').subscribe({next:()=>this.load(),error:(err)=>this.error.set(err?.error?.detail||'Extra-table update failed')})}

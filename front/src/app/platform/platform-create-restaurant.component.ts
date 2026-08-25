@@ -13,8 +13,6 @@ import {
   imports: [ReactiveFormsModule, RouterLink, TranslateModule],
   template: `
     <main class="provision-page">
-      <a routerLink="/platform" class="back-link">{{ 'PLATFORM_CREATE.BACK' | translate }}</a>
-
       <header class="page-heading">
         <p class="eyebrow">{{ 'PLATFORM_CREATE.EYEBROW' | translate }}</p>
         <h1>{{ 'PLATFORM_CREATE.TITLE' | translate }}</h1>
@@ -120,10 +118,9 @@ import {
   `,
   styles: [`
     .provision-page {
-      min-height: 100vh;
       max-width: 760px;
       margin: 0 auto;
-      padding: var(--space-6);
+      padding: 28px 0;
       color: var(--color-text);
     }
     .back-link { display: inline-block; margin-bottom: var(--space-6); font-size: 0.9rem; }
@@ -165,7 +162,7 @@ import {
     .security-note p { color: var(--color-text-muted); margin: var(--space-1) 0 0; line-height: 1.5; }
     .result-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
     @media (max-width: 560px) {
-      .provision-page { padding: var(--space-4); }
+      .provision-page { padding-top: 18px; }
       .credential-row { align-items: flex-start; flex-direction: column; }
       .result-actions > * { width: 100%; }
     }

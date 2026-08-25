@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.1.182] - 2026-08-25
+
+### Changed
+
+- **Platform CRM workspace:** Rebuilt the platform-operator portal around a persistent left navigation, compact top bar, grouped workspace/revenue/operations sections and operator account controls.
+- **Focused overview:** Replaced the loose metric cards with a recurring-revenue summary strip, recent restaurant directory, subscription health and compact account-activity table.
+- **Restaurant directory:** Added a dedicated searchable customer page with onboarding filters, plan allowances, usage, owner contacts and direct venue actions.
+- **Responsive operations:** Added a mobile navigation drawer, route-aware active states, consistent content containment and shared shell coverage for every platform tool and tenant detail page.
+
 ## [2.1.181] - 2026-08-25
 
 ### Added

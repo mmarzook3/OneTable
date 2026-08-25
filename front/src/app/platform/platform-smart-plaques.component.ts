@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { ApiService, SmartPlaque } from '../services/api.service';
@@ -9,12 +8,11 @@ import { ApiService, SmartPlaque } from '../services/api.service';
 @Component({
   selector: 'app-platform-smart-plaques',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, TranslateModule],
+  imports: [CommonModule, FormsModule, TranslateModule],
   template: `
     <main class="plaque-page">
       <header class="page-header">
         <div>
-          <a routerLink="/platform" class="back-link">← {{ 'SMART_PLAQUES.BACK' | translate }}</a>
           <p class="eyebrow">{{ 'SMART_PLAQUES.OPERATOR_EYEBROW' | translate }}</p>
           <h1>{{ 'SMART_PLAQUES.INVENTORY_TITLE' | translate }}</h1>
           <p class="lede">{{ 'SMART_PLAQUES.INVENTORY_HINT' | translate }}</p>
@@ -89,7 +87,7 @@ import { ApiService, SmartPlaque } from '../services/api.service';
                 @for (plaque of plaques(); track plaque.id) {
                   <tr [attr.data-plaque-id]="plaque.id" data-testid="smart-plaque-row">
                     <td><code data-testid="smart-plaque-public-code">{{ plaque.public_code }}</code></td>
-                    <td>{{ plaque.batch_label || '—' }}</td>
+                    <td>{{ plaque.batch_label || 'Not provided' }}</td>
                     <td><span class="status" [attr.data-status]="plaque.status">{{ plaque.status }}</span></td>
                     <td>{{ plaque.table_name || ('SMART_PLAQUES.UNASSIGNED' | translate) }}</td>
                     <td>
@@ -119,7 +117,7 @@ import { ApiService, SmartPlaque } from '../services/api.service';
   `,
   styles: [`
     :host { display: block; min-height: 100vh; background: var(--color-bg); }
-    .plaque-page { max-width: 1180px; margin: 0 auto; padding: var(--space-6); color: var(--color-text); }
+    .plaque-page { max-width: 1180px; margin: 0 auto; padding: 28px 0; color: var(--color-text); }
     .page-header { margin-bottom: var(--space-6); }
     .back-link { color: var(--color-text-muted); text-decoration: none; font-size: .875rem; }
     .eyebrow { margin: var(--space-5) 0 var(--space-1); color: var(--color-primary); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -154,7 +152,7 @@ import { ApiService, SmartPlaque } from '../services/api.service';
     .muted { color: var(--color-text-muted); }
     .error-banner { margin-bottom: var(--space-4); padding: var(--space-3); color: var(--color-error); background: rgba(220,38,38,.08); border-radius: var(--radius-md); }
     @media (max-width: 760px) {
-      .plaque-page { padding: var(--space-4); }
+      .plaque-page { padding-top: 18px; }
       .create-card { grid-template-columns: 1fr; }
       .batch-form { grid-template-columns: 1fr; }
     }
