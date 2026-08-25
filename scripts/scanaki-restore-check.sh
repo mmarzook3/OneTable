@@ -61,8 +61,22 @@ REAL_TENANT_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
   "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM tenant WHERE is_demo = false;\"")"
 TABLE_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
   "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='public';\"")"
+LOCATION_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
+  "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM tenant_location;\"")"
+ORDERING_POINT_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
+  "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM \\\"table\\\";\"")"
+ORPHAN_POINT_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
+  "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM \\\"table\\\" p LEFT JOIN tenant_location l ON l.id=p.location_id WHERE l.id IS NULL OR l.tenant_id<>p.tenant_id;\"")"
+YEW_LOCATION_COUNT="$("${COMPOSE[@]}" exec -T db sh -c \
+  "psql -U \"\$POSTGRES_USER\" -d '$CHECK_DB' -Atqc \"SELECT count(*) FROM tenant_location l JOIN tenant t ON t.id=l.tenant_id WHERE t.name='The Yew Trees Pub';\"")"
 
 [[ "$TENANT_COUNT" -ge 1 ]] || { echo "Restore check failed: no tenant rows" >&2; exit 1; }
 [[ "$REAL_TENANT_COUNT" -ge 1 ]] || { echo "Restore check failed: no non-demo tenant" >&2; exit 1; }
 [[ "$TABLE_COUNT" -ge 20 ]] || { echo "Restore check failed: schema incomplete" >&2; exit 1; }
-echo "Restore check passed: tenants=$TENANT_COUNT real_tenants=$REAL_TENANT_COUNT schema_tables=$TABLE_COUNT"
+[[ "$LOCATION_COUNT" -ge "$TENANT_COUNT" ]] || { echo "Restore check failed: tenant locations missing" >&2; exit 1; }
+[[ "$ORPHAN_POINT_COUNT" -eq 0 ]] || { echo "Restore check failed: orphan ordering points" >&2; exit 1; }
+if [[ "$YEW_LOCATION_COUNT" -gt 0 && "$YEW_LOCATION_COUNT" -ne 4 ]]; then
+  echo "Restore check failed: Yew Trees must have four locations" >&2
+  exit 1
+fi
+echo "Restore check passed: tenants=$TENANT_COUNT locations=$LOCATION_COUNT ordering_points=$ORDERING_POINT_COUNT real_tenants=$REAL_TENANT_COUNT schema_tables=$TABLE_COUNT"
