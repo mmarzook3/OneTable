@@ -344,6 +344,7 @@ export interface SaasPlanTier {
   interval: string;
   included_tables: number;
   extra_table_price_cents: number;
+  ordering_points_unlimited?: boolean;
 }
 
 /** Platform SaaS subscription / hard paywall (issue #296) */
@@ -364,6 +365,7 @@ export interface SaasSubscription {
   included_tables?: number;
   extra_tables?: number;
   table_limit?: number;
+  ordering_points_unlimited?: boolean;
 }
 
 /** Provider portal types */
@@ -441,6 +443,7 @@ export interface PlatformTenantSummary {
   saas_plan_code: 'lite' | 'pro' | 'ultra' | string;
   saas_extra_tables: number;
   table_limit: number;
+  ordering_points_unlimited: boolean;
   invitation_sent_at?: string | null;
   invitation_last_error?: string | null;
   subscription_status: string;
@@ -458,7 +461,7 @@ export interface PlatformRestaurantCreate {
   restaurant_name: string;
   owner_email: string;
   owner_name?: string | null;
-  plan_code: 'lite' | 'pro' | 'ultra';
+  plan_code: 'lite' | 'pro' | 'ultra' | 'pilot';
 }
 
 export interface PlatformRestaurantCredentials {
@@ -469,6 +472,7 @@ export interface PlatformRestaurantCredentials {
   password_setup_url?: string | null;
   plan_code: string;
   table_limit: number;
+  ordering_points_unlimited: boolean;
   invitation_email_sent: boolean;
 }
 
@@ -554,6 +558,7 @@ export interface PlatformSubscriptionRow {
   extra_tables: number;
   table_count: number;
   table_limit: number;
+  ordering_points_unlimited: boolean;
   monthly_cents: number;
   currency: string;
   trial_ends_at?: string | null;
@@ -615,6 +620,7 @@ export interface PlatformPricingPlan {
   currency: string;
   billing_interval: string;
   included_tables: number;
+  ordering_points_unlimited?: boolean;
   extra_table_price_cents: number;
   trial_days: number;
   offer_badge?: string | null;
@@ -1536,6 +1542,7 @@ export interface TenantLocation {
   unassigned_plaque_count: number;
   ordering_point_usage: number;
   ordering_point_limit: number;
+  ordering_points_unlimited: boolean;
   ordering_points_available: number;
   readiness: Record<string, boolean>;
 }

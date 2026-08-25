@@ -33,7 +33,12 @@ ACTIVE_STATUSES = frozenset(
     }
 )
 
-SAAS_PLAN_TABLES = {"lite": 2, "pro": 20, "ultra": 45}
+SAAS_PLAN_TABLES = {"lite": 2, "pro": 20, "ultra": 45, "pilot": 10_000}
+UNLIMITED_ORDERING_POINT_LIMIT = 2_147_483_647
+
+
+def plan_has_unlimited_ordering_points(plan_code: str | None) -> bool:
+    return normalize_plan_code(plan_code) == "pilot"
 
 
 def record_subscription_event(
@@ -118,12 +123,14 @@ def _fallback_plan(plan_code: str) -> dict[str, Any]:
         "lite": int(getattr(settings, "saas_lite_price_cents", 999) or 999),
         "pro": int(getattr(settings, "saas_pro_price_cents", 3999) or 3999),
         "ultra": int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499),
+        "pilot": 0,
     }
-    names = {"lite": "Lite", "pro": "Pro", "ultra": "Ultra"}
+    names = {"lite": "Lite", "pro": "Pro", "ultra": "Ultra", "pilot": "Pilot"}
     descriptions = {
         "lite": "A simple start for small venues.",
         "pro": "Built for busy restaurants and pubs.",
         "ultra": "More capacity for larger hospitality teams.",
+        "pilot": "Internal full-feature tier for approved pilot customers.",
     }
     offer = offer_prices[code]
     return {
@@ -132,10 +139,10 @@ def _fallback_plan(plan_code: str) -> dict[str, Any]:
         "description": descriptions[code],
         "version": 0,
         "regular_price_cents": round(offer * 3.5),
-        "offer_price_cents": offer,
+        "offer_price_cents": offer if code != "pilot" else None,
         "price_cents": offer,
-        "offer_active": True,
-        "offer_badge": "Launch deal",
+        "offer_active": code != "pilot",
+        "offer_badge": "Launch deal" if code != "pilot" else "Internal pilot",
         "offer_starts_at": None,
         "offer_ends_at": None,
         "currency": (getattr(settings, "saas_plan_currency", None) or "gbp").lower(),
@@ -144,9 +151,10 @@ def _fallback_plan(plan_code: str) -> dict[str, Any]:
         "extra_table_price_cents": int(
             getattr(settings, "saas_extra_table_price_cents", 399) or 399
         ),
-        "trial_days": int(getattr(settings, "saas_trial_days", 14) or 14),
+        "trial_days": int(getattr(settings, "saas_trial_days", 14) or 14) if code != "pilot" else 0,
         "is_featured": code == "pro",
-        "is_public": True,
+        "is_public": code != "pilot",
+        "ordering_points_unlimited": code == "pilot",
         "stripe_product_id": None,
         "stripe_regular_price_id": stripe_price_id_for_plan(code, use_database=False),
         "stripe_offer_price_id": stripe_price_id_for_plan(code, use_database=False),
@@ -190,6 +198,7 @@ def plan_details(
         "trial_days": row.trial_days,
         "is_featured": row.is_featured,
         "is_public": row.is_public,
+        "ordering_points_unlimited": row.plan_code == "pilot",
         "stripe_product_id": row.stripe_product_id,
         "stripe_regular_price_id": row.stripe_regular_price_id,
         "stripe_offer_price_id": row.stripe_offer_price_id,
@@ -198,6 +207,8 @@ def plan_details(
 
 
 def tenant_table_limit(tenant: models.Tenant) -> int:
+    if plan_has_unlimited_ordering_points(tenant.saas_plan_code):
+        return UNLIMITED_ORDERING_POINT_LIMIT
     included = tenant.saas_included_tables
     if included is None:
         included = SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)]
@@ -247,6 +258,7 @@ def stripe_price_id_for_plan(
         "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
         "pro": settings.saas_pro_stripe_price_id.strip(),
         "ultra": settings.saas_ultra_stripe_price_id.strip(),
+        "pilot": "",
     }[code]
 
 
@@ -451,6 +463,9 @@ def subscription_payload(tenant: models.Tenant, session: Session | None = None) 
         else SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)],
         "extra_tables": max(0, int(tenant.saas_extra_tables or 0)),
         "table_limit": tenant_table_limit(tenant),
+        "ordering_points_unlimited": plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
         "trial_ends_at": tenant.saas_trial_ends_at.isoformat()
         if tenant.saas_trial_ends_at
         else None,

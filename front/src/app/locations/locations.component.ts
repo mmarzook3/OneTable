@@ -54,8 +54,8 @@ const DAYS: Array<{ key: WeekDay; label: string }> = [
           </div>
         } @else {
           <section class="usage-strip" aria-label="Ordering point allowance">
-            <div><span>Active ordering points</span><strong>{{ usage() }}/{{ limit() }}</strong></div>
-            <div><span>Available on plan</span><strong>{{ available() }}</strong></div>
+            <div><span>Active ordering points</span><strong>{{ usage() }}/{{ unlimited() ? 'Unlimited' : limit() }}</strong></div>
+            <div><span>Available on plan</span><strong>{{ unlimited() ? 'Unlimited' : available() }}</strong></div>
             <div><span>Locations</span><strong>{{ locations().length }}</strong></div>
             <a routerLink="/settings">Subscription settings</a>
           </section>
@@ -189,7 +189,7 @@ const DAYS: Array<{ key: WeekDay; label: string }> = [
                     @if (bulkPreview(); as preview) {
                       <div class="bulk-preview" [class.bulk-preview-error]="!preview.allowed">
                         <strong>{{ preview.new_ordering_points }} ordering points</strong>
-                        <span>Usage after creation: {{ preview.post_create_usage }}/{{ preview.ordering_point_limit }}</span>
+                        <span>Usage after creation: {{ preview.post_create_usage }}/{{ preview.ordering_points_unlimited ? 'Unlimited' : preview.ordering_point_limit }}</span>
                         @if (preview.conflicts?.length) { <p>Conflicts: {{ preview.conflicts.join(', ') }}</p> }
                         @if (preview.duplicate_inputs?.length) { <p>Duplicates: {{ preview.duplicate_inputs.join(', ') }}</p> }
                         <div class="preview-labels">{{ preview.labels.join(' · ') }}</div>
@@ -303,6 +303,7 @@ export class LocationsComponent implements OnInit {
   usage = computed(() => this.locations()[0]?.ordering_point_usage || 0);
   limit = computed(() => this.locations()[0]?.ordering_point_limit || 0);
   available = computed(() => Math.max(0, this.limit() - this.usage()));
+  unlimited = computed(() => !!this.locations()[0]?.ordering_points_unlimited);
 
   newLocation = { name: '', display_name: '', location_type: 'pub' };
   editLocation = { name: '', display_name: '', location_type: 'pub', sort_order: 0 };

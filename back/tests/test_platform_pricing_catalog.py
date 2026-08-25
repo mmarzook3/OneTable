@@ -11,8 +11,13 @@ from pg_client_mixin import PgClientTestCase
 
 from app import models, security
 from app.platform_pricing_service import pricing_console, publish_pricing
-from app.platform_subscription_service import subscription_metrics
-from app.saas_billing import plan_config, tenant_monthly_cents
+from app.platform_subscription_service import subscription_metrics, sync_stripe_plan
+from app.saas_billing import (
+    plan_config,
+    plan_has_unlimited_ordering_points,
+    tenant_monthly_cents,
+    tenant_table_limit,
+)
 
 
 def _headers(user: models.User) -> dict[str, str]:
@@ -71,7 +76,13 @@ class TestPlatformPricingCatalog(PgClientTestCase):
 
     def test_console_and_public_config_use_database_catalog(self) -> None:
         console = pricing_console(self.session)
-        self.assertEqual([row["plan_code"] for row in console["plans"]], ["lite", "pro", "ultra"])
+        self.assertEqual(
+            [row["plan_code"] for row in console["plans"]],
+            ["lite", "pro", "ultra", "pilot"],
+        )
+        pilot = next(row for row in console["plans"] if row["plan_code"] == "pilot")
+        self.assertFalse(pilot["is_public"])
+        self.assertTrue(pilot["ordering_points_unlimited"])
         public = plan_config(self.session)
         self.assertEqual(public["plans"][0]["price_cents"], 999)
         self.assertEqual(public["plans"][0]["compare_at_price_cents"], 3497)
@@ -85,6 +96,35 @@ class TestPlatformPricingCatalog(PgClientTestCase):
         self.assertIn(protected.status_code, (401, 403))
         allowed = self.client.get("/platform/pricing", headers=_headers(self.operator))
         self.assertEqual(allowed.status_code, 200, allowed.text)
+
+    def test_internal_pilot_is_hidden_unlimited_and_enables_all_features(self) -> None:
+        self.assertNotIn("pilot", [row["id"] for row in plan_config(self.session)["plans"]])
+        self.customer.ui_modules = {"inventory": False, "users": False}
+        self.customer.saas_stripe_subscription_id = None
+        self.session.add(self.customer)
+        self.session.commit()
+        updated = sync_stripe_plan(
+            self.session,
+            self.customer,
+            plan_code="pilot",
+            extra_tables=99,
+        )
+        self.assertEqual(updated.saas_plan_code, "pilot")
+        self.assertEqual(updated.saas_subscription_status, "grandfathered")
+        self.assertEqual(updated.saas_extra_tables, 0)
+        self.assertEqual(updated.saas_monthly_price_cents, 0)
+        self.assertIsNone(updated.ui_modules)
+        self.assertTrue(plan_has_unlimited_ordering_points(updated.saas_plan_code))
+        self.assertEqual(tenant_table_limit(updated), 2_147_483_647)
+
+        with self.assertRaises(HTTPException) as public_pilot:
+            publish_pricing(
+                self.session,
+                "pilot",
+                self._body(name="Pilot", is_public=True),
+                self.operator,
+            )
+        self.assertEqual(public_pilot.exception.status_code, 400)
 
     def test_publish_updates_landing_and_preserves_existing_contract(self) -> None:
         result = publish_pricing(self.session, "lite", self._body(), self.operator)

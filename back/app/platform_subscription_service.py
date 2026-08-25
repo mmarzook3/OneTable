@@ -28,6 +28,7 @@ from .saas_billing import (
     stripe_price_id_for_plan,
     tenant_monthly_cents,
     tenant_table_limit,
+    plan_has_unlimited_ordering_points,
 )
 from .settings import settings
 
@@ -88,6 +89,9 @@ def _tenant_row(session: Session, tenant: models.Tenant) -> dict[str, Any]:
         "extra_tables": max(0, int(tenant.saas_extra_tables or 0)),
         "table_count": table_count,
         "table_limit": tenant_table_limit(tenant),
+        "ordering_points_unlimited": plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
         "monthly_cents": monthly_cents,
         "currency": plan_config(session)["currency"],
         "trial_ends_at": _dt(tenant.saas_trial_ends_at),
@@ -234,6 +238,42 @@ def sync_stripe_plan(
     extra_tables = max(0, int(extra_tables))
     old_plan = normalize_plan_code(tenant.saas_plan_code)
     old_extra = int(tenant.saas_extra_tables or 0)
+    if plan_code == "pilot":
+        if tenant.saas_stripe_subscription_id:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Remove or separately resolve the existing Stripe subscription "
+                    "before assigning the internal Pilot tier."
+                ),
+            )
+        selected = plan_details("pilot", session)
+        tenant.saas_plan_code = "pilot"
+        tenant.saas_extra_tables = 0
+        tenant.saas_monthly_price_cents = 0
+        tenant.saas_extra_table_unit_price_cents = 0
+        tenant.saas_included_tables = int(selected["included_tables"])
+        tenant.saas_subscription_status = SAAS_STATUS_GRANDFATHERED
+        tenant.saas_trial_ends_at = None
+        tenant.saas_subscription_ends_at = None
+        tenant.ui_modules = None
+        session.add(tenant)
+        record_subscription_event(
+            session,
+            tenant,
+            "plan_changed",
+            source="platform",
+            detail={
+                "old_plan": old_plan,
+                "new_plan": "pilot",
+                "old_extra_tables": old_extra,
+                "new_extra_tables": 0,
+                "internal_unlimited": True,
+            },
+        )
+        session.commit()
+        session.refresh(tenant)
+        return tenant
     if tenant.saas_stripe_subscription_id:
         secret = _stripe_secret()
         base_price = stripe_price_id_for_plan(plan_code, session)

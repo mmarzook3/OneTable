@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from . import models
-from .saas_billing import tenant_table_limit
+from .saas_billing import plan_has_unlimited_ordering_points, tenant_table_limit
 
 
 LOCATION_TYPES = {"pub", "lounge", "hotel_building", "other"}
@@ -163,6 +163,10 @@ def serialize_location(session: Session, location: models.TenantLocation) -> dic
         unassigned_plaque_count=max(0, len(points) - plaque_count),
         ordering_point_usage=used,
         ordering_point_limit=limit,
+        ordering_points_unlimited=(
+            plan_has_unlimited_ordering_points(tenant.saas_plan_code)
+            if tenant else False
+        ),
         ordering_points_available=max(0, limit - used),
         readiness={
             "identity": bool(location.display_name.strip()),

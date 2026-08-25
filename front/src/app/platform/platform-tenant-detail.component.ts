@@ -119,11 +119,11 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
               </span>
             }
           </div>
-          <p class="platform-muted">Plan: {{ tenant()!.saas_plan_code }} · {{ tenant()!.table_count }}/{{ tenant()!.table_limit }} active ordering points</p>
+          <p class="platform-muted">Plan: {{ tenant()!.saas_plan_code }} · {{ tenant()!.table_count }}/{{ tenant()!.ordering_points_unlimited ? 'Unlimited' : tenant()!.table_limit }} active ordering points</p>
           <div class="plan-controls">
             <label>Plan
               <select [(ngModel)]="planCode">
-                <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option>
+                <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option><option value="pilot">Pilot</option>
               </select>
             </label>
             <label>Extra ordering points <input type="number" min="0" max="500" [(ngModel)]="extraTables"></label>

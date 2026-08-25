@@ -131,16 +131,13 @@ def run() -> None:
         tenant.require_kds_online = True
         tenant.kds_heartbeat_timeout_seconds = 120
         tenant.strict_fifo_kds = True
-        tenant.saas_plan_code = "pro"
-        tenant.saas_included_tables = 20
-        tenant.ui_modules = {
-            "working_plan": False,
-            "providers": False,
-            "reservations": False,
-            "inventory": False,
-            "contracts": False,
-            "users": False,
-        }
+        tenant.saas_plan_code = "pilot"
+        tenant.saas_included_tables = 10_000
+        tenant.saas_extra_tables = 0
+        tenant.saas_monthly_price_cents = 0
+        tenant.saas_extra_table_unit_price_cents = 0
+        tenant.saas_subscription_status = "grandfathered"
+        tenant.ui_modules = None
         session.add(tenant)
         session.commit()
         session.refresh(tenant)

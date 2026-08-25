@@ -42,6 +42,8 @@ Reports keep combined tenant totals and add a location filter and location subto
 
 Each enabled room/table is one active ordering point. Creating drafts is allowed beyond the plan, but enabling a point beyond allowance is blocked with `ordering_point_plan_limit`.
 
+Approved early customers may be assigned the internal **Pilot** tier by a platform operator. Pilot has unlimited ordering points and all Scanaki modules, has no public Stripe checkout, and is never returned by the public pricing API or displayed on the website. The Yew Trees Pub is assigned to this tier.
+
 ## Protected APIs
 
 Restaurant APIs are under `/locations`, `/operational-locations` and `/location-analytics/summary`. Platform oversight is under `/platform/tenants/{tenant_id}/locations`. Tenant identity is always derived from authentication or the platform tenant path; restaurant request bodies cannot select another tenant.

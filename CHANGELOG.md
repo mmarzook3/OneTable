@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-08-25
+
+### Added
+
+- **Internal Pilot tier:** Added an unpublished, platform-managed tier with unlimited active ordering points, all Scanaki modules and no public Stripe checkout; it remains excluded from landing-page pricing and restaurant self-signup.
+
+### Changed
+
+- **Yew Trees pilot entitlement:** Assigned The Yew Trees Pub to the internal Pilot tier with unlimited ordering points, full feature access and zero internal recurring contract value while retaining venue-level feature switches such as delivery availability.
+
 ## [2.2.0] - 2026-08-25
 
 ### Added

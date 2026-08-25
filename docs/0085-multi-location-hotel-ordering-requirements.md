@@ -408,10 +408,10 @@ The Yew Trees tables
 
 Initial state:
 
-- plan: Pro;
-- included ordering points: 20;
+- plan: internal Pilot;
+- included ordering points: unlimited;
 - existing The Yew Trees tables: 10;
-- currently available within plan: 10;
+- currently available within plan: unlimited;
 - actual hotel room and lounge table counts: TBP.
 
 Rules:
@@ -753,7 +753,7 @@ The feature is complete when:
 - each inherited setting can be overridden independently without data duplication;
 - all pilot orders route to the main kitchen in strict FIFO order;
 - combined reports equal the sum of location reports;
-- the Pro allowance counts all active rooms and tables;
+- the internal Pilot allowance accepts unlimited active rooms and tables while still reporting usage;
 - excess ordering points are blocked or require purchased capacity;
 - tenant isolation, payment idempotency and webhook tests pass;
 - desktop/mobile customer, owner, CRM and KDS browser tests pass;

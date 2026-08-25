@@ -490,6 +490,7 @@ def _bulk_preview(
     tenant = session.get(models.Tenant, tenant_id)
     current = locations.active_point_usage(session, tenant_id)
     limit = tenant_table_limit(tenant)
+    unlimited = locations.plan_has_unlimited_ordering_points(tenant.saas_plan_code)
     active_new = len(values) if body.is_ordering_enabled else 0
     prefix = "Room" if body.service_point_type == "room" else "Table"
     return {
@@ -501,6 +502,7 @@ def _bulk_preview(
         "active_new_ordering_points": active_new,
         "current_usage": current,
         "ordering_point_limit": limit,
+        "ordering_points_unlimited": unlimited,
         "post_create_usage": current + active_new,
         "available_after": max(0, limit - current - active_new),
         "allowed": not duplicate_inputs and not conflicts and current + active_new <= limit,

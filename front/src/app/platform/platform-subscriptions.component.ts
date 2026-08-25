@@ -50,7 +50,7 @@ import {
         </label>
         <label>Plan
           <select [(ngModel)]="planFilter" (change)="applyFilters()">
-            <option value="">All plans</option><option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option>
+            <option value="">All plans</option><option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option><option value="pilot">Pilot</option>
           </select>
         </label>
         <label>Billing health
@@ -88,11 +88,11 @@ import {
                     <td>
                       <div class="inline-controls">
                         <select [value]="row.plan_code" (change)="changePlan(row, $event)">
-                          <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option>
+                          <option value="lite">Lite</option><option value="pro">Pro</option><option value="ultra">Ultra</option><option value="pilot">Pilot</option>
                         </select>
                         <label class="extra-field">+<input type="number" min="0" max="500" [value]="row.extra_tables" (change)="changeExtraTables(row, $event)"></label>
                       </div>
-                      <small>{{ row.table_count }}/{{ row.table_limit }} ordering points</small>
+                      <small>{{ row.table_count }}/{{ row.ordering_points_unlimited ? 'Unlimited' : row.table_limit }} ordering points</small>
                     </td>
                     <td>
                       @if (row.status === 'trialing') { <span>Trial ends {{ date(row.trial_ends_at) }}</span> }

@@ -42,6 +42,7 @@ def _row_payload(row: models.SaasPlanPricing) -> dict[str, Any]:
     active_offer = _offer_active(row)
     return {
         **row.model_dump(mode="json"),
+        "ordering_points_unlimited": row.plan_code == "pilot",
         "offer_active": active_offer,
         "effective_price_cents": (
             row.offer_price_cents if active_offer else row.regular_price_cents
@@ -205,6 +206,24 @@ def publish_pricing(
     operator: models.User,
 ) -> dict[str, Any]:
     code = normalize_plan_code(plan_code)
+    if code == "pilot":
+        if body.is_public:
+            raise HTTPException(
+                status_code=400,
+                detail="The internal Pilot tier cannot be published on the website",
+            )
+        if body.create_stripe_prices or any(
+            (
+                body.stripe_product_id,
+                body.stripe_regular_price_id,
+                body.stripe_offer_price_id,
+                body.stripe_extra_table_price_id,
+            )
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="The internal Pilot tier cannot use public Stripe prices",
+            )
     mode = body.migration_mode.strip().lower()
     if mode not in MIGRATION_MODES:
         raise HTTPException(status_code=400, detail="Invalid existing-customer migration mode")

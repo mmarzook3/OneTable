@@ -21,6 +21,7 @@ from .saas_billing import (
     tenant_table_limit,
     stripe_customer_dashboard_url,
     tenant_monthly_cents,
+    plan_has_unlimited_ordering_points,
 )
 from .security import get_current_user
 from .settings import settings
@@ -116,6 +117,9 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         saas_plan_code=normalize_plan_code(tenant.saas_plan_code),
         saas_extra_tables=max(0, int(tenant.saas_extra_tables or 0)),
         table_limit=tenant_table_limit(tenant),
+        ordering_points_unlimited=plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
         invitation_sent_at=tenant.invitation_sent_at,
         invitation_last_error=tenant.invitation_last_error,
         subscription_status=tenant.saas_subscription_status,
@@ -341,8 +345,10 @@ async def platform_create_restaurant(
         default_language="en",
         country_code="GB",
         ordering_mode="menu_only",
-        ui_modules=new_tenant_ui_modules_stored(),
-        saas_subscription_status=initial_status_for_new_tenant(),
+        ui_modules=None if plan_code == "pilot" else new_tenant_ui_modules_stored(),
+        saas_subscription_status=(
+            "grandfathered" if plan_code == "pilot" else initial_status_for_new_tenant()
+        ),
         onboarding_status="not_started",
         onboarding_step=0,
         saas_plan_code=plan_code,
@@ -401,6 +407,9 @@ async def platform_create_restaurant(
         password_setup_url=password_setup_url,
         plan_code=normalize_plan_code(tenant.saas_plan_code),
         table_limit=tenant_table_limit(tenant),
+        ordering_points_unlimited=plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
         invitation_email_sent=invitation_email_sent,
     )
 

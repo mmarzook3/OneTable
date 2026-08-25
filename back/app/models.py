@@ -598,6 +598,7 @@ class PlatformTenantSummary(SQLModel):
     saas_plan_code: str = "lite"
     saas_extra_tables: int = 0
     table_limit: int = 2
+    ordering_points_unlimited: bool = False
     invitation_sent_at: datetime | None = None
     invitation_last_error: str | None = None
     subscription_status: str = "none"
@@ -626,6 +627,7 @@ class PlatformRestaurantCredentials(SQLModel):
     password_setup_url: str | None = None
     plan_code: str = "lite"
     table_limit: int = 2
+    ordering_points_unlimited: bool = False
     invitation_email_sent: bool = False
 
 
