@@ -43,6 +43,27 @@ class SmartPlaqueNfcUpdate(SQLModel):
     written: bool | None = None
     verified: bool | None = None
     locked: bool | None = None
+    installed: bool | None = None
+
+
+class SmartPlaqueRequestCreate(SQLModel):
+    quantity: int = Field(ge=1, le=_BATCH_LIMIT)
+    delivery_contact_name: str = Field(min_length=2, max_length=160)
+    delivery_address: str = Field(min_length=8, max_length=500)
+    restaurant_notes: str | None = Field(default=None, max_length=500)
+
+
+class SmartPlaqueRequestAction(SQLModel):
+    action: str = Field(min_length=2, max_length=32)
+    tracking_reference: str | None = Field(default=None, max_length=160)
+    platform_notes: str | None = Field(default=None, max_length=500)
+
+
+class SmartPlaqueRequestEventResponse(SQLModel):
+    action: str
+    actor_user_id: int | None = None
+    detail: dict | None = None
+    created_at: datetime
 
 
 class SmartPlaqueResponse(SQLModel):
@@ -51,6 +72,7 @@ class SmartPlaqueResponse(SQLModel):
     public_url: str
     batch_label: str | None = None
     status: str
+    request_id: int | None = None
     assigned_tenant_id: int | None = None
     table_id: int | None = None
     table_name: str | None = None
@@ -59,6 +81,35 @@ class SmartPlaqueResponse(SQLModel):
     nfc_written_at: datetime | None = None
     nfc_verified_at: datetime | None = None
     nfc_locked_at: datetime | None = None
+    installed_at: datetime | None = None
+
+
+class SmartPlaqueRequestResponse(SQLModel):
+    id: int
+    tenant_id: int
+    tenant_name: str
+    requested_by_user_id: int | None = None
+    requester_email: str | None = None
+    quantity: int
+    status: str
+    delivery_contact_name: str
+    delivery_address: str
+    restaurant_notes: str | None = None
+    platform_notes: str | None = None
+    tracking_reference: str | None = None
+    requested_at: datetime
+    approved_at: datetime | None = None
+    preparing_at: datetime | None = None
+    shipped_at: datetime | None = None
+    delivered_at: datetime | None = None
+    completed_at: datetime | None = None
+    declined_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    updated_at: datetime
+    allocated_count: int
+    installed_count: int
+    plaques: list[SmartPlaqueResponse]
+    history: list[SmartPlaqueRequestEventResponse]
 
 
 class SmartPlaqueLookupResponse(SmartPlaqueResponse):
@@ -198,10 +249,12 @@ def _record_event(
 
 def _unassign_plaque(plaque: models.SmartPlaque, now: datetime) -> None:
     plaque.status = "available"
+    plaque.request_id = None
     plaque.assigned_tenant_id = None
     plaque.table_id = None
     plaque.assigned_by_user_id = None
     plaque.assigned_at = None
+    plaque.installed_at = None
     plaque.updated_at = now
 
 
@@ -213,6 +266,7 @@ def _response(session: Session, plaque: models.SmartPlaque) -> SmartPlaqueRespon
         public_url=_public_url(plaque.public_code),
         batch_label=plaque.batch_label,
         status=plaque.status,
+        request_id=plaque.request_id,
         assigned_tenant_id=plaque.assigned_tenant_id,
         table_id=plaque.table_id,
         table_name=table.name if table else None,
@@ -221,7 +275,171 @@ def _response(session: Session, plaque: models.SmartPlaque) -> SmartPlaqueRespon
         nfc_written_at=plaque.nfc_written_at,
         nfc_verified_at=plaque.nfc_verified_at,
         nfc_locked_at=plaque.nfc_locked_at,
+        installed_at=plaque.installed_at,
     )
+
+
+def _record_request_event(
+    session: Session,
+    request_row: models.SmartPlaqueRequest,
+    *,
+    action: str,
+    actor_user_id: int | None,
+    detail: dict | None = None,
+) -> None:
+    session.add(
+        models.SmartPlaqueRequestEvent(
+            request_id=int(request_row.id),
+            action=action,
+            actor_user_id=actor_user_id,
+            detail=detail,
+        )
+    )
+
+
+def _request_response(
+    session: Session,
+    request_row: models.SmartPlaqueRequest,
+) -> SmartPlaqueRequestResponse:
+    tenant = session.get(models.Tenant, request_row.tenant_id)
+    requester = (
+        session.get(models.User, request_row.requested_by_user_id)
+        if request_row.requested_by_user_id
+        else None
+    )
+    plaques = session.exec(
+        select(models.SmartPlaque)
+        .where(models.SmartPlaque.request_id == request_row.id)
+        .order_by(models.SmartPlaque.id)
+    ).all()
+    events = session.exec(
+        select(models.SmartPlaqueRequestEvent)
+        .where(models.SmartPlaqueRequestEvent.request_id == request_row.id)
+        .order_by(models.SmartPlaqueRequestEvent.created_at)
+    ).all()
+    return SmartPlaqueRequestResponse(
+        id=int(request_row.id),
+        tenant_id=request_row.tenant_id,
+        tenant_name=tenant.name if tenant else f"Tenant {request_row.tenant_id}",
+        requested_by_user_id=request_row.requested_by_user_id,
+        requester_email=requester.email if requester else None,
+        quantity=request_row.quantity,
+        status=request_row.status,
+        delivery_contact_name=request_row.delivery_contact_name,
+        delivery_address=request_row.delivery_address,
+        restaurant_notes=request_row.restaurant_notes,
+        platform_notes=request_row.platform_notes,
+        tracking_reference=request_row.tracking_reference,
+        requested_at=request_row.requested_at,
+        approved_at=request_row.approved_at,
+        preparing_at=request_row.preparing_at,
+        shipped_at=request_row.shipped_at,
+        delivered_at=request_row.delivered_at,
+        completed_at=request_row.completed_at,
+        declined_at=request_row.declined_at,
+        cancelled_at=request_row.cancelled_at,
+        updated_at=request_row.updated_at,
+        allocated_count=len(plaques),
+        installed_count=sum(1 for plaque in plaques if plaque.status == "installed"),
+        plaques=[_response(session, plaque) for plaque in plaques],
+        history=[
+            SmartPlaqueRequestEventResponse(
+                action=event.action,
+                actor_user_id=event.actor_user_id,
+                detail=event.detail,
+                created_at=event.created_at,
+            )
+            for event in events
+        ],
+    )
+
+
+def _allocate_request_plaques(
+    session: Session,
+    request_row: models.SmartPlaqueRequest,
+    operator: models.User,
+) -> list[models.SmartPlaque]:
+    rows = session.exec(
+        select(models.SmartPlaque)
+        .where(
+            models.SmartPlaque.status == "available",
+            models.SmartPlaque.assigned_tenant_id.is_(None),
+            models.SmartPlaque.table_id.is_(None),
+        )
+        .order_by(models.SmartPlaque.id)
+        .limit(request_row.quantity)
+    ).all()
+    batch_label = f"Request #{request_row.id} · {session.get(models.Tenant, request_row.tenant_id).name}"
+    while len(rows) < request_row.quantity:
+        while True:
+            code = secrets.token_urlsafe(18)
+            if not session.exec(
+                select(models.SmartPlaque.id).where(models.SmartPlaque.public_code == code)
+            ).first():
+                break
+        plaque = models.SmartPlaque(
+            public_code=code,
+            batch_label=batch_label,
+            created_by_user_id=operator.id,
+        )
+        session.add(plaque)
+        session.flush()
+        rows.append(plaque)
+    for plaque in rows:
+        plaque.status = "reserved"
+        plaque.request_id = request_row.id
+        plaque.assigned_tenant_id = request_row.tenant_id
+        plaque.updated_at = datetime.now(timezone.utc)
+        if not plaque.batch_label:
+            plaque.batch_label = batch_label
+        session.add(plaque)
+    return rows
+
+
+def _release_request_plaques(
+    session: Session,
+    request_row: models.SmartPlaqueRequest,
+) -> None:
+    now = datetime.now(timezone.utc)
+    plaques = session.exec(
+        select(models.SmartPlaque).where(
+            models.SmartPlaque.request_id == request_row.id,
+            models.SmartPlaque.table_id.is_(None),
+        )
+    ).all()
+    for plaque in plaques:
+        _unassign_plaque(plaque, now)
+        session.add(plaque)
+
+
+def _complete_request_if_ready(
+    session: Session,
+    request_row: models.SmartPlaqueRequest | None,
+    *,
+    actor_user_id: int | None,
+) -> None:
+    if request_row is None or request_row.status not in {"delivered", "completed"}:
+        return
+    plaques = session.exec(
+        select(models.SmartPlaque).where(models.SmartPlaque.request_id == request_row.id)
+    ).all()
+    if len(plaques) != request_row.quantity or any(
+        plaque.status != "installed" for plaque in plaques
+    ):
+        return
+    if request_row.status != "completed":
+        now = datetime.now(timezone.utc)
+        request_row.status = "completed"
+        request_row.completed_at = now
+        request_row.updated_at = now
+        session.add(request_row)
+        _record_request_event(
+            session,
+            request_row,
+            action="completed",
+            actor_user_id=actor_user_id,
+            detail={"installed_count": len(plaques)},
+        )
 
 
 def smart_plaque_fields_by_table(
@@ -247,6 +465,7 @@ def smart_plaque_fields_by_table(
             "smart_plaque_nfc_written_at": plaque.nfc_written_at,
             "smart_plaque_nfc_verified_at": plaque.nfc_verified_at,
             "smart_plaque_nfc_locked_at": plaque.nfc_locked_at,
+            "smart_plaque_installed_at": plaque.installed_at,
         }
         for plaque in plaques
         if plaque.table_id is not None
@@ -282,6 +501,266 @@ def release_smart_plaque_for_deleted_table(
         to_tenant_id=None,
         to_table_id=None,
     )
+
+
+@router.post(
+    "/smart-plaque-requests",
+    response_model=SmartPlaqueRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_smart_plaque_request(
+    body: SmartPlaqueRequestCreate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> SmartPlaqueRequestResponse:
+    tenant_id = int(current_user.tenant_id)
+    active = session.exec(
+        select(models.SmartPlaqueRequest).where(
+            models.SmartPlaqueRequest.tenant_id == tenant_id,
+            models.SmartPlaqueRequest.status.in_(
+                ("requested", "approved", "preparing", "shipped")
+            ),
+        )
+    ).first()
+    if active is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "active_plaque_request_exists",
+                "message": f"Request #{active.id} is already being processed.",
+            },
+        )
+    now = datetime.now(timezone.utc)
+    request_row = models.SmartPlaqueRequest(
+        tenant_id=tenant_id,
+        requested_by_user_id=current_user.id,
+        quantity=body.quantity,
+        delivery_contact_name=body.delivery_contact_name.strip(),
+        delivery_address=body.delivery_address.strip(),
+        restaurant_notes=(body.restaurant_notes or "").strip() or None,
+        requested_at=now,
+        updated_at=now,
+    )
+    session.add(request_row)
+    session.flush()
+    _record_request_event(
+        session,
+        request_row,
+        action="requested",
+        actor_user_id=current_user.id,
+        detail={"quantity": body.quantity},
+    )
+    session.commit()
+    session.refresh(request_row)
+    return _request_response(session, request_row)
+
+
+@router.get(
+    "/smart-plaque-requests",
+    response_model=list[SmartPlaqueRequestResponse],
+)
+def tenant_smart_plaque_requests(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_READ))],
+    session: Session = Depends(get_session),
+) -> list[SmartPlaqueRequestResponse]:
+    rows = session.exec(
+        select(models.SmartPlaqueRequest)
+        .where(models.SmartPlaqueRequest.tenant_id == current_user.tenant_id)
+        .order_by(models.SmartPlaqueRequest.id.desc())
+        .limit(100)
+    ).all()
+    return [_request_response(session, row) for row in rows]
+
+
+@router.post(
+    "/smart-plaque-requests/{request_id}/cancel",
+    response_model=SmartPlaqueRequestResponse,
+)
+def cancel_tenant_smart_plaque_request(
+    request_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> SmartPlaqueRequestResponse:
+    request_row = session.exec(
+        select(models.SmartPlaqueRequest).where(
+            models.SmartPlaqueRequest.id == request_id,
+            models.SmartPlaqueRequest.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if request_row is None:
+        raise HTTPException(status_code=404, detail="Plaque request not found")
+    if request_row.status != "requested":
+        raise HTTPException(
+            status_code=409,
+            detail="Only a request awaiting approval can be cancelled.",
+        )
+    now = datetime.now(timezone.utc)
+    request_row.status = "cancelled"
+    request_row.cancelled_at = now
+    request_row.updated_at = now
+    session.add(request_row)
+    _record_request_event(
+        session,
+        request_row,
+        action="cancelled",
+        actor_user_id=current_user.id,
+    )
+    session.commit()
+    session.refresh(request_row)
+    return _request_response(session, request_row)
+
+
+@router.post(
+    "/smart-plaque-requests/{request_id}/confirm-delivery",
+    response_model=SmartPlaqueRequestResponse,
+)
+def confirm_smart_plaque_delivery(
+    request_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> SmartPlaqueRequestResponse:
+    request_row = session.exec(
+        select(models.SmartPlaqueRequest).where(
+            models.SmartPlaqueRequest.id == request_id,
+            models.SmartPlaqueRequest.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if request_row is None:
+        raise HTTPException(status_code=404, detail="Plaque request not found")
+    if request_row.status != "shipped":
+        raise HTTPException(status_code=409, detail="Only a shipped request can be received.")
+    now = datetime.now(timezone.utc)
+    request_row.status = "delivered"
+    request_row.delivered_at = now
+    request_row.updated_at = now
+    plaques = session.exec(
+        select(models.SmartPlaque).where(models.SmartPlaque.request_id == request_row.id)
+    ).all()
+    for plaque in plaques:
+        if plaque.status == "shipped":
+            plaque.status = "delivered"
+            plaque.updated_at = now
+            session.add(plaque)
+    session.add(request_row)
+    _record_request_event(
+        session,
+        request_row,
+        action="delivered",
+        actor_user_id=current_user.id,
+        detail={"received_count": len(plaques)},
+    )
+    session.commit()
+    session.refresh(request_row)
+    return _request_response(session, request_row)
+
+
+@router.get(
+    "/platform/smart-plaque-requests",
+    response_model=list[SmartPlaqueRequestResponse],
+)
+def platform_smart_plaque_requests(
+    operator: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    request_status: str | None = Query(default=None, max_length=24),
+) -> list[SmartPlaqueRequestResponse]:
+    statement = select(models.SmartPlaqueRequest).order_by(
+        models.SmartPlaqueRequest.id.desc()
+    ).limit(500)
+    if request_status:
+        statement = statement.where(
+            models.SmartPlaqueRequest.status == request_status.strip().lower()
+        )
+    return [_request_response(session, row) for row in session.exec(statement).all()]
+
+
+@router.post(
+    "/platform/smart-plaque-requests/{request_id}/action",
+    response_model=SmartPlaqueRequestResponse,
+)
+def platform_smart_plaque_request_action(
+    request_id: int,
+    body: SmartPlaqueRequestAction,
+    operator: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> SmartPlaqueRequestResponse:
+    request_row = session.get(models.SmartPlaqueRequest, request_id)
+    if request_row is None:
+        raise HTTPException(status_code=404, detail="Plaque request not found")
+    action = body.action.strip().lower()
+    allowed = {
+        "requested": {"approve", "decline"},
+        "approved": {"prepare", "ship"},
+        "preparing": {"ship"},
+        "shipped": {"deliver"},
+        "delivered": {"complete"},
+    }
+    if action not in allowed.get(request_row.status, set()):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Action {action} is not available while the request is {request_row.status}.",
+        )
+    now = datetime.now(timezone.utc)
+    plaques = session.exec(
+        select(models.SmartPlaque).where(models.SmartPlaque.request_id == request_row.id)
+    ).all()
+    if action == "approve":
+        plaques = _allocate_request_plaques(session, request_row, operator)
+        request_row.status = "approved"
+        request_row.approved_at = now
+    elif action == "prepare":
+        request_row.status = "preparing"
+        request_row.preparing_at = now
+        for plaque in plaques:
+            if plaque.status == "reserved":
+                plaque.status = "preparing"
+                session.add(plaque)
+    elif action == "ship":
+        request_row.status = "shipped"
+        request_row.shipped_at = now
+        request_row.tracking_reference = (body.tracking_reference or "").strip() or None
+        for plaque in plaques:
+            if plaque.status in {"reserved", "preparing"}:
+                plaque.status = "shipped"
+                session.add(plaque)
+    elif action == "deliver":
+        request_row.status = "delivered"
+        request_row.delivered_at = now
+        for plaque in plaques:
+            if plaque.status == "shipped":
+                plaque.status = "delivered"
+                session.add(plaque)
+    elif action == "decline":
+        request_row.status = "declined"
+        request_row.declined_at = now
+        _release_request_plaques(session, request_row)
+    elif action == "complete":
+        if len(plaques) != request_row.quantity or any(
+            plaque.status != "installed" for plaque in plaques
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Every allocated plaque must be installed before completion.",
+            )
+        request_row.status = "completed"
+        request_row.completed_at = now
+    request_row.platform_notes = (
+        (body.platform_notes or "").strip() or request_row.platform_notes
+    )
+    request_row.updated_at = now
+    session.add(request_row)
+    _record_request_event(
+        session,
+        request_row,
+        action={"approve": "approved", "prepare": "preparing", "ship": "shipped", "deliver": "delivered", "decline": "declined", "complete": "completed"}[action],
+        actor_user_id=operator.id,
+        detail={
+            "allocated_count": len(plaques),
+            "tracking_reference": request_row.tracking_reference,
+        },
+    )
+    session.commit()
+    session.refresh(request_row)
+    return _request_response(session, request_row)
 
 
 @router.post(
@@ -321,10 +800,13 @@ def platform_smart_plaques(
     operator: Annotated[models.User, Depends(_require_platform_operator)],
     session: Session = Depends(get_session),
     batch_label: str | None = Query(default=None, max_length=100),
+    request_id: int | None = Query(default=None, gt=0),
 ) -> list[SmartPlaqueResponse]:
     statement = select(models.SmartPlaque).order_by(models.SmartPlaque.id.desc()).limit(500)
     if batch_label:
         statement = statement.where(models.SmartPlaque.batch_label == batch_label.strip())
+    if request_id is not None:
+        statement = statement.where(models.SmartPlaque.request_id == request_id)
     return [_response(session, row) for row in session.exec(statement).all()]
 
 
@@ -333,6 +815,7 @@ def platform_smart_plaque_contact_sheet(
     operator: Annotated[models.User, Depends(_require_platform_operator)],
     session: Session = Depends(get_session),
     batch_label: str | None = Query(default=None, max_length=100),
+    request_id: int | None = Query(default=None, gt=0),
 ) -> StreamingResponse:
     from reportlab.graphics import renderPDF
     from reportlab.graphics.barcode.qr import QrCodeWidget
@@ -343,6 +826,8 @@ def platform_smart_plaque_contact_sheet(
     statement = select(models.SmartPlaque).order_by(models.SmartPlaque.id)
     if batch_label:
         statement = statement.where(models.SmartPlaque.batch_label == batch_label.strip())
+    if request_id is not None:
+        statement = statement.where(models.SmartPlaque.request_id == request_id)
     plaques = session.exec(statement).all()
     if not plaques:
         raise HTTPException(status_code=404, detail="No smart plaques found")
@@ -472,6 +957,12 @@ def lookup_smart_plaque(
     base = _response(session, plaque)
     if plaque.status in {"disabled", "retired"}:
         assignment_state = plaque.status
+    elif (
+        plaque.status in {"reserved", "preparing", "shipped"}
+        and plaque.assigned_tenant_id == current_user.tenant_id
+        and plaque.table_id is None
+    ):
+        assignment_state = "awaiting_delivery"
     elif plaque.assigned_tenant_id is None:
         assignment_state = "available"
     elif plaque.assigned_tenant_id == current_user.tenant_id:
@@ -506,6 +997,11 @@ def assign_smart_plaque(
         raise HTTPException(status_code=404, detail="Smart plaque not found")
     if plaque.status in {"disabled", "retired"}:
         raise HTTPException(status_code=409, detail="This smart plaque is not available for assignment")
+    if plaque.table_id is None and plaque.status in {"reserved", "preparing", "shipped"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Confirm delivery before assigning this smart plaque to a table.",
+        )
     if plaque.assigned_tenant_id not in {None, tenant_id}:
         raise HTTPException(
             status_code=409,
@@ -575,6 +1071,7 @@ def assign_smart_plaque(
     plaque.table_id = target.id
     plaque.assigned_by_user_id = current_user.id
     plaque.assigned_at = now
+    plaque.installed_at = None
     plaque.updated_at = now
     session.add(plaque)
     _record_event(
@@ -653,19 +1150,35 @@ def update_smart_plaque_nfc(
         plaque.nfc_written_at = None
         plaque.nfc_verified_at = None
         plaque.nfc_locked_at = None
+        plaque.installed_at = None
+        plaque.status = "assigned"
     if body.verified is True:
         if plaque.nfc_written_at is None:
             raise HTTPException(status_code=409, detail="Write the NFC tag before verifying it")
         plaque.nfc_verified_at = now
+        plaque.status = "tested"
     elif body.verified is False:
         plaque.nfc_verified_at = None
         plaque.nfc_locked_at = None
+        plaque.installed_at = None
+        plaque.status = "assigned"
     if body.locked is True:
         if plaque.nfc_verified_at is None:
             raise HTTPException(status_code=409, detail="Verify the NFC tag before marking it locked")
         plaque.nfc_locked_at = now
     elif body.locked is False:
         plaque.nfc_locked_at = None
+    if body.installed is True:
+        if plaque.nfc_verified_at is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Verify the NFC tag before marking the plaque installed",
+            )
+        plaque.installed_at = now
+        plaque.status = "installed"
+    elif body.installed is False:
+        plaque.installed_at = None
+        plaque.status = "tested" if plaque.nfc_verified_at else "assigned"
     plaque.updated_at = now
     session.add(plaque)
     table = session.get(models.Table, plaque.table_id) if plaque.table_id else None
@@ -673,10 +1186,22 @@ def update_smart_plaque_nfc(
         table.nfc_written_at = plaque.nfc_written_at
         table.nfc_locked_at = plaque.nfc_locked_at
         table.plaque_last_tested_at = plaque.nfc_verified_at
-        table.plaque_status = "tested" if plaque.nfc_verified_at else (
-            "nfc_written" if plaque.nfc_written_at else "installed"
+        table.plaque_status = "installed" if plaque.installed_at else (
+            "tested" if plaque.nfc_verified_at else (
+                "nfc_written" if plaque.nfc_written_at else "assigned"
+            )
         )
         session.add(table)
+    request_row = (
+        session.get(models.SmartPlaqueRequest, plaque.request_id)
+        if plaque.request_id
+        else None
+    )
+    _complete_request_if_ready(
+        session,
+        request_row,
+        actor_user_id=current_user.id,
+    )
     session.commit()
     session.refresh(plaque)
     return _response(session, plaque)

@@ -482,6 +482,7 @@ export interface SmartPlaque {
   public_url: string;
   batch_label?: string | null;
   status: 'available' | 'assigned' | 'disabled' | 'retired' | string;
+  request_id?: number | null;
   assigned_tenant_id?: number | null;
   table_id?: number | null;
   table_name?: string | null;
@@ -490,6 +491,42 @@ export interface SmartPlaque {
   nfc_written_at?: string | null;
   nfc_verified_at?: string | null;
   nfc_locked_at?: string | null;
+  installed_at?: string | null;
+}
+
+export interface SmartPlaqueRequestEvent {
+  action: string;
+  actor_user_id?: number | null;
+  detail?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface SmartPlaqueRequest {
+  id: number;
+  tenant_id: number;
+  tenant_name: string;
+  requested_by_user_id?: number | null;
+  requester_email?: string | null;
+  quantity: number;
+  status: 'requested' | 'approved' | 'preparing' | 'shipped' | 'delivered' | 'completed' | 'declined' | 'cancelled' | string;
+  delivery_contact_name: string;
+  delivery_address: string;
+  restaurant_notes?: string | null;
+  platform_notes?: string | null;
+  tracking_reference?: string | null;
+  requested_at: string;
+  approved_at?: string | null;
+  preparing_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  completed_at?: string | null;
+  declined_at?: string | null;
+  cancelled_at?: string | null;
+  updated_at: string;
+  allocated_count: number;
+  installed_count: number;
+  plaques: SmartPlaque[];
+  history: SmartPlaqueRequestEvent[];
 }
 
 export interface SmartPlaqueLookup extends SmartPlaque {
@@ -497,6 +534,7 @@ export interface SmartPlaqueLookup extends SmartPlaque {
     | 'available'
     | 'assigned_here'
     | 'assigned_other_restaurant'
+    | 'awaiting_delivery'
     | 'disabled'
     | 'retired'
     | string;
@@ -1505,6 +1543,7 @@ export interface Table {
   smart_plaque_nfc_written_at?: string | null;
   smart_plaque_nfc_verified_at?: string | null;
   smart_plaque_nfc_locked_at?: string | null;
+  smart_plaque_installed_at?: string | null;
   location_id?: number | null;
   location_name?: string | null;
   service_point_type?: 'table' | 'room';
@@ -2861,15 +2900,17 @@ export class ApiService {
     });
   }
 
-  getPlatformSmartPlaques(batchLabel?: string): Observable<SmartPlaque[]> {
+  getPlatformSmartPlaques(batchLabel?: string, requestId?: number): Observable<SmartPlaque[]> {
     let params = new HttpParams();
     if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    if (requestId != null) params = params.set('request_id', String(requestId));
     return this.http.get<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques`, { params });
   }
 
-  downloadPlatformSmartPlaqueSheet(batchLabel?: string): Observable<Blob> {
+  downloadPlatformSmartPlaqueSheet(batchLabel?: string, requestId?: number): Observable<Blob> {
     let params = new HttpParams();
     if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    if (requestId != null) params = params.set('request_id', String(requestId));
     return this.http.get(`${this.apiUrl}/platform/smart-plaques/contact-sheet.pdf`, {
       params,
       responseType: 'blob',
@@ -2945,6 +2986,28 @@ export class ApiService {
 
   updateProduct(id: number, product: Partial<Product>): Observable<Product> {
     return this.http.put<Product>(`${this.apiUrl}/products/${id}`, product);
+  }
+
+  getPlatformSmartPlaqueRequests(status?: string): Observable<SmartPlaqueRequest[]> {
+    let params = new HttpParams();
+    if (status) params = params.set('request_status', status);
+    return this.http.get<SmartPlaqueRequest[]>(`${this.apiUrl}/platform/smart-plaque-requests`, { params });
+  }
+
+  runPlatformSmartPlaqueRequestAction(
+    requestId: number,
+    action: string,
+    trackingReference?: string,
+    platformNotes?: string,
+  ): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/platform/smart-plaque-requests/${requestId}/action`,
+      {
+        action,
+        tracking_reference: trackingReference?.trim() || null,
+        platform_notes: platformNotes?.trim() || null,
+      },
+    );
   }
 
   getKitchenStock(): Observable<KitchenStockProduct[]> {
@@ -3453,6 +3516,33 @@ export class ApiService {
     });
   }
 
+  getSmartPlaqueRequests(): Observable<SmartPlaqueRequest[]> {
+    return this.http.get<SmartPlaqueRequest[]>(`${this.apiUrl}/smart-plaque-requests`);
+  }
+
+  createSmartPlaqueRequest(body: {
+    quantity: number;
+    delivery_contact_name: string;
+    delivery_address: string;
+    restaurant_notes?: string | null;
+  }): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(`${this.apiUrl}/smart-plaque-requests`, body);
+  }
+
+  cancelSmartPlaqueRequest(requestId: number): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/smart-plaque-requests/${requestId}/cancel`,
+      {},
+    );
+  }
+
+  confirmSmartPlaqueDelivery(requestId: number): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/smart-plaque-requests/${requestId}/confirm-delivery`,
+      {},
+    );
+  }
+
   assignSmartPlaque(body: {
     table_id: number;
     plaque_code: string;
@@ -3464,7 +3554,7 @@ export class ApiService {
 
   updateSmartPlaqueNfc(
     plaqueId: number,
-    body: { written?: boolean; verified?: boolean; locked?: boolean },
+    body: { written?: boolean; verified?: boolean; locked?: boolean; installed?: boolean },
   ): Observable<SmartPlaque> {
     return this.http.put<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/nfc`, body);
   }

@@ -8,6 +8,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Need to… | See |
 |----------|-----|
+| Request, manufacture, ship and install reusable QR/NFC plaques | [0088-smart-plaque-request-fulfilment.md](0088-smart-plaque-request-fulfilment.md) |
 | Train a restaurant owner to add locations, rooms/tables, QR/NFC plaques and kitchen routes | [Scanaki-Multi-Location-Restaurant-Owner-Manual.docx](Scanaki-Multi-Location-Restaurant-Owner-Manual.docx) |
 | Understand the Scanaki MVP baseline, gaps and live-pilot blockers | [0077-onetable-mvp-gap-analysis.md](0077-onetable-mvp-gap-analysis.md) |
 | Operate tenant subscriptions, Stripe billing history and SaaS reporting | [0081-subscription-management-console.md](0081-subscription-management-console.md) |

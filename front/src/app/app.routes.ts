@@ -135,6 +135,7 @@ export const routes: Routes = [
   },
   { path: 'tables', canActivate: [authGuard, uiModuleGuard('tables'), tableAccessGuard], loadComponent: () => import('./tables/tables.component').then(m => m.TablesComponent) },
   { path: 'locations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./locations/locations.component').then(m => m.LocationsComponent) },
+  { path: 'plaque-requests', canActivate: [authGuard, adminGuard], loadComponent: () => import('./smart-plaque-requests/smart-plaque-requests.component').then(m => m.SmartPlaqueRequestsComponent) },
 
   // Staff orders (list and manage orders)
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },

@@ -1192,6 +1192,33 @@ class Table(TenantMixin, table=True):
     token_rotated_at: datetime | None = None
 
 
+class SmartPlaqueRequest(TenantMixin, table=True):
+    """Restaurant request for reusable Scanaki QR/NFC plaques."""
+
+    __tablename__ = "smart_plaque_request"
+    id: int | None = Field(default=None, primary_key=True)
+    requested_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    quantity: int = Field(ge=1, le=100)
+    status: str = Field(default="requested", max_length=24, index=True)
+    delivery_contact_name: str = Field(max_length=160)
+    delivery_address: str = Field(max_length=500)
+    restaurant_notes: str | None = Field(default=None, max_length=500)
+    platform_notes: str | None = Field(default=None, max_length=500)
+    tracking_reference: str | None = Field(default=None, max_length=160)
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    approved_at: datetime | None = None
+    preparing_at: datetime | None = None
+    shipped_at: datetime | None = None
+    delivered_at: datetime | None = None
+    completed_at: datetime | None = None
+    declined_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class SmartPlaque(SQLModel, table=True):
     """A reusable physical QR/NFC plaque with a permanent Scanaki URL."""
 
@@ -1200,6 +1227,14 @@ class SmartPlaque(SQLModel, table=True):
     public_code: str = Field(max_length=64, unique=True, index=True)
     batch_label: str | None = Field(default=None, max_length=100, index=True)
     status: str = Field(default="available", max_length=24, index=True)
+    request_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("smart_plaque_request.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
     assigned_tenant_id: int | None = Field(
         default=None,
         sa_column=Column(ForeignKey("tenant.id", ondelete="SET NULL"), nullable=True, index=True),
@@ -1222,6 +1257,7 @@ class SmartPlaque(SQLModel, table=True):
     nfc_written_at: datetime | None = None
     nfc_verified_at: datetime | None = None
     nfc_locked_at: datetime | None = None
+    installed_at: datetime | None = None
 
 
 class SmartPlaqueAssignmentEvent(SQLModel, table=True):
@@ -1245,6 +1281,27 @@ class SmartPlaqueAssignmentEvent(SQLModel, table=True):
         default=None,
         sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
     )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
+class SmartPlaqueRequestEvent(SQLModel, table=True):
+    """Immutable audit trail for plaque request and fulfilment changes."""
+
+    __tablename__ = "smart_plaque_request_event"
+    id: int | None = Field(default=None, primary_key=True)
+    request_id: int = Field(
+        sa_column=Column(
+            ForeignKey("smart_plaque_request.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    action: str = Field(max_length=32, index=True)
+    actor_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 

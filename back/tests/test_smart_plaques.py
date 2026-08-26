@@ -109,6 +109,18 @@ class TestSmartPlaques(PgClientTestCase):
             },
         )
 
+    def _request_plaques(self, quantity: int = 2):
+        return self.client.post(
+            "/smart-plaque-requests",
+            headers=_headers(self.owner_a),
+            json={
+                "quantity": quantity,
+                "delivery_contact_name": "Plaque Owner",
+                "delivery_address": "15 Enderby Road, Blaby, Leicester LE8 4GD",
+                "restaurant_notes": "Pilot tables",
+            },
+        )
+
     def test_platform_creates_permanent_plaque_and_owner_assigns_it(self) -> None:
         plaque = self._create_plaque()
         self.assertTrue(plaque["public_url"].startswith("https://scanaki.uk/p/"))
@@ -258,3 +270,123 @@ class TestSmartPlaques(PgClientTestCase):
             json={"count": 1},
         )
         self.assertEqual(denied.status_code, 403, denied.text)
+
+    def test_request_approval_shipping_delivery_and_installation_lifecycle(self) -> None:
+        created = self._request_plaques()
+        self.assertEqual(created.status_code, 201, created.text)
+        request = created.json()
+        self.assertEqual(request["status"], "requested")
+        self.assertEqual(request["allocated_count"], 0)
+
+        duplicate = self._request_plaques()
+        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+        self.assertEqual(duplicate.json()["detail"]["code"], "active_plaque_request_exists")
+
+        approved = self.client.post(
+            f"/platform/smart-plaque-requests/{request['id']}/action",
+            headers=_headers(self.operator, platform=True),
+            json={"action": "approve", "platform_notes": "Approved pilot batch"},
+        )
+        self.assertEqual(approved.status_code, 200, approved.text)
+        approved_body = approved.json()
+        self.assertEqual(approved_body["status"], "approved")
+        self.assertEqual(approved_body["allocated_count"], 2)
+        self.assertTrue(all(row["status"] == "reserved" for row in approved_body["plaques"]))
+
+        too_early = self._assign(approved_body["plaques"][0], self.table_a1)
+        self.assertEqual(too_early.status_code, 409, too_early.text)
+
+        prepared = self.client.post(
+            f"/platform/smart-plaque-requests/{request['id']}/action",
+            headers=_headers(self.operator, platform=True),
+            json={"action": "prepare"},
+        )
+        self.assertEqual(prepared.status_code, 200, prepared.text)
+        shipped = self.client.post(
+            f"/platform/smart-plaque-requests/{request['id']}/action",
+            headers=_headers(self.operator, platform=True),
+            json={"action": "ship", "tracking_reference": "TEST-TRACK-100"},
+        )
+        self.assertEqual(shipped.status_code, 200, shipped.text)
+        self.assertEqual(shipped.json()["tracking_reference"], "TEST-TRACK-100")
+
+        received = self.client.post(
+            f"/smart-plaque-requests/{request['id']}/confirm-delivery",
+            headers=_headers(self.owner_a),
+        )
+        self.assertEqual(received.status_code, 200, received.text)
+        self.assertEqual(received.json()["status"], "delivered")
+        first, second = received.json()["plaques"]
+
+        assigned_first = self._assign(first, self.table_a1)
+        assigned_second = self._assign(second, self.table_a2)
+        self.assertEqual(assigned_first.status_code, 200, assigned_first.text)
+        self.assertEqual(assigned_second.status_code, 200, assigned_second.text)
+
+        for plaque in (assigned_first.json(), assigned_second.json()):
+            not_verified = self.client.put(
+                f"/smart-plaques/{plaque['id']}/nfc",
+                headers=_headers(self.owner_a),
+                json={"installed": True},
+            )
+            self.assertEqual(not_verified.status_code, 409, not_verified.text)
+            self.assertEqual(
+                self.client.put(
+                    f"/smart-plaques/{plaque['id']}/nfc",
+                    headers=_headers(self.owner_a),
+                    json={"written": True},
+                ).status_code,
+                200,
+            )
+            self.assertEqual(
+                self.client.put(
+                    f"/smart-plaques/{plaque['id']}/nfc",
+                    headers=_headers(self.owner_a),
+                    json={"verified": True},
+                ).status_code,
+                200,
+            )
+            installed = self.client.put(
+                f"/smart-plaques/{plaque['id']}/nfc",
+                headers=_headers(self.owner_a),
+                json={"installed": True},
+            )
+            self.assertEqual(installed.status_code, 200, installed.text)
+            self.assertEqual(installed.json()["status"], "installed")
+
+        final = self.client.get(
+            "/smart-plaque-requests",
+            headers=_headers(self.owner_a),
+        )
+        self.assertEqual(final.status_code, 200, final.text)
+        final_request = final.json()[0]
+        self.assertEqual(final_request["status"], "completed")
+        self.assertEqual(final_request["installed_count"], 2)
+        self.assertEqual(
+            [row["action"] for row in final_request["history"]],
+            ["requested", "approved", "preparing", "shipped", "delivered", "completed"],
+        )
+
+    def test_request_is_tenant_scoped_and_can_be_cancelled_before_approval(self) -> None:
+        created = self._request_plaques(quantity=1)
+        self.assertEqual(created.status_code, 201, created.text)
+        request_id = created.json()["id"]
+
+        other_tenant = self.client.get(
+            "/smart-plaque-requests",
+            headers=_headers(self.owner_b),
+        )
+        self.assertEqual(other_tenant.status_code, 200, other_tenant.text)
+        self.assertEqual(other_tenant.json(), [])
+        other_confirm = self.client.post(
+            f"/smart-plaque-requests/{request_id}/confirm-delivery",
+            headers=_headers(self.owner_b),
+        )
+        self.assertEqual(other_confirm.status_code, 404, other_confirm.text)
+
+        cancelled = self.client.post(
+            f"/smart-plaque-requests/{request_id}/cancel",
+            headers=_headers(self.owner_a),
+        )
+        self.assertEqual(cancelled.status_code, 200, cancelled.text)
+        self.assertEqual(cancelled.json()["status"], "cancelled")

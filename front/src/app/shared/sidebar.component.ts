@@ -123,6 +123,9 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
                     <a routerLink="/locations" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
                       <span>Locations</span>
                     </a>
+                    <a routerLink="/plaque-requests" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
+                      <span>QR/NFC plaque requests</span>
+                    </a>
                   }
                   @if (moduleEnabled('kitchen_bar')) {
                     <a routerLink="/kitchen" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">

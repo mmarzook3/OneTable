@@ -202,7 +202,9 @@ type NdefReaderConstructor = new () => NdefReader;
 
             <div class="actions">
               <button type="button" class="btn btn-secondary" (click)="finish()">{{ 'SMART_PLAQUES.SKIP_NFC' | translate }}</button>
-              @if (nfcVerified()) {
+              @if (nfcVerified() && !assignedPlaque.installed_at) {
+                <button type="button" class="btn btn-primary" (click)="markInstalled()" [disabled]="nfcBusy()" data-testid="install-smart-plaque">Mark installed</button>
+              } @else if (assignedPlaque.installed_at) {
                 <button type="button" class="btn btn-primary" (click)="finish()" data-testid="finish-smart-plaque-nfc">{{ 'COMMON.DONE' | translate }}</button>
               }
             </div>
@@ -399,6 +401,10 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
           this.errorKey.set('SMART_PLAQUES.PLAQUE_UNAVAILABLE');
           return;
         }
+        if (result.assignment_state === 'awaiting_delivery') {
+          this.errorKey.set('SMART_PLAQUES.PLAQUE_UNAVAILABLE');
+          return;
+        }
         this.lookup.set(result);
         this.manualCode = result.public_code;
         this.step.set('confirm');
@@ -476,6 +482,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
       nfc_written_at: this.table.smart_plaque_nfc_written_at,
       nfc_verified_at: this.table.smart_plaque_nfc_verified_at,
       nfc_locked_at: this.table.smart_plaque_nfc_locked_at,
+      installed_at: this.table.smart_plaque_installed_at,
     });
     this.step.set('nfc');
   }
@@ -559,6 +566,24 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
     return !!this.plaque()?.nfc_verified_at;
   }
 
+  markInstalled(): void {
+    const current = this.plaque();
+    if (!current || !this.nfcVerified()) return;
+    this.nfcBusy.set(true);
+    this.api.updateSmartPlaqueNfc(current.id, { installed: true }).subscribe({
+      next: (updated) => {
+        this.plaque.set(updated);
+        this.emitPlaqueTable(updated);
+        this.nfcBusy.set(false);
+        this.finish();
+      },
+      error: () => {
+        this.nfcBusy.set(false);
+        this.errorKey.set('SMART_PLAQUES.NFC_RECORD_ERROR');
+      },
+    });
+  }
+
   nfcStatusTitle(): string {
     if (this.nfcVerified()) return 'SMART_PLAQUES.NFC_VERIFIED_TITLE';
     if (this.plaque()?.nfc_written_at) return 'SMART_PLAQUES.NFC_WRITTEN_TITLE';
@@ -598,7 +623,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
       token: plaque.table_token || this.table.token,
       menu_url: plaque.public_url,
       nfc_payload: plaque.public_url,
-      plaque_status: plaque.nfc_verified_at ? 'tested' : plaque.nfc_written_at ? 'nfc_written' : 'installed',
+      plaque_status: plaque.installed_at ? 'installed' : plaque.nfc_verified_at ? 'tested' : plaque.nfc_written_at ? 'nfc_written' : 'assigned',
       smart_plaque_id: plaque.id,
       smart_plaque_code: plaque.public_code,
       smart_plaque_url: plaque.public_url,
@@ -606,6 +631,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
       smart_plaque_nfc_written_at: plaque.nfc_written_at,
       smart_plaque_nfc_verified_at: plaque.nfc_verified_at,
       smart_plaque_nfc_locked_at: plaque.nfc_locked_at,
+      smart_plaque_installed_at: plaque.installed_at,
     });
   }
 }
