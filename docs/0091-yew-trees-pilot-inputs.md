@@ -8,7 +8,7 @@ This document records the platform-owner answers used to configure the pilot. `T
 
 - Company/display name: **Scanaki (Powered by Fixaki)**
 - Public email sender name: **Scanaki**
-- Support and contact email: **support@scanaki.uk**
+- Support and contact email: **support@scanaki.uk** — Google Group with external posting enabled, private conversations, `marzook@dvar.co.uk` as manager and `mmarzook3@gmail.com` as receiving member
 - Phone: **07405 329242**
 - Address: **F1 Enterprise House, Coventry, CV6 5NX**
 - Website: **https://scanaki.uk**
@@ -27,7 +27,7 @@ This document records the platform-owner answers used to configure the pilot. `T
 - Authentication: Google Workspace IP allowlist for the Scanaki production VPS; no mailbox username or password is stored by Scanaki
 - Sender: `support@scanaki.uk`
 - Recommended test recipient: `mmarzook3@gmail.com`
-- Alert recipient: `alerts@scanaki.uk` Google Workspace group
+- Alert recipient: `alerts@scanaki.uk` Google Workspace group — private conversations, external posting enabled, `marzook@dvar.co.uk` as owner and `mmarzook3@gmail.com` as receiving member
 - Off-VPS backup: Google Drive folder `Scanaki_Backup` owned by `mmarzook3@gmail.com`
 - Maintenance window: Monday at 02:00 UK time
 - Remote ordering: permitted when fully paid and the customer confirms the table/room
@@ -40,6 +40,8 @@ This document records the platform-owner answers used to configure the pilot. `T
 Do not store Google app passwords, Stripe secrets or bank information in this document.
 
 Google Workspace relay is configured for the production VPS. SPF and DKIM are published, and Gmail received both a platform SMTP test and a real platform password-reset email from `support@scanaki.uk`. The temporary personal Gmail app password created during setup was never used by Scanaki and has been revoked.
+
+Inbound delivery is also verified: unique test messages sent to `support@scanaki.uk` and `alerts@scanaki.uk` were forwarded to the configured Gmail member. Group conversations and membership are not publicly visible, and membership is invitation-only.
 
 ## Venue profile
 
