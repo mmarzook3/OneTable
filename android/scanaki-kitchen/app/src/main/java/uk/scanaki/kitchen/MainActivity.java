@@ -10,6 +10,8 @@ import android.net.NetworkRequest;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
@@ -27,25 +29,45 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public final class MainActivity extends Activity {
     private static final String KDS_URL = "https://scanaki.uk/kitchen";
+    private static final String HEARTBEAT_URL =
+        "https://scanaki.uk/api/tenant/kitchen-devices/heartbeat";
+    private static final String DEVICE_KEY_STORAGE = "native_kds_device_key";
+    private static final long HEARTBEAT_INTERVAL_SECONDS = 10;
     private static final Set<String> ALLOWED_HOSTS = Set.of("scanaki.uk", "www.scanaki.uk");
 
     private WebView webView;
     private ProgressBar progressBar;
+    private TextView connectionBanner;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private ScheduledExecutorService heartbeatExecutor;
+    private String deviceKey;
     private boolean showingOfflinePage;
     private boolean networkWasLost;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        deviceKey = getOrCreateDeviceKey();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         createContentView();
         getWindow().getDecorView().post(this::enterImmersiveMode);
@@ -72,6 +94,22 @@ public final class MainActivity extends Activity {
         progressParams.gravity = android.view.Gravity.CENTER;
         root.addView(progressBar, progressParams);
 
+        connectionBanner = new TextView(this);
+        connectionBanner.setBackgroundColor(0xFF991B1B);
+        connectionBanner.setTextColor(0xFFFFFFFF);
+        connectionBanner.setTextSize(14);
+        connectionBanner.setGravity(Gravity.CENTER);
+        connectionBanner.setPadding(16, 12, 16, 12);
+        connectionBanner.setText(R.string.heartbeat_failed);
+        connectionBanner.setVisibility(View.GONE);
+        connectionBanner.setElevation(12);
+        FrameLayout.LayoutParams bannerParams = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        bannerParams.gravity = Gravity.TOP;
+        root.addView(connectionBanner, bannerParams);
+
         setContentView(root);
     }
 
@@ -89,7 +127,9 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUserAgentString(settings.getUserAgentString() + " ScanakiKitchen/0.1.0");
+        settings.setUserAgentString(
+            settings.getUserAgentString() + " ScanakiKitchen/" + BuildConfig.VERSION_NAME
+        );
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -126,6 +166,9 @@ public final class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 Uri uri = Uri.parse(url);
+                if (isAllowedUri(uri)) {
+                    synchroniseDeviceKey(view);
+                }
                 if (isAllowedUri(uri) && shouldReturnToKitchen(uri.getPath())) {
                     view.loadUrl(KDS_URL);
                 }
@@ -172,7 +215,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean shouldReturnToKitchen(String path) {
-        if (path == null || path.isBlank()) {
+        if (path == null || path.trim().isEmpty()) {
             return true;
         }
         return !path.startsWith("/kitchen")
@@ -210,6 +253,7 @@ public final class MainActivity extends Activity {
                         showingOfflinePage = false;
                         webView.loadUrl(KDS_URL);
                     }
+                    requestImmediateHeartbeat();
                 });
             }
 
@@ -239,6 +283,151 @@ public final class MainActivity extends Activity {
         return capabilities != null
             && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    private String getOrCreateDeviceKey() {
+        String saved = getPreferences(MODE_PRIVATE).getString(DEVICE_KEY_STORAGE, "");
+        if (isValidDeviceKey(saved)) {
+            return saved;
+        }
+        String androidId = Settings.Secure.getString(
+            getContentResolver(),
+            Settings.Secure.ANDROID_ID
+        );
+        String suffix = androidId == null || androidId.trim().isEmpty()
+            ? UUID.randomUUID().toString().replace("-", "")
+            : androidId.replaceAll("[^A-Za-z0-9_-]", "");
+        String generated = "android_" + suffix;
+        getPreferences(MODE_PRIVATE).edit().putString(DEVICE_KEY_STORAGE, generated).apply();
+        return generated;
+    }
+
+    private boolean isValidDeviceKey(String value) {
+        return value != null
+            && value.length() >= 16
+            && value.length() <= 64
+            && value.matches("^[A-Za-z0-9_-]+$");
+    }
+
+    private void synchroniseDeviceKey(WebView view) {
+        view.evaluateJavascript(
+            "localStorage.getItem('one-table-kds-device-key') || ''",
+            value -> {
+                String webKey = value == null ? "" : value.replace("\"", "").trim();
+                if (isValidDeviceKey(webKey)) {
+                    deviceKey = webKey;
+                    getPreferences(MODE_PRIVATE)
+                        .edit()
+                        .putString(DEVICE_KEY_STORAGE, webKey)
+                        .apply();
+                } else {
+                    view.evaluateJavascript(
+                        "localStorage.setItem('one-table-kds-device-key','" + deviceKey + "')",
+                        null
+                    );
+                }
+            }
+        );
+    }
+
+    private void startNativeHeartbeat() {
+        if (heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
+            return;
+        }
+        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+        heartbeatExecutor.scheduleWithFixedDelay(
+            this::sendNativeHeartbeat,
+            0,
+            HEARTBEAT_INTERVAL_SECONDS,
+            TimeUnit.SECONDS
+        );
+    }
+
+    private void stopNativeHeartbeat() {
+        if (heartbeatExecutor != null) {
+            heartbeatExecutor.shutdownNow();
+            heartbeatExecutor = null;
+        }
+    }
+
+    private void requestImmediateHeartbeat() {
+        ScheduledExecutorService executor = heartbeatExecutor;
+        if (executor != null && !executor.isShutdown()) {
+            executor.submit(this::sendNativeHeartbeat);
+        }
+    }
+
+    private void sendNativeHeartbeat() {
+        if (!hasInternetConnection()) {
+            showHeartbeatFailure();
+            return;
+        }
+        String cookies = CookieManager.getInstance().getCookie("https://scanaki.uk/");
+        if (cookies == null || !cookies.contains("access_token=")) {
+            hideHeartbeatFailure();
+            return;
+        }
+        HttpURLConnection connection = null;
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("device_key", deviceKey);
+            payload.put(
+                "name",
+                "Scanaki Kitchen app - " + Build.MANUFACTURER + " " + Build.MODEL
+            );
+            payload.put("display_route", "kitchen");
+            byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
+
+            connection = (HttpURLConnection) new URL(HEARTBEAT_URL).openConnection();
+            connection.setRequestMethod("POST");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+            connection.setDoOutput(true);
+            connection.setFixedLengthStreamingMode(body.length);
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Cookie", cookies);
+            connection.setRequestProperty(
+                "User-Agent",
+                "ScanakiKitchen/" + BuildConfig.VERSION_NAME
+            );
+            try (OutputStream output = connection.getOutputStream()) {
+                output.write(body);
+            }
+            int status = connection.getResponseCode();
+            InputStream response = status >= 400
+                ? connection.getErrorStream()
+                : connection.getInputStream();
+            if (response != null) {
+                try (response) {
+                    byte[] buffer = new byte[256];
+                    while (response.read(buffer) != -1) {
+                        // Drain the small response so the HTTPS connection closes cleanly.
+                    }
+                }
+            }
+            if (status >= 200 && status < 300) {
+                hideHeartbeatFailure();
+            } else if (status == 401 || status == 403) {
+                hideHeartbeatFailure();
+            } else {
+                showHeartbeatFailure();
+            }
+        } catch (Exception ignored) {
+            showHeartbeatFailure();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void showHeartbeatFailure() {
+        runOnUiThread(() -> connectionBanner.setVisibility(View.VISIBLE));
+    }
+
+    private void hideHeartbeatFailure() {
+        runOnUiThread(() -> connectionBanner.setVisibility(View.GONE));
     }
 
     private void enterImmersiveMode() {
@@ -283,6 +472,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        stopNativeHeartbeat();
         CookieManager.getInstance().flush();
         webView.onPause();
         super.onPause();
@@ -293,6 +483,7 @@ public final class MainActivity extends Activity {
         super.onResume();
         enterImmersiveMode();
         webView.onResume();
+        startNativeHeartbeat();
     }
 
     @Override
@@ -306,6 +497,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        stopNativeHeartbeat();
         if (networkCallback != null) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
         }

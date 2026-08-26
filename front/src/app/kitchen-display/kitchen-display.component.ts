@@ -1511,7 +1511,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const selection = this.stationSelection();
     this.api.heartbeatKitchenDevice({
       device_key: this.deviceKey,
-      name: this.viewMode() === 'bar' ? 'Bar tablet' : 'Kitchen tablet',
+      name:
+        typeof navigator !== 'undefined' && /\bScanakiKitchen\//i.test(navigator.userAgent)
+          ? 'Scanaki Kitchen app'
+          : this.viewMode() === 'bar'
+            ? 'Bar tablet'
+            : 'Kitchen tablet',
       display_route: this.viewMode(),
       station_id: selection === 'all' ? null : selection,
     }).subscribe({

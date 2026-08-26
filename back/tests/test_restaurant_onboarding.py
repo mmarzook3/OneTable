@@ -1,6 +1,6 @@
 """Platform provisioning and resumable restaurant-owner onboarding."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from sqlmodel import select
@@ -248,3 +248,47 @@ class TestRestaurantOnboarding(PgClientTestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["saas_plan_code"], "ultra")
         self.assertEqual(response.json()["table_limit"], 47)
+
+    def test_platform_tenant_detail_flags_stale_kitchen_heartbeat(self) -> None:
+        _, tenant, _ = self._provision()
+        tenant.require_kds_online = True
+        tenant.kds_heartbeat_timeout_seconds = 30
+        self.session.add(tenant)
+        self.session.add(
+            models.KitchenDevice(
+                tenant_id=tenant.id,
+                device_key="android-heartbeat-test-0001",
+                name="Scanaki Kitchen app - HONOR test",
+                display_route="kitchen",
+                last_seen_at=datetime.now(timezone.utc) - timedelta(seconds=31),
+            )
+        )
+        self.session.commit()
+
+        stale = self.client.get(
+            f"/platform/tenants/{tenant.id}",
+            headers=_platform_headers(self.operator),
+        )
+        self.assertEqual(stale.status_code, 200, stale.text)
+        self.assertTrue(stale.json()["kds_required"])
+        self.assertFalse(stale.json()["kds_online"])
+        self.assertEqual(stale.json()["kds_device_count"], 1)
+        self.assertEqual(stale.json()["kds_online_device_count"], 0)
+        self.assertEqual(stale.json()["kds_heartbeat_timeout_seconds"], 30)
+
+        device = self.session.exec(
+            select(models.KitchenDevice).where(
+                models.KitchenDevice.tenant_id == tenant.id,
+            )
+        ).one()
+        device.last_seen_at = datetime.now(timezone.utc)
+        self.session.add(device)
+        self.session.commit()
+
+        current = self.client.get(
+            f"/platform/tenants/{tenant.id}",
+            headers=_platform_headers(self.operator),
+        )
+        self.assertEqual(current.status_code, 200, current.text)
+        self.assertTrue(current.json()["kds_online"])
+        self.assertEqual(current.json()["kds_online_device_count"], 1)

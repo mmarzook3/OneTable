@@ -129,7 +129,7 @@ def run() -> None:
         tenant.ordering_pause_reason = None
         tenant.ordering_service_hours = SERVICE_HOURS
         tenant.require_kds_online = True
-        tenant.kds_heartbeat_timeout_seconds = 120
+        tenant.kds_heartbeat_timeout_seconds = 30
         tenant.strict_fifo_kds = True
         tenant.kds_routing_mode = "kitchen_all"
         tenant.saas_plan_code = "pilot"
