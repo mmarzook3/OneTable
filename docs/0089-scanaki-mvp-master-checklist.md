@@ -28,22 +28,22 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
-| MVP-001 | [ ] | P0 | Scanaki | Deploy the latest `development` release to the VPS. | Production serves commit `263249c3c` or a later approved commit and health checks return 200. |
-| MVP-002 | [ ] | P0 | Scanaki | Apply the smart-plaque request migration during deployment. | Production schema includes migration `20260826013000`; pre-deploy backup and post-deploy health checks pass. |
+| MVP-001 | [x] | P0 | Scanaki | Deploy the latest `development` release to the VPS. | Production serves commit `263249c3c` or a later approved commit and health checks return 200. |
+| MVP-002 | [x] | P0 | Scanaki | Apply the smart-plaque request migration during deployment. | Production schema includes migration `20260826013000`; pre-deploy backup and post-deploy health checks pass. |
 | MVP-003 | [ ] | P0 | Scanaki | Complete the Platform Settings company and legal identity. | Company name, address, phone, website, company number, VAT number, support/contact emails, Terms URL and Privacy URL are saved. |
 | MVP-004 | [ ] | P0 | Scanaki | Configure and test platform SMTP. | SMTP connection test succeeds and a real inbox receives the test email and a password-reset email. |
 | MVP-005 | [ ] | P0 | Scanaki | Separate the VPS root and Scanaki platform-admin passwords. | Both have unique strong passwords stored in the approved password manager and both logins are tested. |
 | MVP-006 | [ ] | P0 | Scanaki | Rotate the unrestricted Stripe test secret shared during setup. | Old key is revoked; Scanaki continues using the encrypted restricted key; webhook and PaymentIntent test pass. |
-| MVP-007 | [ ] | P0 | Scanaki | Remove or disable the legacy `superadmin@scanaki.uk` platform account. | Only approved named platform operators can authenticate; legacy tokens are revoked. |
+| MVP-007 | [x] | P0 | Scanaki | Remove or disable the legacy `superadmin@scanaki.uk` platform account. | Only approved named platform operators can authenticate; legacy tokens are revoked. |
 | MVP-008 | [ ] | P0 | Joint | Issue fresh one-time owner and kitchen credentials. | Credentials are shared securely, first-login password change is enforced, and both accounts authenticate successfully. |
 
 ## B. Stripe sandbox and kitchen-release acceptance
 
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
-| MVP-009 | [ ] | P0 | Joint | Complete one successful Stripe sandbox table order. | Paid order reaches the correct kitchen once with the correct location and table. |
-| MVP-010 | [ ] | P0 | Scanaki | Test failed and cancelled Stripe payments. | Neither payment appears in KDS; order states and customer messages are correct. |
-| MVP-011 | [ ] | P0 | Scanaki | Test duplicate successful-payment webhook delivery. | Duplicate event does not create another order, release, stock movement or kitchen card. |
+| MVP-009 | [x] | P0 | Joint | Complete one successful Stripe sandbox table order. | Paid order reaches the correct kitchen once with the correct location and table. |
+| MVP-010 | [x] | P0 | Scanaki | Test failed and cancelled Stripe payments. | Neither payment appears in KDS; order states and customer messages are correct. |
+| MVP-011 | [x] | P0 | Scanaki | Test duplicate successful-payment webhook delivery. | Duplicate event does not create another order, release, stock movement or kitchen card. |
 | MVP-012 | [ ] | P0 | Scanaki | Test sandbox refund and reconciliation. | Refund updates the order, appears in reporting, and reconciliation finishes without mismatch. |
 | MVP-013 | [ ] | P0 | Joint | Configure the selected Android kitchen tablet. | Updated Chrome, SIM, Wi-Fi, sound, landscape mode, wake lock, rugged case and permanent charger are working. |
 | MVP-014 | [ ] | P0 | Joint | Run an eight-hour tablet and connectivity test. | KDS remains responsive; Wi-Fi-to-SIM failover works; no missed or duplicate orders; battery/temperature remain safe. |
@@ -58,12 +58,12 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 | MVP-018 | [ ] | P1 | Scanaki | Add forgotten-password recovery for platform administrators. | Platform admin can request a scoped, expiring reset link without exposing account existence. |
 | MVP-019 | [ ] | P1 | Scanaki | Add forgotten-password recovery for customer accounts. | Customer reset email, one-time token, session revocation and UI flow pass. |
 | MVP-020 | [ ] | P1 | Scanaki | Add forgotten-password recovery for courier accounts. | Courier reset email, one-time token, session revocation and UI flow pass. |
-| MVP-021 | [ ] | P1 | Scanaki | Write the live incident and support runbook. | Runbook covers duplicate orders, refunds, kitchen outage, Stripe outage, internet failure, lost tablet and wrong plaque assignment. |
+| MVP-021 | [x] | P1 | Scanaki | Write the live incident and support runbook. | Runbook covers duplicate orders, refunds, kitchen outage, Stripe outage, internet failure, lost tablet and wrong plaque assignment. |
 | MVP-022 | [ ] | P1 | Scanaki | Configure operational alerts. | Named recipient receives container, health, KDS, reconciliation, disk, backup and TLS-expiry alerts. |
 | MVP-023 | [ ] | P1 | Scanaki | Configure encrypted off-VPS backups. | Automated encrypted copy exists outside the VPS and retention/restore ownership is documented. |
 | MVP-024 | [ ] | P1 | Scanaki | Apply pending VPS OS/security updates and reboot. | Maintenance completes; all Scanaki containers, TLS, cron jobs and health checks recover successfully. |
-| MVP-025 | [ ] | P1 | Scanaki | Perform a production backup restore drill after deployment. | Latest encrypted backup restores into an isolated database and tenant/order checks pass. |
-| MVP-026 | [ ] | P1 | Scanaki | Complete the final public branding audit. | Landing, login, manuals, emails, menus, booking, KDS and errors show only approved Scanaki/Fixaki branding. |
+| MVP-025 | [x] | P1 | Scanaki | Perform a production backup restore drill after deployment. | Latest encrypted backup restores into an isolated database and tenant/order checks pass. |
+| MVP-026 | [x] | P1 | Scanaki | Complete the final public branding audit. | Landing, login, manuals, emails, menus, booking, KDS and errors show only approved Scanaki/Fixaki branding. |
 | MVP-027 | [ ] | P1 | Scanaki | Complete mobile, touch and accessibility QA. | Supported Android/iPhone sizes pass; touch targets, contrast, keyboard access and screen-reader labels are acceptable. |
 
 ## D. Scanaki subscriptions and commercial operation
@@ -160,15 +160,15 @@ Do not start this section until sandbox acceptance is complete.
 | MVP-077 | [ ] | P0 | Joint | Tap the Table 1 NFC tag. | Same permanent plaque URL and table context open. |
 | MVP-078 | [ ] | P0 | Joint | Verify customer ordering context. | Location and room/table remain visible through menu, basket, payment and receipt. |
 | MVP-079 | [ ] | P0 | Joint | Build a basket and complete sandbox payment. | Correct products, modifiers, total and payment result are shown. |
-| MVP-080 | [ ] | P0 | Joint | Verify kitchen release. | Exactly one correctly routed FIFO card appears after payment only. |
+| MVP-080 | [x] | P0 | Joint | Verify kitchen release. | Exactly one correctly routed FIFO card appears after payment only. |
 | MVP-081 | [ ] | P0 | Yew Trees | Process the kitchen status lifecycle. | Staff move order through Pending, Preparing, Ready and Delivered correctly. |
 | MVP-082 | [ ] | P0 | Yew Trees | Test sold-out and restore. | Product becomes unavailable/available immediately and existing paid order remains intact. |
-| MVP-083 | [ ] | P0 | Scanaki | Submit a failed sandbox payment. | It never enters KDS and the customer can retry safely. |
+| MVP-083 | [x] | P0 | Scanaki | Submit a failed sandbox payment. | It never enters KDS and the customer can retry safely. |
 | MVP-084 | [ ] | P0 | Joint | Disconnect venue Wi-Fi during service. | Tablet switches to SIM and KDS recovers without missing/duplicating orders. |
-| MVP-085 | [ ] | P0 | Joint | Close and reopen KDS. | New checkout is blocked while KDS heartbeat is stale and recovers when KDS returns. |
+| MVP-085 | [x] | P0 | Joint | Close and reopen KDS. | New checkout is blocked while KDS heartbeat is stale and recovers when KDS returns. |
 | MVP-086 | [ ] | P0 | Joint | Reassign a prototype plaque. | Permanent plaque link resolves to the new table and old basket/session is rejected. |
 | MVP-087 | [ ] | P0 | Joint | Verify reporting. | Order, payment, location, table, products, timing and refund appear in the correct reports. |
-| MVP-088 | [ ] | P0 | Scanaki | Complete final encrypted backup/restore acceptance. | Backup and isolated restore pass after all pilot configuration is present. |
+| MVP-088 | [x] | P0 | Scanaki | Complete final encrypted backup/restore acceptance. | Backup and isolated restore pass after all pilot configuration is present. |
 
 ## K. Explicitly deferred beyond the Yew Trees MVP
 
@@ -196,7 +196,17 @@ Do not start this section until sandbox acceptance is complete.
 - Sports Lounge, Premium Building and Main Building currently have no ordering points.
 - One prototype plaque is assigned to Table 1; NFC is not yet written or verified.
 - The production KDS device records are stale/offline, so unattended customer checkout is safely gated.
-- The smart-plaque request/fulfilment workflow is committed on `development` but requires production deployment.
+- The smart-plaque request/fulfilment workflow and scoped platform/courier/customer password-recovery UI are deployed to production.
+
+## Completed evidence — 26 August 2026
+
+- Production release `f315f4032` is healthy; schema migration `20260826150000` is applied.
+- Pre-deploy encrypted backup completed and isolated restore passed with 76 schema tables.
+- Full local regression: 518 backend tests passed; Angular browser/server build passed.
+- Live sandbox acceptance: successful payment released one kitchen order; duplicate signed webhook released none; failed and cancelled payments never reached KDS; refund webhook and payment reconciliation passed. Refund reporting remains to be signed off under `MVP-012`.
+- Live KDS gate returned `KDS_OFFLINE` after the heartbeat expired and reopened for the controlled payment test when heartbeat was current.
+- Legacy platform administrator was disabled and existing tokens were revoked.
+- Live customer, courier and platform forgot-password pages render on mobile without browser errors. Email delivery remains blocked until `MVP-004` is supplied.
 
 ## Related references
 

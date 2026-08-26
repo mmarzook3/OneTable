@@ -35,7 +35,13 @@ done
 "${COMPOSE[@]}" exec -T back python -m app.seeds.check_onetable_payment_reconciliation
 
 BACKUP_DIR="${SCANAKI_BACKUP_DIR:-$ROOT_DIR/backups/scanaki}"
-LATEST_BACKUP="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'scanaki_*.sql.gz.enc' -mmin -1800 -print -quit 2>/dev/null || true)"
+LATEST_BACKUP="$(
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'scanaki_*.sql.gz.enc' -mmin -1800 \
+    -printf '%T@ %p\n' 2>/dev/null \
+    | sort -rn \
+    | head -1 \
+    | cut -d' ' -f2-
+)"
 [[ -n "$LATEST_BACKUP" ]] || { echo "No encrypted Scanaki backup newer than 30 hours" >&2; exit 1; }
 
 if [[ "$BASE_URL" == https://* ]]; then
