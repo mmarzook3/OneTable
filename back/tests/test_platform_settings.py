@@ -54,6 +54,7 @@ class TestPlatformSettings(PgClientTestCase):
         row.smtp_host = None
         row.smtp_port = None
         row.smtp_use_tls = True
+        row.smtp_auth_required = True
         row.smtp_user = None
         row.smtp_password_encrypted = None
         row.email_from = None
@@ -80,6 +81,7 @@ class TestPlatformSettings(PgClientTestCase):
             "smtp_host": "smtp.scanaki.uk",
             "smtp_port": 587,
             "smtp_use_tls": True,
+            "smtp_auth_required": True,
             "smtp_user": "mailer@scanaki.uk",
             "smtp_password": "smtp-local-test-secret",
             "clear_smtp_password": False,
@@ -151,6 +153,42 @@ class TestPlatformSettings(PgClientTestCase):
         self.assertEqual(status["smtp_status"], "verified")
         self.assertTrue(status["smtp_last_test_success"])
         self.assertNotIn("smtp-local-test-secret", str(status))
+
+    def test_ip_authenticated_relay_needs_no_saved_password(self) -> None:
+        body = self._body(
+            smtp_host="smtp-relay.gmail.com",
+            smtp_auth_required=False,
+            smtp_user=None,
+            smtp_password=None,
+            email_from="support@scanaki.uk",
+        )
+        saved = self.client.put(
+            "/platform/settings",
+            headers=_headers(self.operator),
+            json=body,
+        )
+        self.assertEqual(saved.status_code, 200, saved.text)
+        payload = saved.json()
+        self.assertFalse(payload["smtp_auth_required"])
+        self.assertFalse(payload["smtp_password_configured"])
+        self.assertEqual(payload["smtp_status"], "configured")
+        self.assertEqual(payload["smtp_source"], "database")
+
+        with patch(
+            "app.platform_settings_service.aiosmtplib.send",
+            new=AsyncMock(return_value=None),
+        ) as send:
+            tested = self.client.post(
+                "/platform/settings/test-smtp",
+                headers=_headers(self.operator),
+                json={"recipient_email": "owner@scanaki.uk"},
+            )
+        self.assertEqual(tested.status_code, 200, tested.text)
+        self.assertTrue(tested.json()["success"])
+        kwargs = send.await_args.kwargs
+        self.assertEqual(kwargs["hostname"], "smtp-relay.gmail.com")
+        self.assertNotIn("username", kwargs)
+        self.assertNotIn("password", kwargs)
 
     def test_environment_switch_requires_new_password(self) -> None:
         with (

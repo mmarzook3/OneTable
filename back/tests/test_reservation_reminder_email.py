@@ -165,6 +165,33 @@ class TestReservationReminderEmail(unittest.TestCase):
             )
             self.assertIn("Email could not be sent", msg)
 
+    def test_send_email_supports_ip_authenticated_relay(self):
+        relay = {
+            "host": "smtp-relay.gmail.com",
+            "port": 587,
+            "use_tls": True,
+            "auth_required": False,
+            "user": "",
+            "password": "",
+            "from_email": "support@scanaki.uk",
+            "from_name": "Scanaki",
+        }
+        with (
+            patch.object(email_service, "_effective_smtp_config", return_value=relay),
+            patch.object(email_service.aiosmtplib, "send", new=AsyncMock(return_value=None)) as send,
+        ):
+            success = asyncio.run(
+                email_service.send_email(
+                    "owner@scanaki.uk",
+                    "Relay test",
+                    "<p>Working</p>",
+                )
+            )
+        self.assertTrue(success)
+        self.assertEqual(send.await_args.kwargs["hostname"], "smtp-relay.gmail.com")
+        self.assertNotIn("username", send.await_args.kwargs)
+        self.assertNotIn("password", send.await_args.kwargs)
+
     def test_reminder_send_failure_message_whatsapp_attempted(self):
         msg = email_service.reminder_send_failure_message(
             False, False, True, False, None

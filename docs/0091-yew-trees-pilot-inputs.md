@@ -21,10 +21,11 @@ This document records the platform-owner answers used to configure the pilot. `T
 ## SMTP and operations
 
 - Provider: Google Workspace
-- Recommended SMTP host: `smtp.gmail.com`
-- Recommended port: `587`
-- Encryption: STARTTLS enabled
-- Intended SMTP username/sender: `support@scanaki.uk` (must be a licensed mailbox or an approved alias of the authenticated mailbox)
+- SMTP host: `smtp-relay.gmail.com`
+- Port: `587`
+- Encryption: STARTTLS required
+- Authentication: Google Workspace IP allowlist for the Scanaki production VPS; no mailbox username or password is stored by Scanaki
+- Sender: `support@scanaki.uk`
 - Recommended test recipient: `mmarzook3@gmail.com`
 - Alert recipient: `alerts@scanaki.uk` Google Workspace group
 - Off-VPS backup: Google Drive folder `Scanaki_Backup` owned by `mmarzook3@gmail.com`
@@ -37,6 +38,8 @@ This document records the platform-owner answers used to configure the pilot. `T
 - Public subscription billing: remains disabled during the pilot
 
 Do not store Google app passwords, Stripe secrets or bank information in this document.
+
+Google Workspace relay is configured for the production VPS. The `scanaki.uk` SPF DNS record and end-to-end delivery test remain required before platform email is marked verified. The personal Gmail app password created during setup is not used by Scanaki and must be revoked after Google account re-verification.
 
 ## Venue profile
 

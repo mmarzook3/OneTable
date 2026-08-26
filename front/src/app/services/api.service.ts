@@ -727,6 +727,7 @@ export interface PlatformSettings extends PlatformPublicSettings {
   smtp_host: string;
   smtp_port: number;
   smtp_use_tls: boolean;
+  smtp_auth_required: boolean;
   smtp_user: string;
   smtp_password_masked: string;
   smtp_password_configured: boolean;
@@ -744,6 +745,7 @@ export interface PlatformSettingsUpdate extends PlatformPublicSettings {
   smtp_host?: string | null;
   smtp_port?: number | null;
   smtp_use_tls: boolean;
+  smtp_auth_required: boolean;
   smtp_user?: string | null;
   smtp_password?: string | null;
   clear_smtp_password: boolean;

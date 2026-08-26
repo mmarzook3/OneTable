@@ -57,11 +57,13 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
               <label>SMTP host<input [(ngModel)]="form.smtp_host" name="smtp_host" maxlength="255" placeholder="smtp.gmail.com"></label>
               <label>Port<input type="number" min="1" max="65535" [(ngModel)]="form.smtp_port" name="smtp_port"></label>
               <label class="check"><input type="checkbox" [(ngModel)]="form.smtp_use_tls" name="smtp_use_tls"> Use TLS / STARTTLS</label>
-              <label>Username<input [(ngModel)]="form.smtp_user" name="smtp_user" maxlength="320" autocomplete="off" placeholder="SMTP username"></label>
+              <label class="check"><input type="checkbox" [(ngModel)]="form.smtp_auth_required" name="smtp_auth_required"> Require username and password</label>
+              <label>Username<input [(ngModel)]="form.smtp_user" name="smtp_user" maxlength="320" autocomplete="off" placeholder="SMTP username" [disabled]="!form.smtp_auth_required"></label>
               <label>Sender email<input type="email" [(ngModel)]="form.email_from" name="email_from" maxlength="320" placeholder="noreply@scanaki.uk"></label>
               <label>Sender name<input [(ngModel)]="form.email_from_name" name="email_from_name" maxlength="200" placeholder="Scanaki"></label>
             </div>
 
+            @if (form.smtp_auth_required) {
             <div class="password-panel">
               <label>SMTP password or app password
                 <div class="password-row">
@@ -72,6 +74,9 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
               <label class="check danger-check"><input type="checkbox" [(ngModel)]="clearPassword" name="clear_smtp_password"> Remove the saved encrypted SMTP password</label>
               <p class="hint">The password is encrypted before storage and is never returned to the browser. Saved value: {{ current()?.smtp_password_masked || 'not configured' }}</p>
             </div>
+            } @else {
+              <p class="notice">IP-authenticated relay mode is enabled. No SMTP username or password is stored by Scanaki.</p>
+            }
 
             <div class="test-panel">
               <div>
@@ -121,13 +126,13 @@ export class PlatformSettingsComponent implements OnInit {
   error = signal(''); message = signal(''); current = signal<PlatformSettings | null>(null);
   showPassword = signal(false); smtpPassword = ''; clearPassword = false; testRecipient = '';
   changingPassword = signal(false); currentPassword = ''; newPassword = ''; confirmPassword = '';
-  form: PlatformSettingsUpdate = { smtp_use_tls: true, clear_smtp_password: false };
+  form: PlatformSettingsUpdate = { smtp_use_tls: true, smtp_auth_required: true, clear_smtp_password: false };
 
   ngOnInit(): void { this.load(); }
   load(): void {
     this.loading.set(true); this.error.set('');
     this.api.getPlatformSettings().subscribe({next:(data)=>{this.current.set(data);this.form={
-      company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,
+      company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_auth_required:data.smtp_auth_required,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,
     };this.testRecipient=data.contact_email||data.support_email||data.email_from||'';this.smtpPassword='';this.clearPassword=false;this.loading.set(false)},error:(err)=>{this.error.set(err?.error?.detail||'Could not load platform settings.');this.loading.set(false)}});
   }
   save(): void {

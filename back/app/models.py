@@ -421,6 +421,7 @@ class PlatformSettings(SQLModel, table=True):
     smtp_host: str | None = Field(default=None, max_length=255)
     smtp_port: int | None = Field(default=None, ge=1, le=65535)
     smtp_use_tls: bool = True
+    smtp_auth_required: bool = True
     smtp_user: str | None = Field(default=None, max_length=320)
     smtp_password_encrypted: str | None = Field(
         default=None, sa_column=Column(Text, nullable=True)
@@ -691,6 +692,7 @@ class PlatformSettingsUpdate(SQLModel):
     smtp_host: str | None = Field(default=None, max_length=255)
     smtp_port: int | None = Field(default=None, ge=1, le=65535)
     smtp_use_tls: bool = True
+    smtp_auth_required: bool = True
     smtp_user: str | None = Field(default=None, max_length=320)
     smtp_password: str | None = Field(default=None, max_length=1000)
     clear_smtp_password: bool = False
