@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Scanaki Kitchen</string>
     <string name="blocked_link">This link is not available inside Scanaki Kitchen.</string>
+    <string name="heartbeat_failed">Scanaki heartbeat failed. Retrying every 10 seconds.</string>
     <string name="offline_html"><![CDATA[
 <!doctype html>
 <html lang="en">

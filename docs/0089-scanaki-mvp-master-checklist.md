@@ -174,7 +174,7 @@ Do not start this section until sandbox acceptance is complete.
 
 | ID | Status | Owner | Deferred capability | Revisit when |
 |---|---|---|---|---|
-| MVP-089 | Deferred | Scanaki | Native Android application wrapper. | Browser/PWA pilot proves stable and packaging adds clear operational value. |
+| MVP-089 | Completed | Scanaki | Native Android Kitchen application wrapper. | Version 0.2.0 is installed on the HONOR pilot tablet with native heartbeat monitoring. |
 | MVP-090 | Deferred | Scanaki | Customer delivery ordering. | Dine-in pilot succeeds and delivery operations are staffed. |
 | MVP-091 | Deferred | Joint | Separate Stripe accounts per location. | Legal/payment ownership requires split settlement and reconciliation. |
 | MVP-092 | Deferred | Yew Trees | Second kitchen routing. | A second preparation area is physically operational. |

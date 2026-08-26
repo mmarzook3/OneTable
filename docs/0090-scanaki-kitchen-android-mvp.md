@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Scanaki Kitchen `0.1.0-debug` is a native Android application shell for the existing Scanaki Kitchen Display System. It is not a PWA and does not duplicate order-processing logic. The application loads the production KDS from `https://scanaki.uk/kitchen` inside a restricted Android WebView.
+Scanaki Kitchen `0.2.0-debug` is a native Android application shell for the existing Scanaki Kitchen Display System. It is not a PWA and does not duplicate order-processing logic. The application loads the production KDS from `https://scanaki.uk/kitchen` inside a restricted Android WebView.
 
 ## Native behaviour
 
@@ -17,6 +17,11 @@ Scanaki Kitchen `0.1.0-debug` is a native Android application shell for the exis
 9. Allows KDS notification audio without requiring an extra tap.
 10. Shows a native offline screen when internet access is lost.
 11. Automatically reloads the authenticated KDS when connectivity returns.
+12. Sends a native authenticated heartbeat to Scanaki every 10 seconds while the app is foregrounded.
+13. Shares the same stable device identity as the browser KDS heartbeat to avoid duplicate device records.
+14. Shows an immediate native warning banner when the VPS heartbeat fails.
+15. Stops heartbeating when the app leaves the foreground, allowing Scanaki to flag the tablet offline.
+16. Exposes Kitchen online/offline, online device count, last heartbeat and timeout in the platform tenant screen.
 
 ## HONOR acceptance test
 
@@ -42,6 +47,8 @@ Passed checks:
 - Wi-Fi disabled: native connection-lost screen displayed
 - Wi-Fi restored: authenticated KDS recovered automatically
 - Android lint and debug build
+- Native heartbeat build and authenticated endpoint response
+- Platform Kitchen health flag updates after the 30-second stale threshold
 - Production payment reconciliation after removing temporary test tickets
 
 The temporary Kitchen password and test orders were removed after acceptance. The original password hash was restored and temporary tokens were revoked.
@@ -77,7 +84,7 @@ adb -s ALDMJV6429H00568 install -r -t app/build/outputs/apk/debug/app-debug.apk
 Prepared APK:
 
 ```text
-output/scanaki-kitchen-0.1.0-debug.apk
+output/scanaki-kitchen-0.2.0-debug.apk
 ```
 
 ## Before wider distribution

@@ -455,6 +455,12 @@ export interface PlatformTenantSummary {
   stripe_customer_url?: string | null;
   last_payment_failed_at?: string | null;
   monthly_cents: number;
+  kds_required: boolean;
+  kds_online: boolean;
+  kds_device_count: number;
+  kds_online_device_count: number;
+  kds_last_seen_at?: string | null;
+  kds_heartbeat_timeout_seconds: number;
 }
 
 export interface PlatformRestaurantCreate {

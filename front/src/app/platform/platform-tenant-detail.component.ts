@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
@@ -85,6 +85,25 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
               <p class="metric-value">{{ tenant()!.reservation_count }}</p>
             </article>
           </div>
+        </section>
+
+        <section
+          class="platform-section kds-health"
+          [class.kds-health--offline]="tenant()!.kds_required && !tenant()!.kds_online"
+          data-testid="platform-kds-health"
+        >
+          <div>
+            <h2>Kitchen connection</h2>
+            <p class="platform-muted">Native app and browser heartbeat monitoring</p>
+          </div>
+          <strong class="kds-health-status">
+            {{ !tenant()!.kds_required ? 'Not required' : tenant()!.kds_online ? 'Online' : 'Offline' }}
+          </strong>
+          <dl>
+            <div><dt>Online devices</dt><dd>{{ tenant()!.kds_online_device_count }}/{{ tenant()!.kds_device_count }}</dd></div>
+            <div><dt>Last heartbeat</dt><dd>{{ heartbeatAge(tenant()!.kds_last_seen_at) }}</dd></div>
+            <div><dt>Offline threshold</dt><dd>{{ tenant()!.kds_heartbeat_timeout_seconds }} seconds</dd></div>
+          </dl>
         </section>
 
         <section class="platform-section location-oversight">
@@ -255,6 +274,17 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
       margin: 0 0 var(--space-2);
     }
     .metric-value { font-size: 1.5rem; font-weight: 600; margin: 0; }
+    .kds-health { display: grid; grid-template-columns: minmax(220px,1fr) auto; align-items: center; gap: var(--space-3) var(--space-5); padding: var(--space-4); border: 1px solid #18794e; border-radius: var(--radius-lg); background: #f4fbf7; }
+    .kds-health h2,.kds-health p { margin: 0; }
+    .kds-health p { margin-top: 3px; font-size: .8rem; }
+    .kds-health-status { color: #18794e; font-size: 1rem; }
+    .kds-health dl { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3,1fr); margin: 0; border-top: 1px solid #cce5d6; }
+    .kds-health dl div { display: grid; gap: 3px; padding: 12px 12px 0 0; }
+    .kds-health dt { color: var(--color-text-muted); font-size: .72rem; }
+    .kds-health dd { margin: 0; font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .kds-health--offline { border-color: #b64235; background: #fff6f4; }
+    .kds-health--offline .kds-health-status { color: #b64235; }
+    .kds-health--offline dl { border-top-color: #f0c8c2; }
     .link-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
     .link-btn {
       display: inline-block;
@@ -310,10 +340,10 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
     .link-btn.secondary { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); }
     .location-row-actions { display: flex!important; align-items: center; gap: 7px!important; }
     .location-row-actions button { border: 0; background: transparent; color: var(--color-primary); font-size: .75rem; cursor: pointer; }
-    @media(max-width:720px){.platform-location-list article,.platform-location-form{grid-template-columns:1fr}.platform-location-list article>div:nth-child(2){grid-template-columns:1fr}}
+    @media(max-width:720px){.platform-location-list article,.platform-location-form{grid-template-columns:1fr}.platform-location-list article>div:nth-child(2){grid-template-columns:1fr}.kds-health{grid-template-columns:1fr}.kds-health-status{justify-self:start}.kds-health dl{grid-template-columns:1fr}.kds-health dl div{padding-top:9px}}
   `]
 })
-export class PlatformTenantDetailComponent implements OnInit {
+export class PlatformTenantDetailComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private route = inject(ActivatedRoute);
 
@@ -327,6 +357,8 @@ export class PlatformTenantDetailComponent implements OnInit {
   locationFormOpen = signal(false);
   editingLocationId = signal<number | null>(null);
   locationForm = { name: '', display_name: '', location_type: 'pub' };
+  private tenantId = 0;
+  private kdsRefreshIntervalId: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('tenantId'));
@@ -335,6 +367,7 @@ export class PlatformTenantDetailComponent implements OnInit {
       this.loading.set(false);
       return;
     }
+    this.tenantId = id;
     this.api.getPlatformTenant(id).subscribe({
       next: (t) => {
         this.tenant.set(t);
@@ -351,6 +384,11 @@ export class PlatformTenantDetailComponent implements OnInit {
       next: (rows) => this.locations.set(rows),
       error: () => this.locations.set([]),
     });
+    this.kdsRefreshIntervalId = setInterval(() => this.refreshKdsHealth(), 10_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.kdsRefreshIntervalId) clearInterval(this.kdsRefreshIntervalId);
   }
 
   formatDate(iso: string): string {
@@ -359,6 +397,15 @@ export class PlatformTenantDetailComponent implements OnInit {
     } catch {
       return iso;
     }
+  }
+
+  heartbeatAge(iso?: string | null): string {
+    if (!iso) return 'Never received';
+    const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+    if (seconds < 10) return '< 10 seconds ago';
+    if (seconds < 60) return `${seconds} seconds ago`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   }
 
   publicUrl(segment: string): string {
@@ -390,5 +437,21 @@ export class PlatformTenantDetailComponent implements OnInit {
   saveLocation(event: Event): void { event.preventDefault(); const tenant = this.tenant(); if (!tenant) return; const request = this.editingLocationId() == null ? this.api.createPlatformTenantLocation(tenant.id, this.locationForm) : this.api.updatePlatformTenantLocation(tenant.id, this.editingLocationId()!, this.locationForm as any); request.subscribe({ next: () => { this.locationFormOpen.set(false); this.reloadLocations(tenant.id); }, error: () => {} }); }
   archiveLocation(location: TenantLocation): void { const tenant = this.tenant(); if (!tenant || !confirm(`Archive ${location.display_name} and disable its ordering points?`)) return; this.api.archivePlatformTenantLocation(tenant.id, location.id).subscribe({ next: () => this.reloadLocations(tenant.id), error: () => {} }); }
   private reloadLocations(tenantId: number): void { this.api.getPlatformTenantLocations(tenantId).subscribe({ next: (rows) => this.locations.set(rows), error: () => this.locations.set([]) }); }
+
+  private refreshKdsHealth(): void {
+    if (!this.tenantId) return;
+    this.api.getPlatformTenant(this.tenantId).subscribe({
+      next: (fresh) => this.tenant.update((current) => current ? {
+        ...current,
+        kds_required: fresh.kds_required,
+        kds_online: fresh.kds_online,
+        kds_device_count: fresh.kds_device_count,
+        kds_online_device_count: fresh.kds_online_device_count,
+        kds_last_seen_at: fresh.kds_last_seen_at,
+        kds_heartbeat_timeout_seconds: fresh.kds_heartbeat_timeout_seconds,
+      } : fresh),
+      error: () => {},
+    });
+  }
 
 }

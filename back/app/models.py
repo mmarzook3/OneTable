@@ -627,6 +627,12 @@ class PlatformTenantSummary(SQLModel):
     stripe_customer_url: str | None = None
     last_payment_failed_at: datetime | None = None
     monthly_cents: int = 0
+    kds_required: bool = False
+    kds_online: bool = False
+    kds_device_count: int = 0
+    kds_online_device_count: int = 0
+    kds_last_seen_at: datetime | None = None
+    kds_heartbeat_timeout_seconds: int = 120
 
 
 class PlatformRestaurantCreate(SQLModel):

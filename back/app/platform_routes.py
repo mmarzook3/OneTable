@@ -70,6 +70,34 @@ def _count_for_tenant(session: Session, model: type, tenant_id: int) -> int:
     return int(value or 0)
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _kds_health(session: Session, tenant: models.Tenant) -> dict[str, object]:
+    tenant_id = tenant.id
+    if tenant_id is None:
+        raise ValueError("Tenant id is required")
+    timeout = max(30, min(int(tenant.kds_heartbeat_timeout_seconds or 120), 900))
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout)
+    devices = session.exec(
+        select(models.KitchenDevice).where(
+            models.KitchenDevice.tenant_id == tenant_id,
+            models.KitchenDevice.revoked_at.is_(None),
+        )
+    ).all()
+    online = [device for device in devices if _as_utc(device.last_seen_at) >= cutoff]
+    last_seen = max((_as_utc(device.last_seen_at) for device in devices), default=None)
+    return {
+        "kds_required": bool(tenant.require_kds_online),
+        "kds_online": bool(online),
+        "kds_device_count": len(devices),
+        "kds_online_device_count": len(online),
+        "kds_last_seen_at": last_seen,
+        "kds_heartbeat_timeout_seconds": timeout,
+    }
+
+
 def _ordering_point_count(session: Session, tenant_id: int) -> int:
     value = session.exec(
         select(func.count()).select_from(models.Table).where(
@@ -98,6 +126,7 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         raise ValueError("Tenant id is required")
 
     owner = _owner_for_tenant(session, tenant_id)
+    kds_health = _kds_health(session, tenant)
 
     return models.PlatformTenantSummary(
         id=tenant_id,
@@ -135,6 +164,7 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
             if tenant.saas_subscription_status == "active"
             else 0
         ),
+        **kds_health,
     )
 
 
