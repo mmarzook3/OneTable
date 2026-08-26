@@ -92,8 +92,8 @@ These are not blockers while The Yew Trees remains on the free internal Pilot ti
 | MVP-038 | [x] | P1 | Yew Trees | Provide company/VAT details if applicable. | Legal and invoice fields are completed or explicitly marked not applicable. |
 | MVP-039 | [ ] | P1 | Joint | Approve the public description, logo and venue branding. | Owner signs off the public menu and booking header on mobile and desktop. |
 | MVP-040 | [x] | P0 | Yew Trees | Confirm the pub ordering-point count. | Production contains 9 indoor tables and 8 outdoor benches under The Yew Trees. |
-| MVP-041 | [ ] | P0 | Yew Trees | Confirm each pub table’s seating capacity. | Every table has an owner-approved capacity; current four-seat assumptions are corrected if needed. |
-| MVP-042 | [ ] | P0 | Yew Trees | Confirm Sports Lounge table capacities. | Eight lounge tables are created and enabled; their provisional four-seat capacities receive owner approval or correction. |
+| MVP-041 | [x] | P0 | Yew Trees | Confirm each pub table’s seating capacity. | Indoor tables and outdoor benches are approved at four seats each. |
+| MVP-042 | [x] | P0 | Yew Trees | Confirm Sports Lounge table capacities. | Eight lounge tables are created and enabled at four seats each. |
 | MVP-043 | [x] | P0 | Yew Trees | Provide Premium Building room identifiers. | Thirteen Room ordering points are live as temporary identifiers `PB1`–`PB13`; the owner may later replace them with the hotel room numbers without changing plaque tokens. |
 | MVP-044 | [x] | P0 | Yew Trees | Confirm Main Building rollout status. | Main Building is retained inactive with no ordering points until the venue requests it. |
 | MVP-045 | [x] | P0 | Yew Trees | Approve customer-facing location names. | QR/NFC menu header, cart, payment, KDS and report all show approved wording. |
@@ -117,7 +117,7 @@ These are not blockers while The Yew Trees remains on the free internal Pilot ti
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
 | MVP-055 | [x] | P0 | Yew Trees | Confirm ordering opening/closing times. | Effective ordering schedule is approved for all days and each location. |
-| MVP-056 | [ ] | P1 | Yew Trees | Confirm reservation availability and capacity rules. | Booking hours, party sizes, table turns, walk-in reserve and closures are approved and tested. |
+| MVP-056 | [ ] | P1 | Yew Trees | Confirm reservation availability and capacity rules. | Booking follows opening hours with a 90-minute default table turn; party sizes, walk-in reserve and closures are configured and tested. |
 | MVP-057 | [ ] | P0 | Joint | Publish Terms of Service. | Approved HTTPS Terms URL is saved in Scanaki and visible before ordering. |
 | MVP-058 | [ ] | P0 | Joint | Publish Privacy Policy. | Approved UK privacy notice covers orders, payments, analytics and reservations and is linked publicly. |
 | MVP-059 | [ ] | P0 | Joint | Publish the refund policy. | Policy states who can refund, permitted reasons, timing and Stripe processing expectations. |
@@ -143,7 +143,7 @@ Do not start this section until sandbox acceptance is complete.
 |---|---|---|---|---|---|
 | MVP-068 | [ ] | P1 | Yew Trees | Complete Stripe business verification. | Stripe account shows all required verification completed. |
 | MVP-069 | [ ] | P1 | Yew Trees | Configure the payout bank account. | Bank is verified and a payout schedule is approved. |
-| MVP-070 | [ ] | P1 | Yew Trees | Configure Stripe business profile and statement descriptor. | Customer bank statement wording is recognisable and support contact is correct. |
+| MVP-070 | [ ] | P1 | Yew Trees | Configure Stripe business profile and approved statement descriptor `YEW TREES PUB`. | Customer bank statement wording is recognisable and support contact is correct. |
 | MVP-071 | [ ] | P1 | Joint | Replace sandbox restaurant keys with live restricted/publishable keys. | Keys are encrypted/configured without exposing unrestricted secrets; live account identity is verified. |
 | MVP-072 | [ ] | P1 | Joint | Create and configure a separate live webhook. | Live signing secret is encrypted and all required payment/refund events return 2xx. |
 | MVP-073 | [ ] | P1 | Joint | Run one real low-value table payment. | Real payment reaches the correct KDS card once and matches Stripe and Scanaki totals. |
