@@ -27,8 +27,8 @@ This document records the platform-owner answers used to configure the pilot. `T
 - Intended SMTP username/sender: `support@scanaki.uk` (must be a licensed mailbox or an approved alias of the authenticated mailbox)
 - Recommended test recipient: `mmarzook3@gmail.com`
 - Alert recipient: `alerts@scanaki.uk` Google Workspace group
-- Off-VPS backup: Google Drive
-- Maintenance time: 02:00 UK time (day TBP)
+- Off-VPS backup: Google Drive folder `Scanaki_Backup` owned by `mmarzook3@gmail.com`
+- Maintenance window: Monday at 02:00 UK time
 - Remote ordering: permitted when fully paid and the customer confirms the table/room
 - Pilot end: manual platform-owner decision; no automatic expiry
 - Support: 24/7 during the pilot
@@ -59,7 +59,7 @@ Do not store Google app passwords, Stripe secrets or bank information in this do
 - Outdoor bench capacity: 4
 - Indoor table, Sports Lounge and room capacities: provisional until tenant admin confirms
 
-Stable point codes use `I1..I9`, `O1..O8`, `S1..S8` and `R1..R13`; customer labels remain “Indoor Table 1”, “Outdoor Bench 1”, “Table 1” and “Room 1”.
+Stable point codes use `I1..I9`, `O1..O8`, `S1..S8` and `PB1..PB13`. Premium Building customer labels are temporarily `PB1` through `PB13` and may later be replaced with the hotel’s actual room numbers.
 
 Premium Building uses location menu overrides so the venue can set different prices for the same master products without duplicating the menu.
 
