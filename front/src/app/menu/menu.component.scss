@@ -147,11 +147,13 @@ $cart-expanded-max: 60vh;
       margin-bottom: var(--space-4);
 
       .closed-tenant-logo {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
+        width: 96px;
+        height: 96px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 16px;
+        background: #0b1a11;
         object-fit: cover;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
       }
     }
 
@@ -231,9 +233,11 @@ $cart-expanded-max: 60vh;
 }
 
 .logo-container {
-  background: white;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--hero-header-bg, var(--color-primary)) 88%, #050b06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-lg);
-  padding: var(--space-2);
+  padding: 0;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   min-width: 48px;
   min-height: 48px;
@@ -245,8 +249,8 @@ $cart-expanded-max: 60vh;
 .tenant-logo {
   max-width: 80px;
   max-height: 80px;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   min-width: 24px;
   min-height: 24px;
   object-fit: contain;
@@ -2801,16 +2805,20 @@ $cart-expanded-max: 60vh;
 .logo-container {
   min-width: 76px;
   min-height: 76px;
-  padding: 0.45rem;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(218, 185, 112, 0.42);
   border-radius: 18px;
-  background: rgba(252, 252, 250, 0.96);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.2);
+  background: color-mix(in srgb, var(--hero-header-bg, var(--color-primary)) 88%, #050b06);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 14px 32px rgba(0, 0, 0, 0.22);
 }
 
 .tenant-logo {
   max-width: 76px;
   max-height: 76px;
+  border-radius: 16px;
 }
 
 .hero-info {
