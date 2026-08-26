@@ -2803,8 +2803,8 @@ $cart-expanded-max: 60vh;
 }
 
 .logo-container {
-  min-width: 76px;
-  min-height: 76px;
+  min-width: 104px;
+  min-height: 104px;
   padding: 0;
   overflow: hidden;
   border: 1px solid rgba(218, 185, 112, 0.42);
@@ -2816,8 +2816,8 @@ $cart-expanded-max: 60vh;
 }
 
 .tenant-logo {
-  max-width: 76px;
-  max-height: 76px;
+  max-width: 104px;
+  max-height: 104px;
   border-radius: 16px;
 }
 
@@ -3169,19 +3169,19 @@ $cart-expanded-max: 60vh;
   }
 
   .hero-content {
-    grid-template-columns: 66px minmax(0, 1fr);
+    grid-template-columns: 72px minmax(0, 1fr);
     gap: 0.9rem;
   }
 
   .logo-container {
-    min-width: 62px;
-    min-height: 62px;
+    min-width: 72px;
+    min-height: 72px;
     border-radius: 14px;
   }
 
   .tenant-logo {
-    max-width: 62px;
-    max-height: 62px;
+    max-width: 72px;
+    max-height: 72px;
   }
 
   .restaurant-name {
