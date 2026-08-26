@@ -11,27 +11,42 @@ from sqlmodel import Session
 from app.db import engine
 
 
-def run() -> None:
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
-    with Session(engine) as session:
-        rows = session.execute(
-            text(
-                """
-                SELECT id, payment_state, paid_at, kitchen_released_at
-                FROM "order"
-                WHERE requires_prepayment = true
-                  AND deleted_at IS NULL
-                  AND (
-                    (payment_state = 'succeeded' AND (paid_at IS NULL OR kitchen_released_at IS NULL))
-                    OR (kitchen_released_at IS NOT NULL AND (paid_at IS NULL OR payment_state <> 'succeeded'))
-                    OR (payment_state IN ('created', 'awaiting_payment', 'processing')
-                        AND created_at < :cutoff)
-                  )
-                ORDER BY id
-                """
-            ),
-            {"cutoff": cutoff},
+_RECONCILIATION_SQL = text(
+    """
+    SELECT id, payment_state, paid_at, kitchen_released_at
+    FROM "order"
+    WHERE requires_prepayment = true
+      AND deleted_at IS NULL
+      AND (
+        (payment_state IN ('succeeded', 'refunded')
+            AND (paid_at IS NULL OR kitchen_released_at IS NULL))
+        OR (kitchen_released_at IS NOT NULL
+            AND (paid_at IS NULL OR payment_state NOT IN ('succeeded', 'refunded')))
+        OR (payment_state IN ('created', 'awaiting_payment', 'processing')
+            AND created_at < :cutoff)
+      )
+    ORDER BY id
+    """
+)
+
+
+def reconciliation_issues(
+    session: Session,
+    *,
+    cutoff: datetime | None = None,
+) -> list:
+    effective_cutoff = cutoff or datetime.now(timezone.utc) - timedelta(minutes=15)
+    return list(
+        session.execute(
+            _RECONCILIATION_SQL,
+            {"cutoff": effective_cutoff},
         ).fetchall()
+    )
+
+
+def run() -> None:
+    with Session(engine) as session:
+        rows = reconciliation_issues(session)
     if rows:
         print("Payment reconciliation requires attention:", file=sys.stderr)
         for row in rows:
