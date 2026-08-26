@@ -26,10 +26,10 @@ From your workstation:
 
 ```bash
 # Health
-curl -sI https://satisfecho.de/api/health
+curl -sI https://scanaki.uk/api/health
 
 # If you have a known image path (e.g. tenant 1 product image), replace with a real filename from DB or back/uploads
-curl -sI "https://satisfecho.de/api/uploads/1/products/some-existing-file.jpg"
+curl -sI "https://scanaki.uk/api/uploads/1/products/some-existing-file.jpg"
 # Expect: 200 OK (if file exists)
 # Or: 404 + JSON {"detail":"Image not found"} → route OK, file/DB orphan (not a StaticFiles redeploy)
 # Rare: 404 with no JSON → old back image or proxy; see Status table above

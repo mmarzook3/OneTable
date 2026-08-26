@@ -1,15 +1,46 @@
 """Platform operator portal — SaaS metrics and tenant oversight for platform admins."""
 
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from . import models
+from . import models, security
+from .contact_validation import normalize_email_address
 from .db import get_session
+from .email_service import send_restaurant_invitation_email
+from .saas_billing import (
+    initial_status_for_new_tenant,
+    normalize_plan_code,
+    plan_details,
+    tenant_table_limit,
+    stripe_customer_dashboard_url,
+    tenant_monthly_cents,
+    plan_has_unlimited_ordering_points,
+)
 from .security import get_current_user
+from .settings import settings
+from .tenant_ui_modules import new_tenant_ui_modules_stored
+from .tenant_payment_credentials import tenant_stripe_secret, tenant_stripe_webhook_secret
+from .platform_subscription_service import (
+    apply_admin_action,
+    billing_history,
+    list_subscriptions,
+    subscription_metrics,
+    sync_stripe_plan,
+)
+from .platform_pricing_service import pricing_console, publish_pricing
+from .platform_settings_service import (
+    platform_settings_payload,
+    public_platform_settings,
+    test_platform_smtp,
+    update_platform_settings,
+)
 
 router = APIRouter()
 
@@ -35,6 +66,16 @@ def _require_platform_operator(
 def _count_for_tenant(session: Session, model: type, tenant_id: int) -> int:
     value = session.exec(
         select(func.count()).select_from(model).where(model.tenant_id == tenant_id)  # type: ignore[arg-type]
+    ).one()
+    return int(value or 0)
+
+
+def _ordering_point_count(session: Session, tenant_id: int) -> int:
+    value = session.exec(
+        select(func.count()).select_from(models.Table).where(
+            models.Table.tenant_id == tenant_id,
+            models.Table.is_ordering_enabled == True,  # noqa: E712
+        )
     ).one()
     return int(value or 0)
 
@@ -67,10 +108,33 @@ def _tenant_summary(session: Session, tenant: models.Tenant) -> models.PlatformT
         tenant_email=tenant.email,
         tenant_phone=tenant.phone,
         product_count=_count_for_tenant(session, models.Product, tenant_id),
-        table_count=_count_for_tenant(session, models.Table, tenant_id),
+        table_count=_ordering_point_count(session, tenant_id),
         user_count=_count_for_tenant(session, models.User, tenant_id),
         order_count=_count_for_tenant(session, models.Order, tenant_id),
         reservation_count=_count_for_tenant(session, models.Reservation, tenant_id),
+        onboarding_status=tenant.onboarding_status,
+        onboarding_step=tenant.onboarding_step,
+        saas_plan_code=normalize_plan_code(tenant.saas_plan_code),
+        saas_extra_tables=max(0, int(tenant.saas_extra_tables or 0)),
+        table_limit=tenant_table_limit(tenant),
+        ordering_points_unlimited=plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
+        invitation_sent_at=tenant.invitation_sent_at,
+        invitation_last_error=tenant.invitation_last_error,
+        subscription_status=tenant.saas_subscription_status,
+        trial_ends_at=tenant.saas_trial_ends_at,
+        renewal_at=tenant.saas_subscription_ends_at,
+        cancel_at_period_end=tenant.saas_cancel_at_period_end,
+        stripe_customer_id=tenant.saas_stripe_customer_id,
+        stripe_subscription_id=tenant.saas_stripe_subscription_id,
+        stripe_customer_url=stripe_customer_dashboard_url(tenant.saas_stripe_customer_id),
+        last_payment_failed_at=tenant.saas_last_payment_failed_at,
+        monthly_cents=(
+            tenant_monthly_cents(tenant, session)
+            if tenant.saas_subscription_status == "active"
+            else 0
+        ),
     )
 
 
@@ -85,6 +149,42 @@ def _tenant_detail(session: Session, tenant: models.Tenant) -> models.PlatformTe
         .where(models.User.tenant_id == tenant_id)
         .order_by(models.User.role, models.User.email)  # type: ignore[arg-type]
     ).all()
+    products = session.exec(select(models.Product).where(models.Product.tenant_id == tenant_id)).all()
+    tables = session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all()
+    assigned_plaques = session.exec(
+        select(models.SmartPlaque).where(models.SmartPlaque.assigned_tenant_id == tenant_id)
+    ).all()
+    payment_ready = bool(
+        tenant.stripe_publishable_key
+        and tenant_stripe_secret(tenant)
+        and tenant_stripe_webhook_secret(tenant)
+    )
+    checks = {
+        "business_profile": bool(tenant.email and tenant.phone and tenant.address),
+        "service_hours": bool(tenant.ordering_service_hours),
+        "menu": bool(products),
+        "menu_prices": bool(products) and all(product.price_cents > 0 for product in products),
+        "allergens_reviewed": bool(products) and all(product.allergen_reviewed for product in products),
+        "tables": bool(tables),
+        "table_plan_limit": sum(1 for table in tables if table.is_ordering_enabled) <= tenant_table_limit(tenant),
+        "plaques_assigned": bool(tables) and len(assigned_plaques) >= len(tables),
+        "nfc_verified": bool(tables) and sum(1 for plaque in assigned_plaques if plaque.nfc_verified_at) >= len(tables),
+        "kitchen_station": tenant.default_kitchen_station_id is not None,
+        "kitchen_account": any(user.role == models.UserRole.kitchen for user in staff_rows),
+        "stripe": payment_ready,
+        "legal_urls": bool(tenant.public_terms_of_service_url and tenant.public_privacy_policy_url),
+        "onboarding": tenant.onboarding_status == "completed",
+    }
+    launch_required = (
+        "business_profile", "service_hours", "menu", "menu_prices", "allergens_reviewed",
+        "tables", "table_plan_limit", "plaques_assigned", "nfc_verified", "kitchen_station",
+        "kitchen_account", "stripe", "legal_urls", "onboarding",
+    )
+    readiness = {
+        "ready": all(checks[name] for name in launch_required),
+        "checks": checks,
+        "missing": [name for name in launch_required if not checks[name]],
+    }
 
     return models.PlatformTenantDetail(
         **summary.model_dump(),
@@ -102,6 +202,7 @@ def _tenant_detail(session: Session, tenant: models.Tenant) -> models.PlatformTe
             )
             for u in staff_rows
         ],
+        readiness=readiness,
     )
 
 
@@ -142,6 +243,56 @@ def platform_me(
     }
 
 
+@router.get("/public-settings")
+def platform_public_settings(session: Session = Depends(get_session)) -> dict:
+    """Public-safe Scanaki identity, contact and legal links. Never returns SMTP data."""
+    return public_platform_settings(session)
+
+
+@router.get("/settings")
+def platform_settings_get(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return platform_settings_payload(session)
+
+
+@router.put("/settings")
+def platform_settings_update(
+    body: models.PlatformSettingsUpdate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return update_platform_settings(session, body, current_user)
+
+
+@router.post("/settings/test-smtp")
+async def platform_settings_test_smtp(
+    body: models.PlatformSmtpTestRequest,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return await test_platform_smtp(session, body.recipient_email)
+
+
+@router.post("/settings/change-password")
+def platform_settings_change_password(
+    body: models.PlatformPasswordChange,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    if not security.verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if security.verify_password(body.new_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="New password must be different")
+    current_user.hashed_password = security.get_password_hash(body.new_password)
+    current_user.token_version = int(current_user.token_version or 0) + 1
+    current_user.must_change_password = False
+    session.add(current_user)
+    session.commit()
+    return {"status": "ok", "message": "Password changed. Sign in again."}
+
+
 @router.get("/tenants", response_model=list[models.PlatformTenantSummary])
 def platform_tenants(
     current_user: Annotated[models.User, Depends(_require_platform_operator)],
@@ -155,6 +306,114 @@ def platform_tenants(
     return [_tenant_summary(session, t) for t in tenants if t.id is not None]
 
 
+def _temporary_password() -> str:
+    """Return a strong, one-time credential suitable for copying to the owner."""
+    return f"Ot!{secrets.token_urlsafe(12)}"
+
+
+@router.post(
+    "/tenants",
+    response_model=models.PlatformRestaurantCredentials,
+    status_code=status.HTTP_201_CREATED,
+)
+async def platform_create_restaurant(
+    body: models.PlatformRestaurantCreate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformRestaurantCredentials:
+    """Provision a restaurant owner and return the one-time temporary credentials."""
+    try:
+        owner_email = normalize_email_address(body.owner_email)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid owner email address") from exc
+
+    restaurant_name = body.restaurant_name.strip()
+    if len(restaurant_name) < 2:
+        raise HTTPException(status_code=400, detail="Restaurant name is required")
+    if session.exec(select(models.User).where(models.User.email == owner_email)).first():
+        raise HTTPException(status_code=409, detail="That owner email already has an account")
+
+    now = datetime.now(timezone.utc)
+    temporary_password = _temporary_password()
+    plan_code = normalize_plan_code(body.plan_code)
+    selected_plan = plan_details(plan_code, session)
+    tenant = models.Tenant(
+        name=restaurant_name,
+        email=owner_email,
+        currency_code="GBP",
+        timezone="Europe/London",
+        default_language="en",
+        country_code="GB",
+        ordering_mode="menu_only",
+        ui_modules=None if plan_code == "pilot" else new_tenant_ui_modules_stored(),
+        saas_subscription_status=(
+            "grandfathered" if plan_code == "pilot" else initial_status_for_new_tenant()
+        ),
+        onboarding_status="not_started",
+        onboarding_step=0,
+        saas_plan_code=plan_code,
+        saas_monthly_price_cents=int(selected_plan["price_cents"]),
+        saas_extra_table_unit_price_cents=int(selected_plan["extra_table_price_cents"]),
+        saas_included_tables=int(selected_plan["included_tables"]),
+    )
+    session.add(tenant)
+    session.flush()
+    owner = models.User(
+        email=owner_email,
+        hashed_password=security.get_password_hash(temporary_password),
+        full_name=(body.owner_name or "").strip() or None,
+        role=models.UserRole.owner,
+        tenant_id=tenant.id,
+        must_change_password=True,
+        temporary_password_issued_at=now,
+    )
+    session.add(owner)
+    session.flush()
+
+    password_setup_url: str | None = None
+    base = (settings.public_app_base_url or "").strip().rstrip("/")
+    if base:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        expires_at = now + timedelta(minutes=settings.password_reset_token_expire_minutes)
+        session.add(
+            models.PasswordResetToken(
+                user_id=owner.id,
+                token_hash=token_hash,
+                expires_at=expires_at,
+            )
+        )
+        password_setup_url = f"{base}/reset-password?token={quote(raw_token, safe='')}"
+
+    session.commit()
+    session.refresh(tenant)
+    invitation_email_sent = False
+    if password_setup_url:
+        invitation_email_sent = await send_restaurant_invitation_email(
+            owner_email,
+            tenant.name,
+            password_setup_url,
+        )
+        tenant.invitation_sent_at = datetime.now(timezone.utc) if invitation_email_sent else None
+        tenant.invitation_last_error = None if invitation_email_sent else "SMTP delivery failed or is not configured"
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+    return models.PlatformRestaurantCredentials(
+        tenant_id=tenant.id,
+        restaurant_name=tenant.name,
+        username=owner_email,
+        temporary_password=temporary_password,
+        password_setup_url=password_setup_url,
+        plan_code=normalize_plan_code(tenant.saas_plan_code),
+        table_limit=tenant_table_limit(tenant),
+        ordering_points_unlimited=plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
+        invitation_email_sent=invitation_email_sent,
+    )
+
+
 @router.get("/tenants/{tenant_id}", response_model=models.PlatformTenantDetail)
 def platform_tenant_detail(
     tenant_id: int,
@@ -164,6 +423,103 @@ def platform_tenant_detail(
     tenant = session.get(models.Tenant, tenant_id)
     if tenant is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    return _tenant_detail(session, tenant)
+
+
+@router.get("/subscriptions")
+def platform_subscriptions(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    search: str = Query(default="", max_length=200),
+    status_filter: str = Query(default="", alias="status", max_length=32),
+    plan: str = Query(default="", max_length=16),
+    health: str = Query(default="", max_length=32),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+) -> dict:
+    return list_subscriptions(
+        session,
+        search=search,
+        status_filter=status_filter,
+        plan_filter=plan,
+        health_filter=health,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/subscriptions/metrics")
+def platform_subscription_metrics(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return subscription_metrics(session)
+
+
+@router.get("/pricing")
+def platform_pricing(
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return pricing_console(session)
+
+
+@router.post("/pricing/{plan_code}/publish")
+def platform_publish_pricing(
+    plan_code: str,
+    body: models.PlatformPricingPublish,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> dict:
+    return publish_pricing(session, plan_code, body, current_user)
+
+
+@router.get("/tenants/{tenant_id}/billing-history")
+def platform_tenant_billing_history(
+    tenant_id: int,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return billing_history(session, tenant, limit)
+
+
+@router.post("/tenants/{tenant_id}/subscription/action", response_model=models.PlatformTenantDetail)
+def platform_subscription_action(
+    tenant_id: int,
+    body: models.PlatformSubscriptionAction,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformTenantDetail:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    apply_admin_action(session, tenant, action=body.action, immediate=body.immediate)
+    return _tenant_detail(session, tenant)
+
+
+@router.put("/tenants/{tenant_id}/plan", response_model=models.PlatformTenantDetail)
+def platform_update_tenant_plan(
+    tenant_id: int,
+    body: models.PlatformTenantPlanUpdate,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+) -> models.PlatformTenantDetail:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if body.proration_behavior not in {"create_prorations", "always_invoice", "none"}:
+        raise HTTPException(status_code=400, detail="Invalid proration behavior")
+    sync_stripe_plan(
+        session,
+        tenant,
+        plan_code=body.plan_code,
+        extra_tables=body.extra_tables,
+        proration_behavior=body.proration_behavior,
+    )
     return _tenant_detail(session, tenant)
 
 

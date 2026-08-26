@@ -1,6 +1,6 @@
 # Promo videos (short marketing walkthroughs)
 
-How we produce short Satisfecho promo clips: live browser click-around + **copyleft** background music + optional **Loom-style talking-head PiP**, letterboxed to 1080p.
+How we produce short Scanaki promo clips: live browser click-around + **copyleft** background music + optional **Loom-style talking-head PiP**, letterboxed to 1080p.
 
 **Pattern (mac-stats):** The companion project [mac-stats](https://github.com/raro42/mac-stats/) ships `screens/mac-stats-features.mp4` — a live window capture with an ambient bed (see that repo’s `screens/README.md`). For this **web** app we use the same idea with **Puppeteer screencast** instead of ScreenCaptureKit. The social “product demo + corner face cam” layout matches common Loom / X-style clips (screen full-frame, circular head overlay, music bed — **no** mic narration required).
 
@@ -34,7 +34,7 @@ Delete intermediate PiP/loop/round MP4s, raw `.webm`, and `frames/` when done it
 # App must be up (local or production)
 BASE_URL=http://127.0.0.1:4202 npm run record-promo-video --prefix front
 # or
-BASE_URL=https://www.satisfecho.de npm run record-promo-video --prefix front
+BASE_URL=https://scanaki.uk npm run record-promo-video --prefix front
 ```
 
 **Env:** `BASE_URL`, `OUT_DIR` (default `tmp/promo`), `MUSIC_PATH`, `TENANT_ID` (default `1`), `HEADLESS=0` to watch, `SKIP_ENCODE=1` for raw WebM only. Requires **Google Chrome** (or `PUPPETEER_EXECUTABLE_PATH`) and **ffmpeg** on `PATH`.
@@ -51,13 +51,13 @@ BASE_URL=https://www.satisfecho.de npm run record-promo-video --prefix front
 
 Do **not** full-desktop capture for marketing assets (same privacy rule as mac-stats window-only shots).
 
-**Tip:** Puppeteer often produces a short black/white lead-in. When compositing the PiP, **trim ~0.5s** from the start (`-ss 0.5`) so frame 0 is already the Satisfecho UI.
+**Tip:** Puppeteer often produces a short black/white lead-in. When compositing the PiP, **trim ~0.5s** from the start (`-ss 0.5`) so frame 0 is already the Scanaki UI.
 
 ---
 
 ## 2. Talking-head overlay (Loom-style PiP)
 
-Goal: product screencast full-frame; **small circular face** bottom-right; **music only** (mute webcam audio). Voiceover is optional and not used in the default Satisfecho cut.
+Goal: product screencast full-frame; **small circular face** bottom-right; **music only** (mute webcam audio). Voiceover is optional and not used in the default Scanaki cut.
 
 ### Record the face clip (macOS QuickTime)
 
@@ -82,7 +82,7 @@ Final parameters we settled on:
 
 | Parameter | Value | Why |
 |-----------|--------|-----|
-| Start trim | `-ss 0.5` on base | Skip black/flash so first frame is Satisfecho UI |
+| Start trim | `-ss 0.5` on base | Skip black/flash so first frame is Scanaki UI |
 | Face scale | `200×200` crop (cover) | Smaller corner PiP |
 | Shape | Circular alpha via `geq` + `hypot` | No rectangular card; **no** white ring |
 | Loop | `-stream_loop -1` on face | Endless loop instead of freezing last frame |

@@ -7,7 +7,7 @@
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/test-landing-version.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaki.uk)
  *   HEADLESS   Default headless; set 0, false, or no for a visible browser.
  *   TENANT_ID  Login tenant (default 1). Used with DEMO_LOGIN_* / LOGIN_*.
  *   SKIP_LANDING_PACKAGE_VERSION_CHECK  Set to 1 to skip comparing footer semver to front/package.json
@@ -218,7 +218,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const tenantId = process.env.TENANT_ID != null ? String(process.env.TENANT_ID) : '1';
@@ -253,12 +253,16 @@ async function main() {
     console.log('0. Reachability probe: skipped (LANDING_SMOKE_NO_REACHABILITY_PROBE)');
   }
 
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless,
-    defaultViewport: headless ? { width: 1280, height: 720 } : null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = process.env.PUPPETEER_WS_ENDPOINT
+    ? await puppeteer.connect({ browserWSEndpoint: process.env.PUPPETEER_WS_ENDPOINT })
+    : process.env.PUPPETEER_CONNECT_URL
+      ? await puppeteer.connect({ browserURL: process.env.PUPPETEER_CONNECT_URL })
+      : await puppeteer.launch({
+          executablePath: CHROME_PATH,
+          headless,
+          defaultViewport: headless ? { width: 1280, height: 720 } : null,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
 
   const page = await browser.newPage();
   page.on('console', (msg) => console.log('[browser]', msg.text()));
@@ -282,6 +286,103 @@ async function main() {
     }
 
     await page.waitForSelector('.landing-page', { timeout: 10000 });
+    const brandState = await page.evaluate(() => ({
+      title: document.title,
+      siteName: document.querySelector('meta[property="og:site_name"]')?.getAttribute('content') || '',
+      body: document.body.textContent || '',
+    }));
+    if (!brandState.title.includes('Scanaki') || brandState.siteName !== 'Scanaki') {
+      console.log('   FAIL: Scanaki title or Open Graph site name is missing.', brandState);
+      await browser.close();
+      process.exit(1);
+    }
+    if (/\bOne Table\b|\bSatisfecho\b/.test(brandState.body)) {
+      console.log('   FAIL: Legacy product branding is still visible on the landing page.');
+      await browser.close();
+      process.exit(1);
+    }
+    if (/[—–]/.test(brandState.body)) {
+      console.log('   FAIL: Landing copy contains an em dash or en dash.');
+      await browser.close();
+      process.exit(1);
+    }
+    console.log('   Brand:', brandState.siteName);
+
+    console.log('1a. Mobile landing navigation...');
+    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 });
+    await page.waitForSelector('[data-testid="landing-mobile-menu-toggle"]', { timeout: 5000 });
+    const mobileNavClosed = await page.evaluate(() => {
+      const toggle = document.querySelector('[data-testid="landing-mobile-menu-toggle"]');
+      const rect = toggle?.getBoundingClientRect();
+      const links = document.querySelector('.landing-nav__links');
+      return {
+        expanded: toggle?.getAttribute('aria-expanded'),
+        label: toggle?.getAttribute('aria-label') || '',
+        width: rect?.width || 0,
+        height: rect?.height || 0,
+        panelVisible: links ? getComputedStyle(links).display !== 'none' : false,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    if (
+      mobileNavClosed.expanded !== 'false' ||
+      !mobileNavClosed.label ||
+      mobileNavClosed.width < 44 ||
+      mobileNavClosed.height < 44 ||
+      mobileNavClosed.panelVisible ||
+      mobileNavClosed.overflow
+    ) {
+      console.log('   FAIL: Closed mobile navigation is invalid.', mobileNavClosed);
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    const mobileNavOpen = await page.evaluate(() => {
+      const toggle = document.querySelector('[data-testid="landing-mobile-menu-toggle"]');
+      const visibleLinks = Array.from(document.querySelectorAll('.landing-nav__links a')).filter(
+        (link) => link.getClientRects().length > 0,
+      );
+      return {
+        expanded: toggle?.getAttribute('aria-expanded'),
+        visibleLinks: visibleLinks.length,
+        actionsVisible: Boolean(document.querySelector('.landing-nav__actions')?.getClientRects().length),
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      };
+    });
+    if (
+      mobileNavOpen.expanded !== 'true' ||
+      mobileNavOpen.visibleLinks < 5 ||
+      !mobileNavOpen.actionsVisible ||
+      mobileNavOpen.overflow
+    ) {
+      console.log('   FAIL: Open mobile navigation is invalid.', mobileNavOpen);
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+    console.log('   OK: Accessible 44px menu control opens the complete navigation.');
+
+    console.log('1b. Footer route scroll restoration...');
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const footerScrollPosition = await page.evaluate(() => window.scrollY);
+    if (footerScrollPosition < 100) {
+      console.log('   FAIL: Could not reach the landing footer for the navigation test.');
+      await browser.close();
+      process.exit(1);
+    }
+    await page.click('[data-testid="landing-pricing"]');
+    await waitForPath(page, '/pricing');
+    await page.waitForFunction(() => window.scrollY < 8, { timeout: 5000 });
+    const pricingScrollPosition = await page.evaluate(() => window.scrollY);
+    if (pricingScrollPosition >= 8) {
+      console.log('   FAIL: Footer navigation retained the previous scroll position.');
+      await browser.close();
+      process.exit(1);
+    }
+    await page.goto(new URL('/', baseUrl).href, { waitUntil: 'networkidle2', timeout: 15000 });
+    console.log('   OK: Footer route navigation starts at the top.');
+
     await page.waitForFunction(
       () => {
         const el =
@@ -360,13 +461,18 @@ async function main() {
       },
       { timeout: 15000 }
     );
-    const restaurantCards = await page.evaluate(() => {
+    const restaurantCards = await page.evaluate(async () => {
       const cards = Array.from(document.querySelectorAll('[data-testid="landing-tenant-card"]'));
       const names = cards.map((c) => {
         const el = c.querySelector('[data-testid="landing-tenant-name"]');
         return (el?.textContent || '').trim();
       });
-      return { count: cards.length, names };
+      const menuHrefs = cards.map(
+        (c) => c.querySelector('a[href^="/public-menu/"]')?.getAttribute('href') || '',
+      );
+      const response = await fetch('/api/public/tenants');
+      const tenants = response.ok ? await response.json() : [];
+      return { count: cards.length, names, menuHrefs, tenants };
     });
     if (restaurantCards.count !== 1) {
       console.log(
@@ -388,6 +494,32 @@ async function main() {
         '!== expected',
         JSON.stringify(expectedDemoName)
       );
+      await browser.close();
+      process.exit(1);
+    }
+    if (/open[ -]?source|agpl/i.test(brandState.body)) {
+      console.log('   FAIL: Legacy licensing positioning is visible on the landing page.');
+      await browser.close();
+      process.exit(1);
+    }
+    if (
+      restaurantCards.tenants.length !== 1 ||
+      restaurantCards.tenants[0]?.is_demo !== true ||
+      !/demo/i.test(restaurantCards.tenants[0]?.name || '') ||
+      !restaurantCards.tenants[0]?.take_away_table_token
+    ) {
+      console.log('   FAIL: Landing API did not return exactly one explicitly marked demo tenant.');
+      await browser.close();
+      process.exit(1);
+    }
+    const demoTenant = restaurantCards.tenants[0];
+    if (demoTenant.email || demoTenant.phone || demoTenant.address || demoTenant.whatsapp) {
+      console.log('   FAIL: Landing demo contains restaurant contact details.', demoTenant);
+      await browser.close();
+      process.exit(1);
+    }
+    if (restaurantCards.menuHrefs[0] !== `/public-menu/${demoTenant.id}`) {
+      console.log('   FAIL: Landing demo QR/menu link targets the wrong tenant.');
       await browser.close();
       process.exit(1);
     }

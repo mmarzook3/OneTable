@@ -28,7 +28,7 @@ Add every base URL where the customer menu and payment-success page are served. 
 
 **Recommended values:**
 
-- Production: `https://satisfecho.de`
+- Production: `https://scanaki.uk`
 - Local: `http://localhost:4202` (or the port you use, e.g. `4200` if not using Docker)
 
 Separate multiple URLs with a comma or semicolon as indicated on the Revolut form.
@@ -39,7 +39,7 @@ The backend builds:
 - Success: `{PUBLIC_APP_BASE_URL}/menu/{table_token}/payment-success?order_id={order_id}`
 - Cancel: `{PUBLIC_APP_BASE_URL}/menu/{table_token}`
 
-So the base URL (e.g. `https://satisfecho.de`) must be registered. If Revolut validates by path prefix, use e.g. `https://satisfecho.de/menu/` and `http://localhost:4202/menu/`.
+So the base URL (e.g. `https://scanaki.uk`) must be registered. If Revolut validates by path prefix, use e.g. `https://scanaki.uk/menu/` and `http://localhost:4202/menu/`.
 
 ### 3. Sandbox certificates (CSR) — required to continue
 
@@ -122,7 +122,7 @@ Put these in **`config.env`** (copy from `config.env.example` if needed). The fi
 - **`PUBLIC_APP_BASE_URL`** (required for Revolut redirects)  
   Base URL of the public frontend. Used to build `redirect_url` and `cancel_url` when creating a Revolut order.  
   Examples:
-  - Production: `PUBLIC_APP_BASE_URL=https://satisfecho.de`
+  - Production: `PUBLIC_APP_BASE_URL=https://scanaki.uk`
   - Local: `PUBLIC_APP_BASE_URL=http://localhost:4202`
 
 ---

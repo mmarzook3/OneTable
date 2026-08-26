@@ -1,4 +1,4 @@
-"""Create POS orders from delivery payloads (marketplace + Satisfecho Delivery)."""
+"""Create POS orders from delivery payloads (marketplace + Scanaki Delivery)."""
 
 from __future__ import annotations
 
@@ -423,7 +423,7 @@ def create_satisfecho_delivery_order(
     delivery_fee_cents: int | None = None,
 ) -> tuple[models.Order | None, dict]:
     """
-    Create a first-party Satisfecho Delivery order (no marketplace integration, no table).
+    Create a first-party Scanaki Delivery order (no marketplace integration, no table).
     lines: [{"product_id": int, "quantity": int, "notes": str|None}].
 
     When notify_kitchen is False (public checkout before pay), skip WS publish and
@@ -482,12 +482,12 @@ def create_satisfecho_delivery_order(
     session.commit()
     session.refresh(order)
     if notify_kitchen:
-        _publish_and_deduct(session, order, tenant_id, "Satisfecho Delivery")
+        _publish_and_deduct(session, order, tenant_id, "Scanaki Delivery")
     return order, {"status": "created", "order_id": order.id}
 
 
 def publish_satisfecho_delivery_order(session: Session, order: models.Order) -> None:
-    """Notify kitchen/staff and deduct inventory for a Satisfecho Delivery order (e.g. after pay)."""
+    """Notify kitchen/staff and deduct inventory for a Scanaki Delivery order (e.g. after pay)."""
     if not order or order.tenant_id is None:
         return
-    _publish_and_deduct(session, order, order.tenant_id, "Satisfecho Delivery")
+    _publish_and_deduct(session, order, order.tenant_id, "Scanaki Delivery")

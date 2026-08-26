@@ -17,6 +17,11 @@ describe('KitchenDisplayComponent', () => {
     getCurrentUser: jasmine.Spy;
     getKitchenStations: jasmine.Spy;
     getKitchenDisplaySettings: jasmine.Spy;
+    heartbeatKitchenDevice: jasmine.Spy;
+    getOrderingStatus: jasmine.Spy;
+    getKitchenStock: jasmine.Spy;
+    updateProductAvailability: jasmine.Spy;
+    getProductImageUrl: jasmine.Spy;
   };
   let mockAudio: { setEnabled: jasmine.Spy; playRestaurantOrderChange: jasmine.Spy };
 
@@ -31,6 +36,11 @@ describe('KitchenDisplayComponent', () => {
       getKitchenDisplaySettings: jasmine
         .createSpy('getKitchenDisplaySettings')
         .and.returnValue(of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15 })),
+      heartbeatKitchenDevice: jasmine.createSpy('heartbeatKitchenDevice').and.returnValue(of({ status: 'ok' })),
+      getOrderingStatus: jasmine.createSpy('getOrderingStatus').and.returnValue(of({ strict_fifo_kds: true })),
+      getKitchenStock: jasmine.createSpy('getKitchenStock').and.returnValue(of([])),
+      updateProductAvailability: jasmine.createSpy('updateProductAvailability').and.returnValue(of([])),
+      getProductImageUrl: jasmine.createSpy('getProductImageUrl').and.returnValue(null),
     };
     mockAudio = {
       setEnabled: jasmine.createSpy('setEnabled'),
@@ -50,7 +60,7 @@ describe('KitchenDisplayComponent', () => {
           provide: PermissionService,
           useValue: {
             getCurrentUser: () => ({ id: 1, role: 'kitchen' }),
-            hasPermission: () => false,
+            hasPermission: (_user: unknown, permission: string) => permission === 'product:availability',
           },
         },
       ],
@@ -162,6 +172,35 @@ describe('KitchenDisplayComponent', () => {
     fixture.componentInstance.toggleSound({ target: { checked: false } } as unknown as Event);
     expect(mockAudio.setEnabled).toHaveBeenCalledWith(false);
     expect(setItemSpy).toHaveBeenCalledWith('kitchen-display-sound', 'false');
+  });
+
+  it('should let kitchen staff update stock availability without editing products', () => {
+    const stockProduct = {
+      id: 44,
+      name: 'Kitchen pie',
+      price_cents: 1295,
+      category: 'Main Course',
+      is_available: true,
+      kitchen_station_route: 'kitchen' as const,
+      resolved_kitchen_station_id: null,
+    };
+    mockApi.getKitchenStock.and.returnValue(of([stockProduct]));
+    mockApi.updateProductAvailability.and.returnValue(of([{ ...stockProduct, is_available: false }]));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canManageStock()).toBeTrue();
+
+    fixture.componentInstance.openStockModal();
+    expect(mockApi.getKitchenStock).toHaveBeenCalled();
+    expect(fixture.componentInstance.stockDraft()[44]).toBeTrue();
+    fixture.componentInstance.setStockAvailability(44, { target: { checked: false } } as unknown as Event);
+    expect(fixture.componentInstance.stockChangedCount()).toBe(1);
+    fixture.componentInstance.saveStock();
+
+    expect(mockApi.updateProductAvailability).toHaveBeenCalledWith([
+      { product_id: 44, is_available: false },
+    ]);
+    expect(fixture.componentInstance.stockModalOpen()).toBeFalse();
   });
 
   it('should auto-refresh after interval', fakeAsync(() => {

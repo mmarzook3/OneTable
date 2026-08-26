@@ -699,8 +699,8 @@ export class RegisterComponent implements OnInit {
 
   updateStarterPrice(name: string, event: Event): void {
     const raw = (event.target as HTMLInputElement).value;
-    const euros = parseFloat(raw);
-    const cents = Number.isFinite(euros) ? Math.round(euros * 100) : 0;
+    const pounds = parseFloat(raw);
+    const cents = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
     this.starterProducts.update((items) =>
       items.map((item) => (item.name === name ? { ...item, priceCents: cents } : item)),
     );
@@ -708,8 +708,8 @@ export class RegisterComponent implements OnInit {
 
   updateOnboardedPrice(productId: number, event: Event): void {
     const raw = (event.target as HTMLInputElement).value;
-    const euros = parseFloat(raw);
-    const cents = Number.isFinite(euros) ? Math.round(euros * 100) : 0;
+    const pounds = parseFloat(raw);
+    const cents = Number.isFinite(pounds) ? Math.round(pounds * 100) : 0;
     this.onboardedProducts.update((items) =>
       items.map((item) => (item.id === productId ? { ...item, price_cents: cents } : item)),
     );

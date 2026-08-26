@@ -1,4 +1,4 @@
-# Satisfecho public site — https://satisfecho.de
+# Scanaki public site - https://scanaki.uk
 User-agent: *
 Allow: /
 Allow: /features
@@ -41,4 +41,4 @@ Disallow: /provider/
 Disallow: /courier/
 Disallow: /platform/
 
-Sitemap: https://satisfecho.de/sitemap.xml
+Sitemap: https://scanaki.uk/sitemap.xml

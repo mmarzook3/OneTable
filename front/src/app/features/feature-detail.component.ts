@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { map } from 'rxjs/operators';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
@@ -373,6 +373,7 @@ import { featureDetailKey, getFeatureLanding, type FeatureLanding } from './feat
 })
 export class FeatureDetailComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly seo = inject(SeoService);
 
   readonly feature$ = this.route.paramMap.pipe(map((p) => getFeatureLanding(p.get('slug') ?? '')));
@@ -384,10 +385,13 @@ export class FeatureDetailComponent {
   howKeys: string[] = [];
 
   constructor() {
+    if (this.route.snapshot.paramMap.get('slug') === 'satisfecho-delivery') {
+      void this.router.navigate(['/features', 'scanaki-delivery'], { replaceUrl: true });
+    }
     this.feature$.subscribe((feature) => {
       this.feature = feature;
       if (!feature) {
-        this.seo.applyFeatureDetail('/features', 'Features — Satisfecho', 'Feature not found.');
+        this.seo.applyFeatureDetail('/features', 'Features - Scanaki', 'Feature not found.');
         return;
       }
       const slug = feature.slug;

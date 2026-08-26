@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as _BaseModel, Field
-from sqlalchemy import event, or_
+from sqlalchemy import event, exists, func, or_
 from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, StatementError
 from sqlmodel import Session, select
 
@@ -42,12 +42,32 @@ from .provider_images import (
     provider_product_stored_image_path,
 )
 from .settings import settings
+from .onetable_ordering import (
+    normalize_ordering_mode,
+    ordering_availability,
+    router as onetable_ordering_router,
+    validate_ordering_service_hours,
+)
+from .tenant_payment_credentials import (
+    encrypt_payment_secret,
+    migrate_legacy_stripe_secrets,
+    stripe_api_options,
+    tenant_stripe_secret,
+    tenant_stripe_webhook_secret,
+)
 from .inventory_routes import router as inventory_router
 from .pricing_routes import router as pricing_router
 from .product_bulk_import_routes import router as product_bulk_import_router
 from .tenant_subcategory_routes import router as tenant_subcategory_router
 from .reports_routes import router as reports_router
 from .platform_routes import router as platform_router
+from .restaurant_onboarding_routes import router as restaurant_onboarding_router
+from .smart_plaque_routes import (
+    release_smart_plaque_for_deleted_table,
+    router as smart_plaque_router,
+    smart_plaque_fields_by_table,
+)
+from .location_routes import router as location_router
 from .saas_routes import router as saas_router
 from .attendance_routes import router as attendance_router
 from .tenant_lifecycle_routes import router as tenant_lifecycle_router
@@ -88,6 +108,8 @@ from .tse_service import (
 )
 from .inventory_service import deduct_inventory_for_order
 from . import inventory_models
+from . import table_cart as table_cart_svc
+from . import location_service as location_svc
 from .translation_service import TranslationService
 from .messages import get_message
 from .api_errors import api_error_payload
@@ -306,6 +328,10 @@ async def _app_lifespan(app: FastAPI):
         runner = MigrationRunner(migrations_dir)
         db_version = runner.run_migrations()
         logger.info(f"Database schema version: {db_version}")
+        with Session(engine) as session:
+            migrated_secrets = migrate_legacy_stripe_secrets(session)
+            if migrated_secrets:
+                logger.info("Encrypted %s legacy tenant Stripe key(s)", migrated_secrets)
     except Exception as e:
         logger.warning(f"Migration check failed: {e}", exc_info=True)
     from .reservation_reminder_heartbeat import reservation_reminder_heartbeat_loop
@@ -354,7 +380,7 @@ async def _app_lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="POS API",
+    title="Scanaki API",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
@@ -572,6 +598,11 @@ app.include_router(
 app.include_router(reports_router, prefix="/reports", tags=["Reports"])
 app.include_router(attendance_router, prefix="/reports", tags=["Reports"])
 app.include_router(platform_router, prefix="/platform", tags=["Platform"])
+app.include_router(
+    restaurant_onboarding_router,
+    prefix="/onboarding",
+    tags=["Restaurant onboarding"],
+)
 app.include_router(saas_router, prefix="/saas", tags=["SaaS billing"])
 # Owner-only data export & tenant purge (GitHub #96)
 app.include_router(tenant_lifecycle_router, prefix="/tenant", tags=["Tenant lifecycle"])
@@ -587,6 +618,9 @@ app.include_router(
 app.include_router(print_staff_router, tags=["Print jobs"])
 app.include_router(print_agent_router, tags=["Print agent"])
 app.include_router(customer_router, prefix="/customer", tags=["Customer accounts"])
+app.include_router(onetable_ordering_router, tags=["Scanaki ordering"])
+app.include_router(smart_plaque_router, tags=["Smart plaques"])
+app.include_router(location_router, tags=["Locations"])
 
 
 # ============ IMAGE OPTIMIZATION ============
@@ -778,6 +812,13 @@ def _changelog_path() -> Path | None:
     return None
 
 
+def _staff_changelog_copy(raw: str) -> str:
+    """Keep historical release notes while removing retired marketing positioning."""
+    text = re.sub(r"(?i)\bopen[- ]source\b", "platform", raw)
+    text = re.sub(r"(?i)\bAGPL(?:-?3(?:\.0)?|v3)?\b", "product licence", text)
+    return re.sub(r"(?i)\bsource code\b", "product repository", text)
+
+
 @app.get("/changelog", response_class=PlainTextResponse)
 def get_changelog(
     current_user: Annotated[models.User, Depends(security.get_current_user)],
@@ -786,7 +827,7 @@ def get_changelog(
     path = _changelog_path()
     if not path:
         raise HTTPException(status_code=404, detail="Changelog not found")
-    return path.read_text(encoding="utf-8")
+    return _staff_changelog_copy(path.read_text(encoding="utf-8"))
 
 
 @app.get("/health/db")
@@ -819,6 +860,7 @@ class TenantSummary(_BaseModel):
 
     id: int
     name: str
+    is_demo: bool = False
     logo_filename: str | None = None
     header_background_filename: str | None = None
     description: str | None = None
@@ -851,6 +893,7 @@ class TenantSummary(_BaseModel):
     guest_birthday_capture_enabled: bool = True
     guest_birthday_marketing_enabled: bool = False
     guest_birthday_consent_text: str | None = None
+    delivery_enabled: bool = True
 
 
 TAKE_AWAY_TABLE_NAMES = ("take away", "home ordering", "takeaway", "take-away")
@@ -906,12 +949,12 @@ def _verify_staff_menu_token(table_token: str, token: str) -> bool:
         return False
 
 
-# Public Satisfecho Delivery checkout + track: signed token covers pay and track (24h)
+# Public Scanaki Delivery checkout + track: signed token covers pay and track (24h)
 PUBLIC_DELIVERY_ORDER_TOKEN_EXPIRY = 86400  # 24 hours
 
 
 def _sign_public_delivery_order_token(order_id: int, tenant_id: int) -> str:
-    """Signed token proving guest ownership of a public Satisfecho Delivery order for pay/track."""
+    """Signed token proving guest ownership of a public Scanaki Delivery order for pay/track."""
     expiry = int(_time.time()) + PUBLIC_DELIVERY_ORDER_TOKEN_EXPIRY
     payload = f"sd:{order_id}:{tenant_id}:{expiry}"
     sig = hmac.new(
@@ -1001,11 +1044,11 @@ def _resolve_guest_payment_order(
         raise HTTPException(status_code=404, detail="Order not found")
     if not _verify_public_delivery_order_token(order.id, order.tenant_id, pot or ""):
         raise HTTPException(status_code=404, detail="Order not found")
-    return order, None, "Satisfecho Delivery"
+    return order, None, "Scanaki Delivery"
 
 
 def _guest_order_payable_total_cents(session: Session, order: models.Order) -> int:
-    """Line items + delivery fee for Satisfecho Delivery guest checkout totals."""
+    """Line items + delivery fee for Scanaki Delivery guest checkout totals."""
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order.id)
     ).all()
@@ -1077,6 +1120,7 @@ def _tenant_to_summary(t: models.Tenant, session: Session) -> TenantSummary:
     return TenantSummary(
         id=t.id,
         name=t.name,
+        is_demo=bool(getattr(t, "is_demo", False)),
         logo_filename=t.logo_filename,
         header_background_filename=t.header_background_filename,
         description=t.description,
@@ -1107,6 +1151,7 @@ def _tenant_to_summary(t: models.Tenant, session: Session) -> TenantSummary:
             getattr(t, "guest_birthday_marketing_enabled", False)
         ),
         guest_birthday_consent_text=getattr(t, "guest_birthday_consent_text", None),
+        delivery_enabled=bool(getattr(t, "delivery_enabled", True)),
     )
 
 
@@ -1134,9 +1179,25 @@ def list_public_tenants(
     response: Response,
     session: Session = Depends(get_session),
 ) -> list:
-    """List all tenants (id, name, logo, description, phone, email). Public, no authentication."""
-    tenants = session.exec(select(models.Tenant).order_by(models.Tenant.name)).all()
-    return [_tenant_to_summary(t, session) for t in tenants]
+    """List fictional demo tenants for the public marketing landing page."""
+    tenants = session.exec(
+        select(models.Tenant)
+        .where(models.Tenant.is_demo == True)
+        .order_by(models.Tenant.name)
+    ).all()
+    summaries = [_tenant_to_summary(t, session) for t in tenants]
+    # Landing discovery never needs venue contact or map details. Clear them even
+    # if a demo record is accidentally populated from an older environment.
+    for summary in summaries:
+        summary.phone = None
+        summary.email = None
+        summary.whatsapp = None
+        summary.address = None
+        summary.website = None
+        summary.public_google_review_url = None
+        summary.public_google_maps_url = None
+        summary.public_openstreetmap_url = None
+    return summaries
 
 
 @app.get("/public/legal-urls")
@@ -1144,11 +1205,15 @@ def list_public_tenants(
 def get_public_legal_urls(
     request: Request,
     response: Response,
+    session: Session = Depends(get_session),
 ) -> dict[str, str | None]:
-    """Product-wide terms and privacy URLs from server config (for landing/auth when no tenant context)."""
+    """Product-wide terms and privacy URLs from platform settings with environment fallback."""
+    from .platform_settings_service import public_platform_settings
+
+    platform = public_platform_settings(session)
     return {
-        "terms_of_service_url": _global_terms_url(),
-        "privacy_policy_url": _global_privacy_url(),
+        "terms_of_service_url": platform["terms_url"] or _global_terms_url(),
+        "privacy_policy_url": platform["privacy_url"] or _global_privacy_url(),
     }
 
 
@@ -1170,6 +1235,7 @@ def get_public_tenant(
     body = {
         "id": summary.id,
         "name": summary.name,
+        "is_demo": summary.is_demo,
         "logo_filename": summary.logo_filename,
         "header_background_filename": summary.header_background_filename,
         "description": summary.description,
@@ -1196,6 +1262,7 @@ def get_public_tenant(
         "guest_birthday_capture_enabled": summary.guest_birthday_capture_enabled,
         "guest_birthday_marketing_enabled": summary.guest_birthday_marketing_enabled,
         "guest_birthday_consent_text": summary.guest_birthday_consent_text,
+        "delivery_enabled": summary.delivery_enabled,
     }
     return JSONResponse(content=body)
 
@@ -1229,7 +1296,7 @@ def get_public_tenant_menu(
 
 @app.get(
     "/public/tenants/{tenant_id}/satisfecho-delivery-config",
-    summary="Public Satisfecho Delivery fee and coverage config",
+    summary="Public Scanaki Delivery fee and coverage config",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1243,6 +1310,8 @@ def get_public_satisfecho_delivery_config(
     tenant = session.get(models.Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     from app.delivery_order_service import (
         parse_delivery_postal_codes,
         tenant_delivery_fee_cents,
@@ -1255,6 +1324,7 @@ def get_public_satisfecho_delivery_config(
         radius is not None and int(radius) > 0 and has_center
     )
     return {
+        "delivery_enabled": True,
         "delivery_fee_cents": tenant_delivery_fee_cents(tenant),
         "delivery_radius_meters": int(radius) if radius_active else None,
         "postal_codes_required": bool(postal),
@@ -1268,7 +1338,7 @@ def get_public_satisfecho_delivery_config(
 
 @app.get(
     "/public/orders/{order_id}/delivery-status",
-    summary="Public Satisfecho Delivery order track status",
+    summary="Public Scanaki Delivery order track status",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1326,7 +1396,7 @@ def get_public_delivery_order_status(
 
 @app.post(
     "/public/tenants/{tenant_id}/satisfecho-delivery",
-    summary="Public Satisfecho Delivery checkout create",
+    summary="Public Scanaki Delivery checkout create",
     tags=["Public"],
 )
 @public_menu_ip_limit()
@@ -1338,12 +1408,14 @@ def create_public_satisfecho_delivery_order(
     session: Session = Depends(get_session),
 ) -> dict:
     """
-    Unauthenticated: create a Satisfecho Delivery order (no table) for guest checkout.
+    Unauthenticated: create a Scanaki Delivery order (no table) for guest checkout.
     Kitchen is notified only after successful payment (via public_order_token pay endpoints).
     """
     tenant = session.get(models.Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     if not body.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
     address = (body.delivery_address or "").strip()
@@ -1490,45 +1562,19 @@ def public_table_lookup(
         ...,
         min_length=1,
         max_length=80,
-        description="Menu URL token (from QR) or printed table name, e.g. T01",
+        description="Legacy menu URL token from a QR code",
     ),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Resolve printed table name or full token to the table's menu token (GitHub #38). Public, no auth."""
-    from sqlalchemy import func
-
+    """Resolve a full table token only. Printed names are deliberately not searchable."""
     raw = str(q).replace("\x00", "").strip()
     if not raw:
         raise HTTPException(status_code=400, detail="Query required")
 
     by_token = session.exec(select(models.Table).where(models.Table.token == raw)).first()
-    if by_token:
-        return {"table_token": by_token.token, "ambiguous": False, "choices": []}
-
-    key = raw.casefold()
-    stmt = (
-        select(models.Table, models.Tenant)
-        .join(models.Tenant, models.Table.tenant_id == models.Tenant.id)
-        .where(func.lower(func.trim(models.Table.name)) == key)
-    )
-    rows = list(session.exec(stmt).all())
-    if not rows:
+    if by_token is None:
         raise HTTPException(status_code=404, detail="Table not found")
-    if len(rows) == 1:
-        table, _tenant = rows[0]
-        return {"table_token": table.token, "ambiguous": False, "choices": []}
-
-    choices = [
-        {
-            "table_token": table.token,
-            "tenant_id": tenant.id,
-            "tenant_name": tenant.name,
-            "table_name": table.name,
-        }
-        for table, tenant in rows
-    ]
-    choices.sort(key=lambda c: (c["tenant_name"].casefold(), c["table_name"].casefold()))
-    return {"table_token": None, "ambiguous": True, "choices": choices}
+    return {"table_token": by_token.token, "ambiguous": False, "choices": []}
 
 
 @app.post("/public/tenants/{tenant_id}/guest-feedback")
@@ -2784,7 +2830,8 @@ def login_for_access_token(
     lang: str = Depends(_get_requested_language),
     session: Session = Depends(get_session),
 ) -> dict:
-    statement = select(models.User).where(models.User.email == form_data.username)
+    login_identifier = form_data.username.strip()
+    statement = select(models.User).where(models.User.email == login_identifier)
     if scope == "provider":
         statement = statement.where(
             models.User.provider_id.is_not(None),
@@ -2796,7 +2843,8 @@ def login_for_access_token(
             models.User.tenant_id.is_not(None),
         )
     elif scope == "platform":
-        statement = statement.where(
+        statement = select(models.User).where(
+            func.lower(models.User.email) == login_identifier.lower(),
             models.User.role == models.UserRole.platform_operator,
             models.User.tenant_id.is_(None),
             models.User.provider_id.is_(None),
@@ -2987,6 +3035,17 @@ def _resolve_user_for_password_reset(
             models.User.provider_id.is_not(None),
             models.User.tenant_id.is_(None),
         )
+    elif scope == "courier":
+        statement = statement.where(
+            models.User.role == models.UserRole.courier,
+            models.User.tenant_id.is_not(None),
+        )
+    elif scope == "platform":
+        statement = statement.where(
+            models.User.role == models.UserRole.platform_operator,
+            models.User.tenant_id.is_(None),
+            models.User.provider_id.is_(None),
+        )
     elif tenant_id is not None:
         statement = statement.where(models.User.tenant_id == tenant_id)
     return session.exec(statement).first()
@@ -3012,7 +3071,7 @@ async def password_reset_request(
     session: Session = Depends(get_session),
 ) -> JSONResponse:
     """Request a password reset email. Response is always generic (no email enumeration)."""
-    if body.scope is not None and body.scope != "provider":
+    if body.scope is not None and body.scope not in {"provider", "courier", "platform"}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid scope",
@@ -3094,6 +3153,8 @@ def password_reset_confirm(
         )
     row.used_at = now
     user.hashed_password = security.get_password_hash(body.new_password)
+    user.must_change_password = False
+    user.temporary_password_issued_at = None
     user.token_version = (user.token_version or 0) + 1
     session.add(row)
     session.add(user)
@@ -3599,7 +3660,7 @@ def list_courier_users(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     session: Session = Depends(get_session),
 ) -> list[models.UserResponse]:
-    """List courier-role users in the tenant (for Satisfecho Delivery assign)."""
+    """List courier-role users in the tenant (for Scanaki Delivery assign)."""
     users = session.exec(
         select(models.User).where(
             models.User.tenant_id == current_user.tenant_id,
@@ -3970,12 +4031,15 @@ def get_tenant_settings(
     tenant_dict["logo_size_bytes"] = logo_size
     tenant_dict["logo_size_formatted"] = format_file_size(logo_size)
 
-    # Don't expose full secret key - only show last 4 characters for verification
-    if tenant_dict.get("stripe_secret_key"):
-        secret_key = tenant_dict["stripe_secret_key"]
-        tenant_dict["stripe_secret_key"] = (
-            f"{secret_key[:7]}...{secret_key[-4:]}" if len(secret_key) > 11 else "***"
-        )
+    # Payment credentials are write-only. Only expose whether they are configured.
+    tenant_dict["stripe_secret_key"] = (
+        "********" if tenant_stripe_secret(tenant) else None
+    )
+    tenant_dict["stripe_webhook_secret"] = (
+        "********" if tenant_stripe_webhook_secret(tenant) else None
+    )
+    tenant_dict.pop("stripe_secret_key_encrypted", None)
+    tenant_dict.pop("stripe_webhook_secret_encrypted", None)
     if tenant_dict.get("revolut_merchant_secret"):
         sk = tenant_dict["revolut_merchant_secret"]
         tenant_dict["revolut_merchant_secret"] = (
@@ -4078,6 +4142,30 @@ def update_tenant_settings(
         )
     if tenant_update.immediate_payment_required is not None:
         tenant.immediate_payment_required = tenant_update.immediate_payment_required
+    if tenant_update.ordering_mode is not None:
+        try:
+            tenant.ordering_mode = normalize_ordering_mode(tenant_update.ordering_mode)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if tenant_update.ordering_paused is not None:
+        tenant.ordering_paused = tenant_update.ordering_paused
+    if "ordering_pause_reason" in tenant_update.model_fields_set:
+        tenant.ordering_pause_reason = (
+            (tenant_update.ordering_pause_reason or "").strip() or None
+        )
+    if "ordering_service_hours" in tenant_update.model_fields_set:
+        try:
+            tenant.ordering_service_hours = validate_ordering_service_hours(
+                tenant_update.ordering_service_hours
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if tenant_update.require_kds_online is not None:
+        tenant.require_kds_online = tenant_update.require_kds_online
+    if tenant_update.kds_heartbeat_timeout_seconds is not None:
+        tenant.kds_heartbeat_timeout_seconds = tenant_update.kds_heartbeat_timeout_seconds
+    if tenant_update.strict_fifo_kds is not None:
+        tenant.strict_fifo_kds = tenant_update.strict_fifo_kds
     if tenant_update.default_tax_id is not None:
         # Validate tax belongs to tenant
         if tenant_update.default_tax_id:
@@ -4096,7 +4184,7 @@ def update_tenant_settings(
             if len(currency_code) != 3 or not currency_code.isalpha():
                 raise HTTPException(
                     status_code=400,
-                    detail="currency_code must be a 3-letter ISO code (e.g. EUR)",
+                    detail="currency_code must be a 3-letter ISO code (e.g. GBP)",
                 )
             tenant.currency_code = currency_code
         else:
@@ -4166,7 +4254,10 @@ def update_tenant_settings(
             and isinstance(tenant_update.stripe_secret_key, str)
             and tenant_update.stripe_secret_key.strip()
         ):
-            tenant.stripe_secret_key = tenant_update.stripe_secret_key.strip()
+            tenant.stripe_secret_key_encrypted = encrypt_payment_secret(
+                tenant_update.stripe_secret_key
+            )
+            tenant.stripe_secret_key = None
         # If empty/None, we don't update (keep existing value)
     if tenant_update.stripe_publishable_key is not None:
         tenant.stripe_publishable_key = (
@@ -4175,6 +4266,31 @@ def update_tenant_settings(
             and tenant_update.stripe_publishable_key.strip()
             else None
         )
+    if tenant_update.stripe_webhook_secret is not None:
+        webhook_secret = tenant_update.stripe_webhook_secret.strip()
+        if webhook_secret:
+            if not webhook_secret.startswith("whsec_"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Stripe webhook signing secret must start with whsec_",
+                )
+            tenant.stripe_webhook_secret_encrypted = encrypt_payment_secret(webhook_secret)
+    if tenant_update.stripe_payment_mode is not None:
+        payment_mode = tenant_update.stripe_payment_mode.strip().lower()
+        if payment_mode not in {"tenant_keys", "connect"}:
+            raise HTTPException(
+                status_code=400,
+                detail="stripe_payment_mode must be tenant_keys or connect",
+            )
+        tenant.stripe_payment_mode = payment_mode
+    if "stripe_connected_account_id" in tenant_update.model_fields_set:
+        account_id = (tenant_update.stripe_connected_account_id or "").strip() or None
+        if account_id and not account_id.startswith("acct_"):
+            raise HTTPException(
+                status_code=400,
+                detail="Stripe connected account ID must start with acct_",
+            )
+        tenant.stripe_connected_account_id = account_id
     if tenant_update.revolut_merchant_secret is not None:
         if (
             isinstance(tenant_update.revolut_merchant_secret, str)
@@ -4412,7 +4528,9 @@ def update_tenant_settings(
         else:
             tenant.guest_birthday_consent_text = None
 
-    # Satisfecho Delivery fee + coverage
+    # Scanaki Delivery availability, fee + coverage
+    if tenant_update.delivery_enabled is not None:
+        tenant.delivery_enabled = bool(tenant_update.delivery_enabled)
     if tenant_update.delivery_fee_cents is not None:
         fee = int(tenant_update.delivery_fee_cents)
         if fee < 0:
@@ -4529,12 +4647,14 @@ def update_tenant_settings(
     tenant_dict["logo_size_bytes"] = logo_size
     tenant_dict["logo_size_formatted"] = format_file_size(logo_size)
 
-    # Don't expose full secret key - only show last 4 characters for verification
-    if tenant_dict.get("stripe_secret_key"):
-        secret_key = tenant_dict["stripe_secret_key"]
-        tenant_dict["stripe_secret_key"] = (
-            f"{secret_key[:7]}...{secret_key[-4:]}" if len(secret_key) > 11 else "***"
-        )
+    tenant_dict["stripe_secret_key"] = (
+        "********" if tenant_stripe_secret(tenant) else None
+    )
+    tenant_dict["stripe_webhook_secret"] = (
+        "********" if tenant_stripe_webhook_secret(tenant) else None
+    )
+    tenant_dict.pop("stripe_secret_key_encrypted", None)
+    tenant_dict.pop("stripe_webhook_secret_encrypted", None)
     if tenant_dict.get("revolut_merchant_secret"):
         sk = tenant_dict["revolut_merchant_secret"]
         tenant_dict["revolut_merchant_secret"] = (
@@ -5549,6 +5669,20 @@ def delete_tenant_header_background(
 
 # ============ PRODUCTS ============
 
+PRODUCT_ALLERGEN_CODES = {
+    "celery", "gluten", "crustaceans", "eggs", "fish", "lupin", "milk",
+    "molluscs", "mustard", "nuts", "peanuts", "sesame", "soya", "sulphites",
+}
+PRODUCT_DIETARY_TAGS = {"vegetarian", "vegan", "gluten_free"}
+
+
+def _normalise_codes(values: list[str] | None, allowed: set[str]) -> list[str]:
+    result = sorted({str(value).strip().lower() for value in (values or []) if str(value).strip()})
+    invalid = [value for value in result if value not in allowed]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid product tag: {invalid[0]}")
+    return result
+
 
 @app.get("/products")
 def list_products(
@@ -5685,6 +5819,9 @@ def create_product(
     session: Session = Depends(get_session),
 ) -> models.Product:
     product.tenant_id = current_user.tenant_id
+    product.allergens = _normalise_codes(product.allergens, PRODUCT_ALLERGEN_CODES)
+    product.dietary_tags = _normalise_codes(product.dietary_tags, PRODUCT_DIETARY_TAGS)
+    product.allergen_notes = (product.allergen_notes or "").strip() or None
     if product.category is not None:
         from .category_codes import normalize_product_category
 
@@ -5700,6 +5837,98 @@ def create_product(
     session.commit()
     session.refresh(product)
     return product
+
+
+@app.get("/products/availability")
+def list_product_availability(
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.PRODUCT_AVAILABILITY))
+    ],
+    session: Session = Depends(get_session),
+) -> list[dict]:
+    """Kitchen stock list with resolved display route/station and safe product fields."""
+    tenant_id = current_user.tenant_id
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Restaurant account required")
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    stations = session.exec(
+        select(models.KitchenStation).where(models.KitchenStation.tenant_id == tenant_id)
+    ).all()
+    station_by_id = {int(station.id): station for station in stations}
+    products = session.exec(
+        select(models.Product)
+        .where(models.Product.tenant_id == tenant_id)
+        .order_by(models.Product.category, models.Product.name, models.Product.id)
+    ).all()
+    rows: list[dict] = []
+    for product in products:
+        explicit_station = (
+            station_by_id.get(int(product.kitchen_station_id))
+            if product.kitchen_station_id is not None
+            else None
+        )
+        route = (
+            explicit_station.display_route
+            if explicit_station is not None
+            else ("bar" if product.category == "Beverages" else "kitchen")
+        )
+        resolved_station_id = product.kitchen_station_id or (
+            tenant.default_bar_station_id if route == "bar" else tenant.default_kitchen_station_id
+        )
+        rows.append(
+            {
+                **product.model_dump(mode="json"),
+                "kitchen_station_route": route,
+                "resolved_kitchen_station_id": resolved_station_id,
+            }
+        )
+    return rows
+
+
+@app.put("/products/availability", response_model=list[models.Product])
+def update_product_availability_bulk(
+    body: models.ProductAvailabilityBulkUpdate,
+    current_user: Annotated[
+        models.User, Depends(require_permission(Permission.PRODUCT_AVAILABILITY))
+    ],
+    session: Session = Depends(get_session),
+) -> list[models.Product]:
+    """Kitchen-safe bulk stock update. Changes availability only, never product content."""
+    tenant_id = current_user.tenant_id
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Restaurant account required")
+    product_ids = [item.product_id for item in body.items]
+    if len(set(product_ids)) != len(product_ids):
+        raise HTTPException(status_code=400, detail="Duplicate product in stock update")
+    products = session.exec(
+        select(models.Product).where(
+            models.Product.tenant_id == tenant_id,
+            models.Product.id.in_(product_ids),
+        )
+    ).all()
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="One or more products were not found")
+    requested = {item.product_id: item.is_available for item in body.items}
+    for product in products:
+        product.is_available = requested[int(product.id)]
+        session.add(product)
+    linked = session.exec(
+        select(models.TenantProduct).where(
+            models.TenantProduct.tenant_id == tenant_id,
+            models.TenantProduct.product_id.in_(product_ids),
+        )
+    ).all()
+    for tenant_product in linked:
+        tenant_product.is_active = requested[int(tenant_product.product_id)]
+        session.add(tenant_product)
+    session.commit()
+    by_id = {int(product.id): product for product in products}
+    ordered = [by_id[product_id] for product_id in product_ids]
+    for product in ordered:
+        session.refresh(product)
+    return ordered
 
 
 @app.put("/products/{product_id}")
@@ -5727,6 +5956,18 @@ def update_product(
         product.cost_cents = product_update.cost_cents
     if product_update.ingredients is not None:
         product.ingredients = product_update.ingredients
+    if product_update.description is not None:
+        product.description = product_update.description
+    if product_update.is_available is not None:
+        product.is_available = product_update.is_available
+    if product_update.allergens is not None:
+        product.allergens = _normalise_codes(product_update.allergens, PRODUCT_ALLERGEN_CODES)
+    if product_update.dietary_tags is not None:
+        product.dietary_tags = _normalise_codes(product_update.dietary_tags, PRODUCT_DIETARY_TAGS)
+    if product_update.allergen_notes is not None:
+        product.allergen_notes = product_update.allergen_notes.strip() or None
+    if product_update.allergen_reviewed is not None:
+        product.allergen_reviewed = product_update.allergen_reviewed
     if product_update.category is not None:
         from .category_codes import normalize_product_category
 
@@ -5757,8 +5998,12 @@ def update_product(
             product.kitchen_station_id = int(val)
 
     session.add(product)
-    # Sync availability dates to linked TenantProduct(s) so customer menu stays consistent
-    if product_update.available_from is not None or product_update.available_until is not None:
+    # Sync availability to linked TenantProduct(s) so customer menu stays consistent.
+    if (
+        product_update.available_from is not None
+        or product_update.available_until is not None
+        or product_update.is_available is not None
+    ):
         linked = session.exec(
             select(models.TenantProduct).where(
                 models.TenantProduct.product_id == product.id,
@@ -5770,6 +6015,8 @@ def update_product(
                 tp.available_from = product_update.available_from
             if product_update.available_until is not None:
                 tp.available_until = product_update.available_until
+            if product_update.is_available is not None:
+                tp.is_active = product_update.is_available
             session.add(tp)
     session.commit()
     session.refresh(product)
@@ -6963,7 +7210,7 @@ def _courier_pickup_context(session: Session, tenant_id: int) -> tuple[str | Non
 
 
 def _courier_order_base_query(tenant_id: int):
-    """Marketplace (integration) or first-party Satisfecho Delivery orders."""
+    """Marketplace (integration) or first-party Scanaki Delivery orders."""
     return (
         select(models.Order)
         .where(
@@ -7194,7 +7441,7 @@ def courier_order_action(
             "action": action,
             "status": order.status.value,
             "courier_user_id": order.courier_user_id,
-            "table_name": "Satisfecho Delivery"
+            "table_name": "Scanaki Delivery"
             if _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value
             else "Delivery",
         },
@@ -8902,6 +9149,13 @@ def list_tables(
     tables = session.exec(
         select(models.Table).where(models.Table.tenant_id == current_user.tenant_id)
     ).all()
+    tables = sorted(
+        tables,
+        key=lambda row: [
+            int(part) if part.isdigit() else part.casefold()
+            for part in re.split(r"(\d+)", row.name)
+        ],
+    )
 
     # Resolve assigned waiter names (table-level and floor-level fallback)
     waiter_ids = set()
@@ -8930,9 +9184,17 @@ def list_tables(
         ).all()
         waiter_map = {w.id: (w.full_name or w.email) for w in waiters}
 
+    plaque_fields = smart_plaque_fields_by_table(
+        session,
+        int(current_user.tenant_id),
+        [int(t.id) for t in tables if t.id is not None],
+    )
     result = []
     for t in tables:
         d = t.model_dump()
+        d.update(plaque_fields.get(int(t.id), {}) if t.id is not None else {})
+        d["menu_url"] = d.get("smart_plaque_url") or _public_url_from_app_base(f"/menu/{t.token}")
+        d["nfc_payload"] = d["menu_url"]
         effective_waiter_id = t.assigned_waiter_id or floor_waiter_map.get(t.floor_id)
         d["assigned_waiter_name"] = waiter_map.get(t.assigned_waiter_id) if t.assigned_waiter_id else None
         d["effective_waiter_id"] = effective_waiter_id
@@ -9147,6 +9409,247 @@ def list_tables_with_status(
     return result
 
 
+class TableBulkCreate(_BaseModel):
+    prefix: str = Field(default="Table ", min_length=1, max_length=40)
+    start_number: int = Field(default=1, ge=0, le=9999)
+    count: int = Field(ge=1, le=100)
+    floor_id: int | None = None
+    seat_count: int = Field(default=4, ge=1, le=50)
+
+
+class TablePlaqueStatusUpdate(_BaseModel):
+    status: str = Field(max_length=32)
+    nfc_written: bool | None = None
+    nfc_locked: bool | None = None
+    tested: bool | None = None
+
+
+@app.post("/tables/bulk")
+def bulk_create_tables(
+    body: TableBulkCreate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> list[dict[str, Any]]:
+    location = location_svc.get_location(session, int(current_user.tenant_id), None)
+    location_svc.ensure_point_capacity(
+        session, int(current_user.tenant_id), additional_active=body.count
+    )
+    if body.floor_id is not None:
+        floor = session.get(models.Floor, body.floor_id)
+        if not floor or floor.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=400, detail="Floor does not belong to this tenant")
+    names = [f"{body.prefix}{body.start_number + offset}".strip() for offset in range(body.count)]
+    if len(set(name.casefold() for name in names)) != len(names):
+        raise HTTPException(status_code=400, detail="Generated table names are not unique")
+    existing = session.exec(
+        select(models.Table).where(models.Table.tenant_id == current_user.tenant_id)
+    ).all()
+    existing_names = {row.name.casefold() for row in existing}
+    collision = next((name for name in names if name.casefold() in existing_names), None)
+    if collision:
+        raise HTTPException(status_code=409, detail=f"Table already exists: {collision}")
+    rows = [
+        models.Table(
+            tenant_id=current_user.tenant_id,
+            name=name,
+            location_id=location.id,
+            service_point_type="table",
+            display_number=location_svc.display_number_from_name(name),
+            is_ordering_enabled=True,
+            floor_id=body.floor_id,
+            seat_count=body.seat_count,
+        )
+        for name in names
+    ]
+    session.add_all(rows)
+    session.commit()
+    for row in rows:
+        session.refresh(row)
+    return [
+        {
+            **row.model_dump(mode="json"),
+            "menu_url": _public_url_from_app_base(f"/menu/{row.token}"),
+            "nfc_payload": _public_url_from_app_base(f"/menu/{row.token}"),
+        }
+        for row in rows
+    ]
+
+
+@app.post("/tables/{table_id}/rotate-token")
+def rotate_table_token(
+    table_id: int,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    plaque = session.exec(
+        select(models.SmartPlaque).where(
+            models.SmartPlaque.table_id == table.id,
+            models.SmartPlaque.assigned_tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    table.token = str(uuid4())
+    table.token_rotated_at = datetime.now(timezone.utc)
+    table.plaque_status = "installed" if plaque else "needs_reprint"
+    table.plaque_last_tested_at = None
+    if plaque is None:
+        table.nfc_written_at = None
+        table.nfc_locked_at = None
+    session.add(table)
+    session.commit()
+    session.refresh(table)
+    menu_url = (
+        _public_url_from_app_base(f"/p/{plaque.public_code}")
+        if plaque
+        else _public_url_from_app_base(f"/menu/{table.token}")
+    )
+    return {
+        "id": table.id,
+        "token": table.token,
+        "menu_url": menu_url,
+        "nfc_payload": menu_url,
+        "plaque_status": table.plaque_status,
+        "token_rotated_at": table.token_rotated_at.isoformat(),
+    }
+
+
+@app.put("/tables/{table_id}/plaque-status")
+def update_table_plaque_status(
+    table_id: int,
+    body: TablePlaqueStatusUpdate,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    allowed = {"not_created", "printed", "nfc_written", "tested", "installed", "needs_reprint"}
+    plaque_status = body.status.strip().lower()
+    if plaque_status not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid plaque status")
+    table = session.exec(
+        select(models.Table).where(
+            models.Table.id == table_id,
+            models.Table.tenant_id == current_user.tenant_id,
+        )
+    ).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    now = datetime.now(timezone.utc)
+    table.plaque_status = plaque_status
+    if body.nfc_written is True:
+        table.nfc_written_at = now
+    elif body.nfc_written is False:
+        table.nfc_written_at = None
+        table.nfc_locked_at = None
+    if body.nfc_locked is True:
+        if table.nfc_written_at is None:
+            raise HTTPException(status_code=409, detail="Write the NFC tag before locking it")
+        table.nfc_locked_at = now
+    elif body.nfc_locked is False:
+        table.nfc_locked_at = None
+    if body.tested is True:
+        table.plaque_last_tested_at = now
+    elif body.tested is False:
+        table.plaque_last_tested_at = None
+    session.add(table)
+    session.commit()
+    session.refresh(table)
+    return table.model_dump(mode="json")
+
+
+@app.get("/tables/plaque-contact-sheet.pdf")
+def download_table_plaque_contact_sheet(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_READ))],
+    session: Session = Depends(get_session),
+) -> StreamingResponse:
+    """Printable QR proof sheet for plaque production and table-by-table testing."""
+    from reportlab.graphics import renderPDF
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen.canvas import Canvas
+
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    tables = session.exec(
+        select(models.Table).where(models.Table.tenant_id == current_user.tenant_id)
+    ).all()
+    tables = sorted(
+        tables,
+        key=lambda row: [
+            int(part) if part.isdigit() else part.casefold()
+            for part in re.split(r"(\d+)", row.name)
+        ],
+    )
+    if not tables:
+        raise HTTPException(status_code=404, detail="No tables found")
+
+    plaque_fields = smart_plaque_fields_by_table(
+        session,
+        int(current_user.tenant_id),
+        [int(table.id) for table in tables if table.id is not None],
+    )
+
+    output = BytesIO()
+    canvas = Canvas(output, pagesize=A4)
+    page_width, page_height = A4
+    margin = 32
+    cols, rows_per_page = 2, 4
+    cell_width = (page_width - margin * 2) / cols
+    cell_height = (page_height - margin * 2) / rows_per_page
+    for index, table in enumerate(tables):
+        slot = index % (cols * rows_per_page)
+        if slot == 0 and index:
+            canvas.showPage()
+        col = slot % cols
+        row = slot // cols
+        x = margin + col * cell_width
+        y = page_height - margin - (row + 1) * cell_height
+        smart_fields = plaque_fields.get(int(table.id), {}) if table.id is not None else {}
+        menu_url = smart_fields.get("smart_plaque_url") or _public_url_from_app_base(
+            f"/menu/{table.token}"
+        )
+        if not menu_url:
+            raise HTTPException(status_code=503, detail="PUBLIC_APP_BASE_URL is not configured")
+        canvas.roundRect(x + 6, y + 6, cell_width - 12, cell_height - 12, 8, stroke=1, fill=0)
+        canvas.setFont("Helvetica-Bold", 13)
+        canvas.drawString(x + 16, y + cell_height - 28, tenant.name[:36])
+        canvas.setFont("Helvetica-Bold", 18)
+        canvas.drawString(x + 16, y + cell_height - 52, table.name[:24])
+        qr = QrCodeWidget(menu_url, barLevel="H")
+        bounds = qr.getBounds()
+        size = min(118, cell_height - 78)
+        drawing = Drawing(size, size, transform=[size / (bounds[2] - bounds[0]), 0, 0, size / (bounds[3] - bounds[1]), 0, 0])
+        drawing.add(qr)
+        # Rendering a transformed Drawing can otherwise leak graphics state into
+        # the next card/page in some ReportLab builds.
+        canvas.saveState()
+        renderPDF.draw(drawing, canvas, x + 16, y + 18)
+        canvas.restoreState()
+        canvas.setFont("Helvetica", 8)
+        canvas.drawString(x + 142, y + 70, "Scan or tap to order")
+        canvas.setFont("Helvetica", 6.5)
+        canvas.drawString(x + 142, y + 56, menu_url[:38])
+        canvas.drawString(x + 142, y + 46, menu_url[38:76])
+        canvas.setFont("Helvetica-Bold", 9)
+        display_status = smart_fields.get("smart_plaque_status") or table.plaque_status
+        canvas.drawString(x + 142, y + 26, f"Plaque: {display_status}")
+    canvas.save()
+    output.seek(0)
+    filename = re.sub(r"[^A-Za-z0-9_-]+", "-", tenant.name).strip("-") or "scanaki"
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}-table-plaques.pdf"'},
+    )
+
+
 @app.post("/tables")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_admin_per_minute', 30)}/minute",
@@ -9158,10 +9661,33 @@ def create_table(
     current_user: Annotated[models.User, Depends(require_permission(Permission.TABLE_WRITE))],
     session: Session = Depends(get_session),
 ) -> JSONResponse:
+    location = location_svc.get_location(
+        session, int(current_user.tenant_id), table_data.location_id
+    )
+    point_type = (table_data.service_point_type or "table").strip().lower()
+    if point_type not in location_svc.SERVICE_POINT_TYPES:
+        raise HTTPException(status_code=400, detail="Ordering point type must be table or room")
+    if table_data.is_ordering_enabled:
+        location_svc.ensure_point_capacity(
+            session, int(current_user.tenant_id), additional_active=1
+        )
+    display_number = (
+        table_data.display_number or location_svc.display_number_from_name(table_data.name)
+    ).strip()
+    point_conflicts = session.exec(
+        select(models.Table).where(models.Table.location_id == location.id)
+    ).all()
+    if any((row.display_number or "").casefold() == display_number.casefold() for row in point_conflicts):
+        raise HTTPException(status_code=409, detail=f"Ordering point already exists: {display_number}")
     table = models.Table(
         name=table_data.name,
         tenant_id=current_user.tenant_id,
         floor_id=table_data.floor_id,
+        location_id=location.id,
+        service_point_type=point_type,
+        display_number=display_number,
+        customer_label=(table_data.customer_label or "").strip() or None,
+        is_ordering_enabled=table_data.is_ordering_enabled,
     )
     session.add(table)
     session.commit()
@@ -9196,6 +9722,37 @@ def update_table(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
+    original_location_id = table.location_id
+
+    if table_update.is_ordering_enabled is True and not table.is_ordering_enabled:
+        location_svc.ensure_point_capacity(
+            session, int(current_user.tenant_id), additional_active=1
+        )
+    if table_update.location_id is not None:
+        location_svc.get_location(
+            session, int(current_user.tenant_id), table_update.location_id
+        )
+    next_type = table_update.service_point_type or table.service_point_type
+    if next_type not in location_svc.SERVICE_POINT_TYPES:
+        raise HTTPException(status_code=400, detail="Ordering point type must be table or room")
+    next_location_id = table_update.location_id or table.location_id
+    if table_update.display_number is not None and not table_update.display_number.strip():
+        raise HTTPException(status_code=400, detail="Ordering point number is required")
+    next_display_number = (
+        table_update.display_number.strip()
+        if table_update.display_number is not None
+        else table.display_number
+    )
+    if next_location_id is not None and next_display_number:
+        conflicts = session.exec(
+            select(models.Table).where(
+                models.Table.location_id == next_location_id,
+                models.Table.id != table.id,
+            )
+        ).all()
+        if any((row.display_number or "").casefold() == next_display_number.casefold() for row in conflicts):
+            raise HTTPException(status_code=409, detail=f"Ordering point already exists: {next_display_number}")
+
     # Update all provided fields
     if table_update.name is not None:
         table.name = table_update.name
@@ -9220,6 +9777,20 @@ def update_table(
         table.height = table_update.height
     if table_update.seat_count is not None:
         table.seat_count = table_update.seat_count
+    if table_update.location_id is not None:
+        table.location_id = table_update.location_id
+    if table_update.service_point_type is not None:
+        table.service_point_type = table_update.service_point_type
+    if table_update.display_number is not None:
+        table.display_number = table_update.display_number.strip()
+    if table_update.customer_label is not None:
+        table.customer_label = table_update.customer_label.strip() or None
+    if table_update.is_ordering_enabled is not None:
+        table.is_ordering_enabled = table_update.is_ordering_enabled
+    if table.location_id != original_location_id:
+        table.token = str(uuid4())
+        table.token_rotated_at = datetime.now(timezone.utc)
+        table.plaque_last_tested_at = None
 
     session.add(table)
     session.commit()
@@ -9464,6 +10035,11 @@ def delete_table(
             ).all()
         )
 
+    release_smart_plaque_for_deleted_table(
+        session,
+        table,
+        actor_user_id=current_user.id,
+    )
     session.delete(table)
 
     if gid:
@@ -9571,8 +10147,15 @@ def _grid_slot_times_for_windows(
     for open_t, close_t in windows:
         om = open_t.hour * 60 + open_t.minute
         cm = close_t.hour * 60 + close_t.minute
+        # A close at or before opening represents an overnight window (for
+        # example 14:00-00:00). Reservations belong to the opening calendar
+        # date, so generate same-day starts up to midnight.
+        if cm <= om:
+            cm += 24 * 60
         t = ((om + step - 1) // step) * step
         while t < cm:
+            if t >= 24 * 60:
+                break
             slot = time(t // 60, t % 60)
             if _reservation_time_allowed_before_closing(slot, close_t):
                 key = slot.hour * 60 + slot.minute
@@ -11754,6 +12337,9 @@ def close_table(
                 current_user.tenant_id, {"type": "reservation_finished", "reservation": out}
             )
 
+    # Drop ephemeral shared draft cart for this table
+    table_cart_svc.clear_cart(get_redis(), table_id)
+
     # Notify connected customers via WebSocket that the table has been closed
     publish_order_update(
         tenant_id=current_user.tenant_id,
@@ -11937,7 +12523,9 @@ def get_menu(
     try:
         result = session.execute(
             text("""
-            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id
+            SELECT id, tenant_id, name, token, is_active, order_pin, active_order_id,
+                   location_id, service_point_type, display_number, customer_label,
+                   is_ordering_enabled, assignment_version
             FROM "table"
             WHERE token = :token
         """),
@@ -11958,7 +12546,9 @@ def get_menu(
 
     # Create a simple object with the needed attributes
     class TableData:
-        def __init__(self, id, tenant_id, name, token, is_active, order_pin, active_order_id):
+        def __init__(self, id, tenant_id, name, token, is_active, order_pin, active_order_id,
+                     location_id, service_point_type, display_number, customer_label,
+                     is_ordering_enabled, assignment_version):
             self.id = id
             self.tenant_id = tenant_id
             self.name = name
@@ -11966,6 +12556,12 @@ def get_menu(
             self.is_active = is_active or False
             self.order_pin = order_pin
             self.active_order_id = active_order_id
+            self.location_id = location_id
+            self.service_point_type = service_point_type or "table"
+            self.display_number = display_number
+            self.customer_label = customer_label
+            self.is_ordering_enabled = bool(is_ordering_enabled)
+            self.assignment_version = assignment_version or 1
 
     table = TableData(
         table_row[0],
@@ -11975,13 +12571,25 @@ def get_menu(
         table_row[4],
         table_row[5],
         table_row[6],
+        table_row[7],
+        table_row[8],
+        table_row[9],
+        table_row[10],
+        table_row[11],
+        table_row[12],
     )
 
-    if not table.is_active:
+    tenant = session.get(models.Tenant, table.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    ordering_mode = normalize_ordering_mode(tenant.ordering_mode)
+    location, ordering_context = location_svc.location_context(session, table)
+    availability = ordering_availability(
+        session, tenant, location=location, point=table
+    )
+
+    if ordering_mode == "activation_pin" and not table.is_active:
         # Return tenant/table info so the frontend can show a branded "table closed" page
-        tenant = session.exec(
-            select(models.Tenant).where(models.Tenant.id == table.tenant_id)
-        ).first()
         raise HTTPException(
             status_code=403,
             detail={
@@ -11993,6 +12601,7 @@ def get_menu(
                 "tenant_header_background_filename": tenant.header_background_filename if tenant else None,
                 "tenant_id": table.tenant_id,
                 "tenant_public_background_color": tenant.public_background_color if tenant else None,
+                **ordering_context,
             },
         )
 
@@ -12005,12 +12614,25 @@ def get_menu(
     ).all()
 
     legacy_products = session.exec(
-        select(models.Product).where(models.Product.tenant_id == table.tenant_id)
+        select(models.Product).where(
+            models.Product.tenant_id == table.tenant_id,
+            models.Product.is_available == True,
+        )
     ).all()
 
-    tenant = session.exec(
-        select(models.Tenant).where(models.Tenant.id == table.tenant_id)
-    ).first()
+    unavailable_product_ids = set(
+        session.exec(
+            select(models.Product.id).where(
+                models.Product.tenant_id == table.tenant_id,
+                models.Product.is_available == False,
+            )
+        ).all()
+    )
+    tenant_products = [
+        tp
+        for tp in tenant_products
+        if tp.product_id is None or tp.product_id not in unavailable_product_ids
+    ]
 
     # Customer-facing: only show products available today (within available_from..available_until)
     try:
@@ -12026,6 +12648,9 @@ def get_menu(
         return True
     tenant_products = [tp for tp in tenant_products if _is_available(tp.available_from, tp.available_until)]
     legacy_products = [p for p in legacy_products if _is_available(p.available_from, p.available_until)]
+    location_tp_overrides, location_product_overrides = location_svc.menu_override_maps(
+        session, location
+    )
 
     linked_legacy_product_ids = {
         tp.product_id for tp in tenant_products if tp.product_id is not None
@@ -12109,8 +12734,13 @@ def get_menu(
         # Get the actual product record to check for customized description
         if tp.product_id:
             custom_product = session.get(models.Product, tp.product_id)
-            if custom_product and custom_product.description:
-                product_data["description"] = custom_product.description
+            if custom_product:
+                if custom_product.description:
+                    product_data["description"] = custom_product.description
+                product_data["allergens"] = custom_product.allergens or []
+                product_data["dietary_tags"] = custom_product.dietary_tags or []
+                product_data["allergen_notes"] = custom_product.allergen_notes
+                product_data["allergen_reviewed"] = custom_product.allergen_reviewed
 
         # Add translations for tenant product
         if lang != "en":  # Only add if different from default
@@ -12317,7 +12947,10 @@ def get_menu(
             if provider_product.elaboration:
                 product_data["elaboration"] = provider_product.elaboration
 
-        products_list.append(product_data)
+        if location_svc.apply_menu_override(
+            product_data, location_tp_overrides.get(int(tp.id)), today=today
+        ):
+            products_list.append(product_data)
 
     # Add legacy Products (skip rows already represented via TenantProduct.product_id)
     for lp in legacy_products:
@@ -12331,6 +12964,10 @@ def get_menu(
             "image_filename": lp.image_filename,
             "tenant_id": lp.tenant_id,
             "ingredients": lp.ingredients,
+            "allergens": lp.allergens or [],
+            "dietary_tags": lp.dietary_tags or [],
+            "allergen_notes": lp.allergen_notes,
+            "allergen_reviewed": lp.allergen_reviewed,
             "category": lp.category,
             "subcategory": lp.subcategory,
             "_source": "product",
@@ -12375,7 +13012,10 @@ def get_menu(
         # Product customization questions
         product_data["questions"] = questions_by_product.get(lp.id, [])
 
-        products_list.append(product_data)
+        if location_svc.apply_menu_override(
+            product_data, location_product_overrides.get(int(lp.id)), today=today
+        ):
+            products_list.append(product_data)
 
     # Live promo prices for QR menu (#322)
     eligible_promos = promo_svc.eligible_promos(
@@ -12422,17 +13062,34 @@ def get_menu(
                 or (settings.revolut_merchant_secret and settings.revolut_merchant_secret.strip())
             )
         ),
-        "tenant_immediate_payment_required": tenant.immediate_payment_required
+        "tenant_immediate_payment_required": (
+            tenant.immediate_payment_required or ordering_mode == "automatic"
+        )
         if tenant
         else False,
+        "tenant_stripe_connected_account_id": (
+            tenant.stripe_connected_account_id
+            if tenant and tenant.stripe_payment_mode == "connect"
+            else None
+        ),
+        "ordering_mode": ordering_mode,
+        "ordering_availability": availability,
+        **ordering_context,
         "tenant_public_background_color": tenant.public_background_color if tenant else None,
         # Table session status (take-away/home ordering tables do not require PIN; staff_access also skips PIN)
-        "table_is_active": table.is_active,
+        "table_is_active": table.is_active if ordering_mode == "activation_pin" else True,
         "table_requires_pin": False
-        if _is_take_away_table(table)
+        if ordering_mode != "activation_pin"
+        or _is_take_away_table(table)
         or (staff_access and _verify_staff_menu_token(table.token, staff_access))
         else (table.is_active and table.order_pin is not None),
         "active_order_id": table.active_order_id,
+        # Shared draft cart: dine-in activated tables only (not take-away). Needs Redis.
+        "table_shared_cart": bool(
+            ordering_mode == "activation_pin"
+            and table.is_active
+            and not _is_take_away_table(table)
+        ),
         "products": products_list,
     }
 
@@ -12468,6 +13125,212 @@ def get_menu(
                 tenant_data["display_tenant_address"] = display_address
 
     return JSONResponse(content=tenant_data)
+
+
+# ============ PUBLIC: SHARED TABLE DRAFT CART (#349) ============
+
+
+class TableCartItemCreate(_BaseModel):
+    session_id: str = Field(min_length=8, max_length=128)
+    customer_name: str | None = Field(default=None, max_length=120)
+    product_id: int
+    quantity: int = Field(default=1, ge=1, le=99)
+    notes: str | None = Field(default=None, max_length=500)
+    source: str | None = None
+    customization_answers: dict[str, Any] | None = None
+
+
+class TableCartItemUpdate(_BaseModel):
+    session_id: str = Field(min_length=8, max_length=128)
+    quantity: int | None = Field(default=None, ge=0, le=99)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+def _table_allows_shared_cart(
+    table: models.Table,
+    tenant: models.Tenant | None = None,
+    session: Session | None = None,
+) -> bool:
+    if tenant is None and session is not None:
+        tenant = session.get(models.Tenant, table.tenant_id)
+    if tenant is not None and normalize_ordering_mode(tenant.ordering_mode) != "activation_pin":
+        return False
+    return bool(table.is_active and not _is_take_away_table(table))
+
+
+def _resolve_menu_cart_product(
+    session: Session, tenant_id: int, product_id: int, source: str | None
+) -> tuple[str, int]:
+    """Return (product_name, price_cents) for a menu cart line. Raises HTTPException if missing."""
+    if source == "tenant_product" or source is None:
+        tp = session.exec(
+            select(models.TenantProduct).where(
+                models.TenantProduct.id == product_id,
+                models.TenantProduct.tenant_id == tenant_id,
+            )
+        ).first()
+        if tp:
+            price = tp.price_cents
+            if price is None and tp.product_id:
+                linked = session.get(models.Product, tp.product_id)
+                price = linked.price_cents if linked else None
+            if price is None:
+                raise HTTPException(status_code=400, detail=f"Menu item «{tp.name}» has no price.")
+            return tp.name, int(price)
+        if source == "tenant_product":
+            raise HTTPException(status_code=400, detail=f"TenantProduct {product_id} not found")
+
+    product = session.exec(
+        select(models.Product).where(
+            models.Product.id == product_id,
+            models.Product.tenant_id == tenant_id,
+        )
+    ).first()
+    if not product:
+        raise HTTPException(status_code=400, detail=f"Product {product_id} not found")
+    return product.name, int(product.price_cents)
+
+
+def _cart_response(shared: bool, cart: dict, *, reason: str | None = None) -> JSONResponse:
+    payload: dict[str, Any] = {
+        "shared": shared,
+        "items": cart.get("items") or [] if shared else [],
+        "updated_at": cart.get("updated_at"),
+    }
+    if reason:
+        payload["reason"] = reason
+    return JSONResponse(content=payload)
+
+
+def _publish_cart_updated(table: models.Table) -> None:
+    publish_order_update(
+        table.tenant_id,
+        {"type": "cart_updated", "table_id": table.id},
+        table_id=table.id,
+    )
+
+
+@app.get("/menu/{table_token}/cart")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def get_table_cart(
+    request: Request,
+    table_token: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Shared draft cart for an activated dine-in table (Redis). Local-only when disabled."""
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table, session=session):
+        return _cart_response(False, {}, reason="local_only")
+    r = get_redis()
+    if r is None:
+        return _cart_response(False, {}, reason="redis_unavailable")
+    return _cart_response(True, table_cart_svc.load_cart(r, table.id))
+
+
+@app.post("/menu/{table_token}/cart/items")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def add_table_cart_item(
+    request: Request,
+    table_token: str,
+    body: TableCartItemCreate,
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table, session=session):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    name, price = _resolve_menu_cart_product(
+        session, table.tenant_id, body.product_id, body.source
+    )
+    cart = table_cart_svc.add_item(
+        r,
+        table.id,
+        session_id=body.session_id.strip(),
+        customer_name=(body.customer_name or "").strip() or None,
+        product_id=body.product_id,
+        product_name=name,
+        price_cents=price,
+        quantity=body.quantity,
+        notes=body.notes,
+        source=body.source,
+        customization_answers=body.customization_answers,
+    )
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
+
+
+@app.put("/menu/{table_token}/cart/items/{line_id}")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def update_table_cart_item(
+    request: Request,
+    table_token: str,
+    line_id: str,
+    body: TableCartItemUpdate,
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table, session=session):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    cart = table_cart_svc.update_item(
+        r,
+        table.id,
+        line_id,
+        session_id=body.session_id.strip(),
+        quantity=body.quantity,
+        notes=body.notes,
+    )
+    if cart is None:
+        raise HTTPException(status_code=404, detail="Cart line not found or not owned by this session")
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
+
+
+@app.delete("/menu/{table_token}/cart/items/{line_id}")
+@limiter.limit(
+    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+)
+def delete_table_cart_item(
+    request: Request,
+    table_token: str,
+    line_id: str,
+    session_id: str = Query(..., min_length=8, max_length=128),
+    session: Session = Depends(get_session),
+) -> dict:
+    table = session.exec(select(models.Table).where(models.Table.token == table_token)).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not _table_allows_shared_cart(table, session=session):
+        raise HTTPException(status_code=400, detail="Shared cart is not available for this table")
+    r = get_redis()
+    if r is None:
+        raise HTTPException(status_code=503, detail="Shared cart temporarily unavailable")
+
+    cart = table_cart_svc.remove_item(
+        r, table.id, line_id, session_id=session_id.strip()
+    )
+    if cart is None:
+        raise HTTPException(status_code=404, detail="Cart line not found or not owned by this session")
+    _publish_cart_updated(table)
+    return _cart_response(True, cart)
 
 
 @app.get("/menu/{table_token}/order")
@@ -12566,6 +13429,10 @@ def get_current_order(
             "session_id": active_order.session_id,
             "customer_name": active_order.customer_name,
             "created_at": active_order.created_at.isoformat(),
+            "location_id": active_order.location_id,
+            "location_name": active_order.location_name_snapshot,
+            "service_point_type": active_order.service_point_type_snapshot,
+            "service_point_label": active_order.service_point_label_snapshot,
             "items": [
                 {
                     "id": item.id,
@@ -12590,6 +13457,44 @@ def get_current_order(
     return JSONResponse(content=payload)
 
 
+def _menu_order_history_session_scope(session_id: str):
+    """Orders where this browser session contributed items (shared table model)."""
+    sid = session_id.strip()
+    return or_(
+        models.Order.session_id == sid,
+        exists(
+            select(models.OrderItem.id).where(
+                models.OrderItem.order_id == models.Order.id,
+                models.OrderItem.added_by_session == sid,
+                models.OrderItem.removed_by_customer == False,
+            )
+        ),
+    )
+
+
+def _menu_order_history_items_for_viewer(
+    session: Session,
+    order: models.Order,
+    session_id: str,
+    customer: models.Customer | None,
+) -> list[models.OrderItem]:
+    items = session.exec(
+        select(models.OrderItem).where(
+            models.OrderItem.order_id == order.id,
+            models.OrderItem.removed_by_customer == False,
+        )
+    ).all()
+    if customer and order.customer_id == customer.id:
+        return items
+    sid = session_id.strip()
+    scoped = [
+        item
+        for item in items
+        if item.added_by_session == sid or (item.added_by_session is None and order.session_id == sid)
+    ]
+    return scoped
+
+
 @app.get("/menu/{table_token}/order-history")
 @limiter.limit(
     f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
@@ -12597,41 +13502,63 @@ def get_current_order(
 def get_table_order_history(
     request: Request,
     table_token: str,
+    session_id: str = Query(..., min_length=8, max_length=128),
     limit: int = Query(10, ge=1, le=50),
+    customer: Annotated[
+        models.Customer | None, Depends(security.get_current_customer_optional)
+    ] = None,
     session: Session = Depends(get_session),
 ) -> list[dict]:
-    """Public endpoint - recent paid/completed orders for this table (for customer order history)."""
+    """Public endpoint — paid/completed orders scoped to session or logged-in customer (#350)."""
     table = session.exec(
         select(models.Table).where(models.Table.token == table_token)
     ).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    orders = session.exec(
-        select(models.Order)
-        .where(
+    sid = session_id.strip()
+    session_scope = _menu_order_history_session_scope(sid)
+    if customer:
+        scope_filter = or_(
+            models.Order.customer_id == customer.id,
+            session_scope,
+        )
+        base_filters = [
+            models.Order.tenant_id == table.tenant_id,
+            models.Order.deleted_at.is_(None),
+            models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.completed]),
+            scope_filter,
+        ]
+    else:
+        base_filters = [
             models.Order.table_id == table.id,
             models.Order.deleted_at.is_(None),
             models.Order.status.in_([models.OrderStatus.paid, models.OrderStatus.completed]),
-        )
+            session_scope,
+        ]
+
+    orders = session.exec(
+        select(models.Order)
+        .where(*base_filters)
         .order_by(models.Order.created_at.desc())
         .limit(limit)
     ).all()
 
     result = []
     for order in orders:
-        items = session.exec(
-            select(models.OrderItem).where(
-                models.OrderItem.order_id == order.id,
-                models.OrderItem.removed_by_customer == False,
-            )
-        ).all()
+        items = _menu_order_history_items_for_viewer(session, order, sid, customer)
+        if not items:
+            continue
         total_cents = sum(item.price_cents * item.quantity for item in items)
         result.append({
             "id": order.id,
             "status": order.status.value,
             "created_at": order.created_at.isoformat(),
             "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+            "location_id": order.location_id,
+            "location_name": order.location_name_snapshot,
+            "service_point_type": order.service_point_type_snapshot,
+            "service_point_label": order.service_point_label_snapshot,
             "items": [
                 {
                     "id": item.id,
@@ -12796,6 +13723,9 @@ def create_order(
     table_token: str,
     order_data: models.OrderCreate,
     request: Request,
+    customer: Annotated[
+        models.Customer | None, Depends(security.get_current_customer_optional)
+    ] = None,
     session: Session = Depends(get_session),
 ) -> dict:
     """Public endpoint - add items to the table's shared order."""
@@ -12811,10 +13741,79 @@ def create_order(
 
     # Get tenant for location verification
     tenant = session.get(models.Tenant, table.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    ordering_mode = normalize_ordering_mode(tenant.ordering_mode)
+    location, ordering_context = location_svc.location_context(session, table)
+
+    if (
+        order_data.ordering_point_assignment_version is not None
+        and order_data.ordering_point_assignment_version != int(table.assignment_version or 1)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "STALE_ORDERING_POINT",
+                "message": "This QR/NFC plaque assignment changed. Please scan or tap it again.",
+            },
+        )
+    if order_data.location_confirmed is False:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirm the table or room before placing the order",
+        )
+
+    if order_data.idempotency_key:
+        existing_checkout = session.exec(
+            select(models.Order).where(
+                models.Order.tenant_id == table.tenant_id,
+                models.Order.public_idempotency_key == order_data.idempotency_key,
+            )
+        ).first()
+        if existing_checkout:
+            if existing_checkout.table_id != table.id:
+                raise HTTPException(status_code=409, detail="Idempotency key belongs to another table")
+            if (
+                existing_checkout.ordering_point_assignment_version_snapshot is not None
+                and existing_checkout.ordering_point_assignment_version_snapshot
+                != int(table.assignment_version or 1)
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "STALE_ORDERING_POINT",
+                        "message": "This QR/NFC plaque assignment changed. Please scan or tap it again.",
+                    },
+                )
+            return JSONResponse(
+                content={
+                    "status": "existing",
+                    "order_id": existing_checkout.id,
+                    "session_id": existing_checkout.session_id,
+                    "customer_name": existing_checkout.customer_name,
+                    "payment_required": bool(
+                        existing_checkout.requires_prepayment
+                        and existing_checkout.kitchen_released_at is None
+                    ),
+                    "payment_state": existing_checkout.payment_state,
+                }
+            )
+
+    if ordering_mode == "automatic" and not order_data.idempotency_key:
+        raise HTTPException(status_code=400, detail="idempotency_key is required")
+    if ordering_mode == "automatic" and not (order_data.session_id or "").strip():
+        raise HTTPException(status_code=400, detail="session_id is required")
+
+    availability = ordering_availability(
+        session, tenant, location=location, point=table
+    )
+    if not availability["allowed"]:
+        status_code = 503 if availability["code"] == "KDS_OFFLINE" else 409
+        raise HTTPException(status_code=status_code, detail=availability)
 
     # ============ TABLE ACTIVATION & PIN VALIDATION ============
     # Check if table is active (staff has opened it)
-    if not table.is_active:
+    if ordering_mode == "activation_pin" and not table.is_active:
         raise HTTPException(
             status_code=403, 
             detail="Table is not accepting orders. Please ask staff to activate the table."
@@ -12822,7 +13821,11 @@ def create_order(
 
     # Validate PIN (with rate limiting). Skip for take-away/home ordering tables or valid staff_access.
     staff_skip_pin = order_data.staff_access and _verify_staff_menu_token(table_token, order_data.staff_access)
-    if not _is_take_away_table(table) and not staff_skip_pin:
+    if (
+        ordering_mode == "activation_pin"
+        and not _is_take_away_table(table)
+        and not staff_skip_pin
+    ):
         redis_conn = get_redis()
         attempts_key = None
         lock_key = None
@@ -12873,7 +13876,7 @@ def create_order(
     # Order is created when table is activated only as a slot; we create it on first item add.
     # If no active order yet, we will create one below (requires at least one item).
     order = None
-    if table.active_order_id:
+    if ordering_mode == "activation_pin" and table.active_order_id:
         order = session.get(models.Order, table.active_order_id)
         if order and order.status in (
             models.OrderStatus.paid,
@@ -12892,17 +13895,38 @@ def create_order(
             table_id=table.id,
             tenant_id=table.tenant_id,
             status=models.OrderStatus.pending,
-            session_id=None,
+            session_id=(order_data.session_id or "").strip() or None
+            if ordering_mode == "automatic"
+            else None,
+            requires_prepayment=bool(
+                tenant.immediate_payment_required or ordering_mode == "automatic"
+            ),
+            payment_state=(
+                "created"
+                if tenant.immediate_payment_required or ordering_mode == "automatic"
+                else None
+            ),
+            public_idempotency_key=order_data.idempotency_key,
+        )
+        location_svc.snapshot_order_context(
+            new_order, table, tenant, location
         )
         session.add(new_order)
         session.flush()
-        table.active_order_id = new_order.id
-        session.add(table)
-        session.flush()
+        if ordering_mode == "activation_pin":
+            table.active_order_id = new_order.id
+            session.add(table)
+            session.flush()
         order = new_order
         is_new_order = True
     else:
         is_new_order = False
+
+    if order.checkout_locked_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Checkout is locked because payment has already started",
+        )
 
     logger.debug(
         "POST /menu/.../order table_id=%s name=%s active=%s order_id=%s new=%s",
@@ -12940,6 +13964,9 @@ def create_order(
     # Update customer name if provided (for display purposes)
     if order_data.customer_name and not order.customer_name:
         order.customer_name = order_data.customer_name
+
+    if customer and not order.customer_id:
+        order.customer_id = customer.id
 
     # Append notes if provided
     order_note = normalize_order_note(order_data.notes)
@@ -13080,6 +14107,18 @@ def create_order(
             price_cents=price_cents,
             product_name=product_name,
         )
+        price_cents = location_svc.effective_line_price(
+            session,
+            location,
+            tenant_product_id=(
+                int(line_tenant_product.id)
+                if line_tenant_product is not None and line_tenant_product.id is not None
+                else None
+            ),
+            product_id=effective_product_id,
+            base_price_cents=price_cents,
+            on_date=order_date,
+        )
 
         # Apply eligible line promo (#322) — discount tax-inclusive list price, recompute tax
         product_category = None
@@ -13186,7 +14225,11 @@ def create_order(
 
     # Auto-deduct inventory if enabled for tenant
     tenant = session.get(models.Tenant, table.tenant_id)
-    if tenant and getattr(tenant, "inventory_tracking_enabled", False):
+    if (
+        tenant
+        and getattr(tenant, "inventory_tracking_enabled", False)
+        and not order.requires_prepayment
+    ):
         try:
             deduct_inventory_for_order(session, order, tenant)
             session.commit()
@@ -13195,20 +14238,32 @@ def create_order(
             # Log but don't fail the order - inventory can go negative
             logger.warning(f"Inventory deduction warning for order #{order.id}: {e}")
 
-    # Publish to Redis for real-time updates
-    publish_order_update(table.tenant_id, {
-        "type": "new_order" if is_new_order else "items_added",
-        "order_id": order.id,
-        "table_name": table.name,
-        "status": order.status.value,
-        "created_at": order.created_at.isoformat()
-    }, table_id=table.id)
+    # Prepayment checkouts stay invisible to staff/KDS until a signed Stripe event releases them.
+    if not order.requires_prepayment or order.kitchen_released_at is not None:
+        publish_order_update(table.tenant_id, {
+            "type": "new_order" if is_new_order else "items_added",
+            "order_id": order.id,
+            "table_name": table.name,
+            "status": order.status.value,
+            "created_at": order.created_at.isoformat(),
+            **ordering_context,
+        }, table_id=table.id)
+
+    # Remove this device's draft cart lines after they were submitted to the shared order
+    if order_data.session_id and _table_allows_shared_cart(table, tenant=tenant):
+        table_cart_svc.remove_session_items(get_redis(), table.id, order_data.session_id.strip())
+        _publish_cart_updated(table)
 
     return JSONResponse(content={
         "status": "created" if is_new_order else "updated",
         "order_id": order.id,
         "session_id": order.session_id,
         "customer_name": order.customer_name,
+        "payment_required": bool(
+            order.requires_prepayment and order.kitchen_released_at is None
+        ),
+        "payment_state": order.payment_state,
+        **ordering_context,
     })
 
 
@@ -13248,6 +14303,12 @@ def request_payment(
     order = session.get(models.Order, order_id)
     if not order or order.table_id != table.id:
         raise HTTPException(status_code=404, detail="Order not found for this table.")
+
+    if order.requires_prepayment:
+        raise HTTPException(
+            status_code=409,
+            detail="This order must be paid online before it can be sent to the kitchen.",
+        )
 
     if order.status == models.OrderStatus.paid:
         raise HTTPException(status_code=400, detail="Order is already paid.")
@@ -13648,7 +14709,12 @@ def create_satisfecho_delivery_order_endpoint(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_UPDATE_STATUS))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Staff: create a first-party Satisfecho Delivery order (no table / marketplace)."""
+    """Staff: create a first-party Scanaki Delivery order (no table / marketplace)."""
+    tenant = session.get(models.Tenant, current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if not tenant.delivery_enabled:
+        raise HTTPException(status_code=403, detail="delivery_disabled")
     if not body.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
     address = (body.delivery_address or "").strip()
@@ -13711,7 +14777,7 @@ def update_order_delivery(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_UPDATE_STATUS))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Staff: update delivery metadata on a Satisfecho Delivery order."""
+    """Staff: update delivery metadata on a Scanaki Delivery order."""
     order = session.exec(
         select(models.Order).where(
             models.Order.id == order_id,
@@ -13723,7 +14789,7 @@ def update_order_delivery(
     if _order_channel_value(order) != models.OrderChannel.satisfecho_delivery.value:
         raise HTTPException(
             status_code=400,
-            detail="Only Satisfecho Delivery orders can update delivery fields via this endpoint",
+            detail="Only Scanaki Delivery orders can update delivery fields via this endpoint",
         )
 
     updates = body.model_dump(exclude_unset=True)
@@ -13785,14 +14851,25 @@ def update_order_delivery(
 def list_orders(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     include_removed: bool = Query(False, description="Include removed items in response"),
+    kitchen_released_only: bool = Query(
+        False,
+        description="Hide public prepayment checkouts until payment releases them to KDS",
+    ),
     session: Session = Depends(get_session)
 ) -> list[dict]:
-    orders = session.exec(
+    order_query = (
         select(models.Order)
         .where(models.Order.tenant_id == current_user.tenant_id)
         .where(models.Order.deleted_at.is_(None))
-        .order_by(models.Order.created_at.desc())
-    ).all()
+    )
+    if kitchen_released_only:
+        order_query = order_query.where(
+            or_(
+                models.Order.requires_prepayment == False,
+                models.Order.kitchen_released_at.is_not(None),
+            )
+        )
+    orders = session.exec(order_query.order_by(models.Order.created_at.desc())).all()
 
     tenant_row = session.get(models.Tenant, current_user.tenant_id)
     station_rows = session.exec(
@@ -13815,6 +14892,16 @@ def list_orders(
     result = []
     for order in orders:
         table = session.exec(select(models.Table).where(models.Table.id == order.table_id)).first()
+        table_location = (
+            session.get(models.TenantLocation, table.location_id)
+            if table and table.location_id
+            else None
+        )
+        location_station_override = (
+            order.kitchen_station_id_snapshot
+            if table_location and table_location.kitchen_mode == "override"
+            else None
+        )
         
         # Get items, optionally including removed ones
         if include_removed:
@@ -13895,7 +14982,12 @@ def list_orders(
         for oi in items:
             prod = product_map.get(oi.product_id) if product_map else None
             if tenant_row:
-                kid, knm, krt = resolve_order_item_kds(prod, tenant_row, station_by_id)
+                kid, knm, krt = resolve_order_item_kds(
+                    prod,
+                    tenant_row,
+                    station_by_id,
+                    location_default_station_id=location_station_override,
+                )
             else:
                 kid, knm, krt = None, None, "kitchen"
             order_items_json.append(
@@ -13930,7 +15022,7 @@ def list_orders(
         channel = _order_channel_value(order)
         table_display = "Unknown"
         if channel == models.OrderChannel.satisfecho_delivery.value:
-            table_display = "Satisfecho Delivery"
+            table_display = "Scanaki Delivery"
         elif getattr(order, "delivery_integration_id", None) or channel == models.OrderChannel.marketplace.value:
             table_display = "Delivery"
         elif table:
@@ -13941,6 +15033,21 @@ def list_orders(
             "table_name": table_display,
             "table_id": table.id if table else None,
             "table_token": table.token if table else None,
+            "location_id": order.location_id,
+            "location_name": (
+                order.location_name_snapshot
+                or (table_location.display_name if table_location else None)
+            ),
+            "service_point_type": (
+                order.service_point_type_snapshot
+                or (table.service_point_type if table else None)
+            ),
+            "service_point_label": (
+                order.service_point_label_snapshot
+                or (location_svc.service_point_label(table) if table else table_display)
+            ),
+            "kitchen_station_id_snapshot": order.kitchen_station_id_snapshot,
+            "payment_account_snapshot": order.payment_account_snapshot,
             "status": computed_status.value,
             "notes": order.notes,
             "session_id": order.session_id,
@@ -13948,6 +15055,13 @@ def list_orders(
             "billing_customer_id": order.billing_customer_id,
             "billing_customer": billing_customer,
             "created_at": order.created_at.isoformat(),
+            "kitchen_released_at": (
+                order.kitchen_released_at.isoformat()
+                if order.kitchen_released_at
+                else None
+            ),
+            "requires_prepayment": bool(order.requires_prepayment),
+            "payment_state": order.payment_state,
             "paid_at": order.paid_at.isoformat() if order.paid_at else None,
             "payment_method": order.payment_method,
             "staff_urgent": bool(getattr(order, "staff_urgent", False)),
@@ -14000,6 +15114,7 @@ def update_order_status(
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
 
@@ -14069,6 +15184,7 @@ def mark_order_paid(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.status == models.OrderStatus.paid or order.paid_at:
@@ -14297,6 +15413,7 @@ def finish_order(
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.status == models.OrderStatus.paid or order.paid_at:
@@ -15415,6 +16532,12 @@ def remove_order_item(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    if order.checkout_locked_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This checkout is locked. Return to payment or start a new order.",
+        )
+
     # Security: Validate that order belongs to this session
     # If order has a session_id, request must provide matching session_id
     if order.session_id and order.session_id != session_id:
@@ -15507,6 +16630,12 @@ def update_order_item_quantity(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    if order.checkout_locked_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This checkout is locked. Return to payment or start a new order.",
+        )
+
     # Security: Validate that order belongs to this session
     # If order has a session_id, request must provide matching session_id
     if order.session_id and order.session_id != session_id:
@@ -15600,6 +16729,12 @@ def cancel_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    if order.checkout_locked_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This checkout is locked. Return to payment or start a new order.",
+        )
+
     # Security: Validate that order belongs to this session
     # If order has a session_id, request must provide matching session_id
     if order.session_id and order.session_id != session_id:
@@ -15706,6 +16841,173 @@ def _revolut_retrieve_order(secret: str, revolut_order_id: str) -> dict:
 # ============ PAYMENTS (Public - for customer checkout) ============
 
 
+def _stripe_object_value(obj: object, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def _release_paid_stripe_order(
+    session: Session,
+    *,
+    order_id: int,
+    payment_intent: object,
+) -> tuple[models.Order, bool]:
+    """Validate a successful intent and atomically release its checkout to the kitchen."""
+    order = session.exec(
+        select(models.Order).where(models.Order.id == order_id).with_for_update()
+    ).first()
+    if not order or order.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    intent_id = str(_stripe_object_value(payment_intent, "id", "") or "")
+    intent_status = str(_stripe_object_value(payment_intent, "status", "") or "")
+    intent_amount = int(_stripe_object_value(payment_intent, "amount", -1) or 0)
+    raw_intent_currency = _stripe_object_value(payment_intent, "currency", "")
+    intent_currency = (
+        raw_intent_currency.lower() if isinstance(raw_intent_currency, str) else ""
+    )
+    metadata = _stripe_object_value(payment_intent, "metadata", {}) or {}
+    metadata_order_id = _stripe_object_value(metadata, "order_id")
+    metadata_tenant_id = _stripe_object_value(metadata, "tenant_id")
+    metadata_location_id = _stripe_object_value(metadata, "location_id")
+    metadata_payment_account = _stripe_object_value(metadata, "payment_account_snapshot")
+
+    if intent_status != "succeeded":
+        raise HTTPException(status_code=400, detail="Payment not completed")
+    if not intent_id or str(metadata_order_id) != str(order.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Payment mismatch: Payment does not belong to this order",
+        )
+    # Older, staff-activated table intents predate tenant metadata. They are still
+    # retrieved using that tenant's Stripe account, while every automatic checkout
+    # must carry the explicit tenant binding used by the signed webhook.
+    if metadata_tenant_id is None and not order.requires_prepayment:
+        metadata_tenant_id = order.tenant_id
+    if str(metadata_tenant_id) != str(order.tenant_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Payment mismatch: Payment does not belong to this tenant",
+        )
+    if metadata_location_id is not None and str(metadata_location_id) != str(order.location_id):
+        raise HTTPException(status_code=400, detail="Payment mismatch: Location does not match order")
+    if (
+        metadata_payment_account is not None
+        and str(metadata_payment_account) != str(order.payment_account_snapshot)
+    ):
+        raise HTTPException(status_code=400, detail="Payment mismatch: Payment account does not match order")
+    if order.stripe_payment_intent_id and order.stripe_payment_intent_id != intent_id:
+        raise HTTPException(status_code=400, detail="Order is locked to another payment")
+
+    expected_amount = order.payment_amount_cents
+    expected_currency = (order.payment_currency or "").lower()
+    if expected_amount is None or not expected_currency:
+        if order.requires_prepayment:
+            raise HTTPException(status_code=409, detail="Order payment snapshot is missing")
+        tenant = session.get(models.Tenant, order.tenant_id)
+        expected_amount = _guest_order_payable_total_cents(session, order)
+        expected_currency = (
+            (tenant.currency_code or "").strip().lower()
+            if tenant and tenant.currency_code
+            else (_get_stripe_currency_code(tenant.currency) if tenant else None)
+            or settings.stripe_currency.lower()
+        )
+        order.payment_amount_cents = expected_amount
+        order.payment_currency = expected_currency
+        if not intent_currency:
+            intent_currency = expected_currency
+    if intent_amount != expected_amount or intent_currency != expected_currency:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment mismatch: Amount or currency does not match checkout",
+        )
+
+    was_unpaid = order.paid_at is None
+    first_kitchen_release = bool(
+        order.requires_prepayment and order.kitchen_released_at is None
+    )
+    if order.paid_at is None:
+        order.paid_at = datetime.now(timezone.utc)
+    order.payment_method = "stripe"
+    order.payment_state = "succeeded"
+    order.stripe_payment_intent_id = intent_id
+    order.bill_requested_at = None
+    order.status = order_pay_svc.status_after_full_payment(session, order)
+    if order.requires_prepayment and order.kitchen_released_at is None:
+        order.kitchen_released_at = datetime.now(timezone.utc)
+    paid_marker = f"[PAID: {intent_id}]"
+    if paid_marker not in (order.notes or ""):
+        order.notes = f"{order.notes or ''}\n{paid_marker}".strip()
+    session.add(order)
+    session.flush()
+    order_pay_svc.ensure_full_payment_leg(
+        session,
+        order=order,
+        payment_method="stripe",
+        paid_by_user_id=None,
+        stripe_payment_intent_id=intent_id,
+    )
+
+    tenant = session.get(models.Tenant, order.tenant_id)
+    if tenant and getattr(tenant, "inventory_tracking_enabled", False):
+        try:
+            deduct_inventory_for_order(session, order, tenant)
+        except Exception:
+            logger.exception("Inventory deduction failed during paid release order_id=%s", order.id)
+    session.commit()
+    session.refresh(order)
+
+    try:
+        if loyalty_svc.award_on_order_paid(session, order):
+            session.commit()
+    except Exception:
+        logger.exception("Loyalty award failed after Stripe release order_id=%s", order.id)
+
+    table = session.get(models.Table, order.table_id) if order.table_id else None
+    table_name = table.name if table else "Delivery"
+    if first_kitchen_release:
+        publish_order_update(
+            order.tenant_id,
+            {
+                "type": "new_order",
+                "order_id": order.id,
+                "table_name": table_name,
+                "status": order.status.value,
+                "created_at": order.created_at.isoformat(),
+                "kitchen_released_at": order.kitchen_released_at.isoformat(),
+                "location_id": order.location_id,
+                "location_name": order.location_name_snapshot,
+                "service_point_type": order.service_point_type_snapshot,
+                "service_point_label": order.service_point_label_snapshot,
+            },
+            table_id=order.table_id,
+        )
+    if (
+        was_unpaid
+        and table is None
+        and _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value
+    ):
+        from app.delivery_order_service import publish_satisfecho_delivery_order
+
+        publish_satisfecho_delivery_order(session, order)
+    publish_order_update(
+        order.tenant_id,
+        {
+            "type": "order_paid",
+            "order_id": order.id,
+            "table_name": table_name,
+            "status": order.status.value,
+            "location_id": order.location_id,
+            "location_name": order.location_name_snapshot,
+            "service_point_type": order.service_point_type_snapshot,
+            "service_point_label": order.service_point_label_snapshot,
+        },
+        table_id=order.table_id,
+    )
+    return order, first_kitchen_release
+
+
 @app.post("/orders/{order_id}/create-payment-intent")
 @limiter.limit(f"{getattr(settings, 'rate_limit_payment_per_minute', 10)}/minute")
 @limiter.limit(
@@ -15717,6 +17019,7 @@ def create_payment_intent(
     order_id: int,
     table_token: str | None = None,
     public_order_token: str | None = None,
+    session_id: str | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
     """Create a Stripe PaymentIntent for an order (table guest or public delivery)."""
@@ -15727,7 +17030,16 @@ def create_payment_intent(
         public_order_token=public_order_token,
     )
 
-    # Calculate total from order items (+ delivery fee for Satisfecho Delivery)
+    if table is not None and order.session_id and order.session_id != (session_id or "").strip():
+        raise HTTPException(status_code=403, detail="Order does not belong to this session")
+    if order.paid_at is not None or order.payment_state == "succeeded":
+        return {
+            "status": "paid",
+            "payment_intent_id": order.stripe_payment_intent_id,
+            "amount": order.payment_amount_cents,
+        }
+
+    # Calculate total from order items (+ delivery fee for Scanaki Delivery)
     total_cents = _guest_order_payable_total_cents(session, order)
 
     if total_cents <= 0:
@@ -15741,12 +17053,12 @@ def create_payment_intent(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Use tenant-specific Stripe keys, fallback to global config
-    stripe_secret_key = tenant.stripe_secret_key or settings.stripe_secret_key
-    if not stripe_secret_key:
+    try:
+        api_options = stripe_api_options(tenant)
+    except ValueError as exc:
         raise HTTPException(
-            status_code=400, detail="Stripe not configured for this tenant"
-        )
+            status_code=400, detail=str(exc)
+        ) from exc
 
     # Resolve Stripe currency:
     # 1) tenant.currency_code (ISO 4217) if set
@@ -15762,11 +17074,42 @@ def create_payment_intent(
         ).lower()
 
     try:
-        # Use tenant-specific Stripe key
+        if order.payment_amount_cents is not None and order.payment_amount_cents != total_cents:
+            raise HTTPException(
+                status_code=409,
+                detail="Order total changed after checkout started",
+            )
+        if order.payment_currency and order.payment_currency.lower() != stripe_currency:
+            raise HTTPException(
+                status_code=409,
+                detail="Order currency changed after checkout started",
+            )
+        order.payment_amount_cents = total_cents
+        order.payment_currency = stripe_currency
+        order.payment_state = "awaiting_payment"
+        order.checkout_locked_at = order.checkout_locked_at or datetime.now(timezone.utc)
+        session.add(order)
+        session.commit()
+
+        if order.stripe_payment_intent_id:
+            intent = stripe.PaymentIntent.retrieve(
+                order.stripe_payment_intent_id,
+                **api_options,
+            )
+            return {
+                "client_secret": intent.client_secret,
+                "payment_intent_id": intent.id,
+                "amount": total_cents,
+                "status": intent.status,
+            }
+
         metadata = {
             "order_id": str(order.id),
             "tenant_id": str(order.tenant_id),
+            "payment_account_snapshot": order.payment_account_snapshot or "tenant-default",
         }
+        if order.location_id is not None:
+            metadata["location_id"] = str(order.location_id)
         if table is not None:
             metadata["table_id"] = str(table.id)
         else:
@@ -15774,10 +17117,15 @@ def create_payment_intent(
         intent = stripe.PaymentIntent.create(
             amount=total_cents,
             currency=stripe_currency,
-            api_key=stripe_secret_key,
+            **api_options,
             metadata=metadata,
             description=f"Order #{order.id} at {tenant.name} - {display_name}",
+            idempotency_key=f"one-table-order-{order.tenant_id}-{order.id}",
         )
+
+        order.stripe_payment_intent_id = intent.id
+        session.add(order)
+        session.commit()
 
         return {
             "client_secret": intent.client_secret,
@@ -15800,6 +17148,7 @@ def confirm_payment(
     payment_intent_id: str,
     table_token: str | None = None,
     public_order_token: str | None = None,
+    session_id: str | None = None,
     session: Session = Depends(get_session),
 ) -> dict:
     """Mark order as paid after successful Stripe payment."""
@@ -15809,6 +17158,8 @@ def confirm_payment(
         table_token=table_token,
         public_order_token=public_order_token,
     )
+    if table is not None and order.session_id and order.session_id != (session_id or "").strip():
+        raise HTTPException(status_code=403, detail="Order does not belong to this session")
 
     # Get tenant for Stripe keys
     tenant = session.exec(
@@ -15817,86 +17168,130 @@ def confirm_payment(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Use tenant-specific Stripe keys, fallback to global config
-    stripe_secret_key = tenant.stripe_secret_key or settings.stripe_secret_key
-    if not stripe_secret_key:
+    try:
+        api_options = stripe_api_options(tenant)
+    except ValueError as exc:
         raise HTTPException(
-            status_code=400, detail="Stripe not configured for this tenant"
-        )
+            status_code=400, detail=str(exc)
+        ) from exc
 
     # Verify payment with Stripe
     try:
         intent = stripe.PaymentIntent.retrieve(
-            payment_intent_id, api_key=stripe_secret_key
+            payment_intent_id, **api_options
         )
-        if intent.status != "succeeded":
-            raise HTTPException(status_code=400, detail="Payment not completed")
-
-        # Validation: Verify intent matches order
-        # 1. Check order ID in metadata
-        intent_order_id = intent.metadata.get("order_id")
-        if not intent_order_id or str(intent_order_id) != str(order.id):
-            raise HTTPException(
-                status_code=400,
-                detail="Payment mismatch: Payment does not belong to this order",
-            )
-
-        # 2. Check amount (includes delivery fee for Satisfecho Delivery)
-        total_cents = _guest_order_payable_total_cents(session, order)
-
-        if intent.amount != total_cents:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Payment mismatch: Amount {intent.amount} does not match order total {total_cents}",
-            )
-
-        was_unpaid = order.status != models.OrderStatus.paid and order.paid_at is None
-        # Mark order as paid (completed when all items already delivered — #345)
-        order.payment_method = "stripe"
-        order.paid_at = datetime.now(timezone.utc)
-        order.bill_requested_at = None
-        order.notes = f"{order.notes or ''}\n[PAID: {payment_intent_id}]".strip()
-        order.status = order_pay_svc.status_after_full_payment(session, order)
-        session.add(order)
-        session.flush()
-        order_pay_svc.ensure_full_payment_leg(
-            session,
-            order=order,
-            payment_method="stripe",
-            paid_by_user_id=None,
-            stripe_payment_intent_id=payment_intent_id,
+        released_order, released = _release_paid_stripe_order(
+            session, order_id=order.id, payment_intent=intent
         )
-        session.commit()
-
-        try:
-            session.refresh(order)
-            if loyalty_svc.award_on_order_paid(session, order):
-                session.commit()
-        except Exception:
-            logging.getLogger(__name__).exception(
-                "loyalty award failed after stripe confirm order_id=%s", order.id
-            )
-
-        if (
-            was_unpaid
-            and table is None
-            and _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value
-        ):
-            from app.delivery_order_service import publish_satisfecho_delivery_order
-
-            publish_satisfecho_delivery_order(session, order)
-
-        # Notify tenant
-        publish_order_update(order.tenant_id, {
-            "type": "order_paid",
-            "order_id": order.id,
-            "table_name": display_name,
-            "status": order.status.value
-        }, table_id=order.table_id)
-        
-        return {"status": "paid", "order_id": order.id}
+        return {
+            "status": "paid",
+            "order_id": released_order.id,
+            "kitchen_released": released,
+        }
     except stripe.error.StripeError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/payments/stripe/webhook/{tenant_id}")
+async def stripe_guest_webhook(
+    tenant_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Stripe-signed source of truth for payment state and kitchen release."""
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    mode = (tenant.stripe_payment_mode or "tenant_keys").strip().lower()
+    webhook_secret = (
+        settings.stripe_guest_webhook_secret
+        if mode == "connect"
+        else tenant_stripe_webhook_secret(tenant) or settings.stripe_guest_webhook_secret
+    )
+    if not webhook_secret:
+        raise HTTPException(status_code=503, detail="Stripe webhook is not configured")
+
+    signature = request.headers.get("stripe-signature")
+    if not signature:
+        raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
+    payload = await request.body()
+    try:
+        event = stripe.Webhook.construct_event(payload, signature, webhook_secret)
+    except (ValueError, stripe.error.SignatureVerificationError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid Stripe webhook signature") from exc
+
+    event_account = _stripe_object_value(event, "account")
+    if mode == "connect" and event_account != tenant.stripe_connected_account_id:
+        raise HTTPException(status_code=400, detail="Stripe account does not match tenant")
+
+    event_type = str(_stripe_object_value(event, "type", ""))
+    event_data = _stripe_object_value(event, "data", {}) or {}
+    payment_object = (
+        event_data.get("object")
+        if hasattr(event_data, "get")
+        else _stripe_object_value(event_data, "object")
+    )
+    if payment_object is None:
+        return {"received": True, "handled": False}
+
+    metadata = _stripe_object_value(payment_object, "metadata", {}) or {}
+    metadata_order_id = _stripe_object_value(metadata, "order_id")
+    metadata_tenant_id = _stripe_object_value(metadata, "tenant_id")
+
+    if event_type == "payment_intent.succeeded":
+        if str(metadata_tenant_id) != str(tenant_id):
+            raise HTTPException(status_code=400, detail="Webhook tenant metadata mismatch")
+        try:
+            order_id = int(metadata_order_id)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Webhook order metadata is missing") from exc
+        released_order, released = _release_paid_stripe_order(
+            session, order_id=order_id, payment_intent=payment_object
+        )
+        return {
+            "received": True,
+            "handled": True,
+            "order_id": released_order.id,
+            "kitchen_released": released,
+        }
+
+    if event_type in {
+        "payment_intent.payment_failed",
+        "payment_intent.canceled",
+        "payment_intent.processing",
+    }:
+        intent_id = str(_stripe_object_value(payment_object, "id", "") or "")
+        order = session.exec(
+            select(models.Order).where(
+                models.Order.tenant_id == tenant_id,
+                models.Order.stripe_payment_intent_id == intent_id,
+            )
+        ).first()
+        if order:
+            order.payment_state = {
+                "payment_intent.payment_failed": "failed",
+                "payment_intent.canceled": "cancelled",
+                "payment_intent.processing": "processing",
+            }[event_type]
+            session.add(order)
+            session.commit()
+        return {"received": True, "handled": bool(order)}
+
+    if event_type == "charge.refunded":
+        intent_id = str(_stripe_object_value(payment_object, "payment_intent", "") or "")
+        order = session.exec(
+            select(models.Order).where(
+                models.Order.tenant_id == tenant_id,
+                models.Order.stripe_payment_intent_id == intent_id,
+            )
+        ).first()
+        if order:
+            order.payment_state = "refunded"
+            session.add(order)
+            session.commit()
+        return {"received": True, "handled": bool(order)}
+
+    return {"received": True, "handled": False}
 
 
 @app.post("/orders/{order_id}/create-revolut-order")
@@ -15920,6 +17315,12 @@ def create_revolut_order(
         public_order_token=public_order_token,
     )
 
+    if order.requires_prepayment:
+        raise HTTPException(
+            status_code=409,
+            detail="Stripe is the required payment method for this order.",
+        )
+
     items = session.exec(
         select(models.OrderItem).where(models.OrderItem.order_id == order_id)
     ).all()
@@ -15939,7 +17340,7 @@ def create_revolut_order(
             status_code=400, detail="Revolut is not configured for this tenant"
         )
 
-    currency = "EUR"
+    currency = "GBP"
     if tenant.currency_code and isinstance(tenant.currency_code, str):
         currency = tenant.currency_code.strip().upper()
     else:

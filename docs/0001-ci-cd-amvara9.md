@@ -80,7 +80,7 @@ MARKETING_SYNC_FORCE=1 MARKETING_VERIFY_NO_PLACEHOLDERS=1 bash scripts/sync-all-
   - Migrations run with **strict failure** (script exits if migrate or sync-idempotent fails).
   - After **`up -d`**, the script waits for **`http://127.0.0.1:8020/health`** inside the **back** container (retries) instead of a fixed long sleep.
   - After **back** and **front** images build successfully, **`docker buildx prune -f`** runs to drop **unused** BuildKit cache and limit disk growth on the server ([issue #73](https://github.com/satisfecho/pos/issues/73)). It is non-interactive (`-f`). Override with **`SKIP_BUILDX_PRUNE=1`** on the server if you need to skip it. Failures are logged as a warning and do not abort deploy.
-- **Post-deploy smoke:** The workflow retries **landing**, **app-version** meta, and **`/api/health`** against **`SMOKE_TEST_BASE_URL`** (default **https://www.satisfecho.de**).
+- **Post-deploy smoke:** The workflow retries **landing**, **app-version** meta, and **`/api/health`** against **`SMOKE_TEST_BASE_URL`** (default **https://scanaki.uk**).
 
 ## First deploy
 
@@ -121,7 +121,7 @@ If the demo account **ralf@roeber.de** no longer works on amvara9, it was almost
 
 ## Daily demo data reset (tenant 1)
 
-Demo restaurant **tenant 1** accumulates orders, reservations, and waiting-list entries from sales demos. To keep Informes and demo flows fresh, reset and re-seed **orders** (including Satisfecho Delivery samples), **reservations**, and **waiting-list entries** for tenant 1 only (tables, products, and users are untouched) with the idempotent wrapper:
+Demo restaurant **tenant 1** accumulates orders, reservations, and waiting-list entries from sales demos. To keep Informes and demo flows fresh, reset and re-seed **orders** (including Scanaki Delivery samples), **reservations**, and **waiting-list entries** for tenant 1 only (tables, products, and users are untouched) with the idempotent wrapper:
 
 ```bash
 cd /development/pos
@@ -147,9 +147,9 @@ Or add the line manually with `crontab -e`:
 
 Ensure the script is executable (`chmod +x scripts/reset-demo-data-on-server.sh`; it is committed executable in the repo). If `check_demo_tables` fails (missing T01–T10), repair tables first (`python -m app.seeds.seed_demo_tables`) before relying on the daily reset.
 
-## Unpaid public Satisfecho Delivery cleanup (all tenants)
+## Unpaid public Scanaki Delivery cleanup (all tenants)
 
-Abandoned unpaid **public** Satisfecho Delivery checkouts can accumulate on **any** tenant (kitchen was never notified). The idempotent CLI cancels rows past the default **2h** TTL; it does **not** touch staff-created delivery orders. Demo reset (tenant 1 only) does **not** replace this job — keep both crons.
+Abandoned unpaid **public** Scanaki Delivery checkouts can accumulate on **any** tenant (kitchen was never notified). The idempotent CLI cancels rows past the default **2h** TTL; it does **not** touch staff-created delivery orders. Demo reset (tenant 1 only) does **not** replace this job — keep both crons.
 
 Manual (from `/development/pos` on amvara9):
 
@@ -195,20 +195,20 @@ Once the GitHub Actions deploy job has finished, run smoke tests from a machine 
 ```bash
 cd pos/front
 BASE_URL=http://167.235.138.59 HEADLESS=1 npm run test:landing-version
-# Or when DNS/SSL is set: BASE_URL=https://satisfecho.de HEADLESS=1 npm run test:landing-version
+# Or when DNS/SSL is set: BASE_URL=https://scanaki.uk HEADLESS=1 npm run test:landing-version
 ```
 
 **2. Reports (owner/admin credentials required; create first user at /register after fresh install):**
 ```bash
 cd pos/front
 BASE_URL=http://167.235.138.59 HEADLESS=1 LOGIN_EMAIL=your-owner@amvara.de LOGIN_PASSWORD=yourpassword npm run test:reports
-# Or BASE_URL=https://satisfecho.de when DNS is set
+# Or BASE_URL=https://scanaki.uk when DNS is set
 ```
 
 **3. Optional – full reservation tests:**
 ```bash
 # From repo root
-STAFF_TEST=1 BASE_URLS="https://satisfecho.de" HEADLESS=1 ./scripts/run-reservation-tests.sh
+STAFF_TEST=1 BASE_URLS="https://scanaki.uk" HEADLESS=1 ./scripts/run-reservation-tests.sh
 # Set LOGIN_EMAIL / LOGIN_PASSWORD in env or .env (DEMO_LOGIN_EMAIL / DEMO_LOGIN_PASSWORD) for staff test
 ```
 

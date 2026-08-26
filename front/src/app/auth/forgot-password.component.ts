@@ -165,10 +165,21 @@ export class ForgotPasswordComponent {
   private route = inject(ActivatedRoute);
   translate = inject(TranslateService);
 
-  isProvider = signal(
-    (this.route.snapshot.data['passwordResetScope'] as string | undefined) === 'provider',
+  resetScope = signal(
+    this.route.snapshot.data['passwordResetScope'] as
+      | 'provider'
+      | 'courier'
+      | 'platform'
+      | 'customer'
+      | undefined,
   );
-  loginPath = this.isProvider() ? '/provider/login' : '/login';
+  isProvider = signal(this.resetScope() === 'provider');
+  loginPath = ({
+    provider: '/provider/login',
+    courier: '/courier/login',
+    platform: '/platform/login',
+    customer: '/customer/login',
+  } as Record<string, string>)[this.resetScope() || ''] || '/login';
   loginQueryParams: Record<string, string> = (() => {
     const t = this.route.snapshot.queryParamMap.get('tenant');
     const out: Record<string, string> = {};
@@ -198,7 +209,7 @@ export class ForgotPasswordComponent {
       const n = parseInt(tenantRaw, 10);
       tenantId = isNaN(n) ? undefined : n;
     }
-    const scope = this.isProvider() ? 'provider' : undefined;
+    const scope = this.resetScope();
     this.api.requestPasswordReset(email, tenantId, scope).subscribe({
       next: (res) => {
         this.loading.set(false);

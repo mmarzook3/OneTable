@@ -1,6 +1,6 @@
 # Development Roadmap
 
-High-level product status for Satisfecho POS. Prefer this file for “what’s done / what’s next”; use `docs/` for how it works and [`CHANGELOG.md`](CHANGELOG.md) for release history.
+High-level product status for Scanaki. Prefer this file for “what’s done / what’s next”; use `docs/` for how it works and [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 **Umbrella tracks:** [#52](https://github.com/satisfecho/pos/issues/52)–[#54](https://github.com/satisfecho/pos/issues/54) detail lives in [`docs/0032-github-issues-roadmap.md`](docs/0032-github-issues-roadmap.md).
 
@@ -30,7 +30,7 @@ Core POS and recent 2026-07 slices (through **2026-07-31**). Links are the sourc
 | Orders & kitchen | Lifecycle, soft-delete, comments, customizations ([#50](https://github.com/satisfecho/pos/issues/50)), kitchen display — `docs/0008`, `docs/0015`, `docs/0031` |
 | Payments | Stripe; immediate-payment setting; split bill by amount + by line ([#318](https://github.com/satisfecho/pos/issues/318), [#331](https://github.com/satisfecho/pos/issues/331)) — `docs/0071` |
 | Reservations & waitlist | Staff + public book/cancel; waiting list — `docs/0011` |
-| Delivery | Satisfecho Delivery staff/courier/public — `docs/0053` |
+| Delivery | Scanaki Delivery staff/courier/public - `docs/0053` |
 | Billing / fiscal | Factura customers; VeriFactu prep ([#326](https://github.com/satisfecho/pos/issues/326)); German TSE Phase 1 ([#316](https://github.com/satisfecho/pos/issues/316)) — `docs/0017`, `docs/0018`, `docs/0065`, `docs/0072` |
 | Inventory | Multi-warehouse MVP ([#320](https://github.com/satisfecho/pos/issues/320)) — `docs/0061` |
 | Offline | Staff offline cash sale + sync ([#319](https://github.com/satisfecho/pos/issues/319)); deferred-card intent queue (no PAN/CVV) ([#333](https://github.com/satisfecho/pos/issues/333)) — `docs/0063` |
@@ -70,7 +70,7 @@ Open issues: [github.com/satisfecho/pos/issues](https://github.com/satisfecho/po
 | **Order management Phase 4** | Advanced ops | Batch status, audit history, post-payment mods — `docs/0007` |
 | **Strict immediate payment** | Product choice | Modal can still be dismissed today |
 | **CAPTCHA after failed login** | Nice-to-have on top of rate limits | Listed in `docs/0020` |
-| **Aggregator delivery (Uber Eats, etc.)** | Distinct from Satisfecho Delivery | Under #52 |
+| **Aggregator delivery (Uber Eats, etc.)** | Distinct from Scanaki Delivery | Under #52 |
 | **Warehouse transfers / full WMS** | Beyond multi-warehouse MVP | Under #52 |
 | **True offline card capture / offline fiscal** | Hardware & compliance | Intent-only deferred card (#333) shipped; PAN/CVV and offline fiscal numbering remain blocked — `docs/0063` |
 

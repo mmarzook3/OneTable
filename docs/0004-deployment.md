@@ -165,7 +165,7 @@ Steps to get the latest **master** or **main** branch deployed on a server where
    # or: docker compose --env-file config.env -f docker-compose.yml -f docker-compose.prod.yml exec -T back python -m app.seeds.reset_demo_data
    ```
 
-   Separately, schedule the hourly unpaid public Satisfecho Delivery cleanup (all tenants; not covered by demo reset). See [Unpaid public Satisfecho Delivery cleanup](0001-ci-cd-amvara9.md#unpaid-public-satisfecho-delivery-cleanup-all-tenants) and `./scripts/cleanup-unpaid-public-delivery-on-server.sh`.
+   Separately, schedule the hourly unpaid public Scanaki Delivery cleanup (all tenants; not covered by demo reset). See [Unpaid public Scanaki Delivery cleanup](0001-ci-cd-amvara9.md#unpaid-public-satisfecho-delivery-cleanup-all-tenants) and `./scripts/cleanup-unpaid-public-delivery-on-server.sh`.
 
 8. **Check that everything is up**  
    - Logs: `docker compose --env-file config.env logs -f --tail=50`

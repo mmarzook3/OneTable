@@ -1,4 +1,4 @@
-"""Public Satisfecho Delivery checkout — create + pay without table_token."""
+"""Public Scanaki Delivery checkout — create + pay without table_token."""
 from __future__ import annotations
 
 import unittest
@@ -88,6 +88,44 @@ class TestPublicSatisfechoDelivery(PgClientTestCase):
         self.assertIsNone(order.table_id)
         self.assertEqual(order.session_id, "public_satisfecho_delivery")
         self.assertEqual(order.delivery_fee_cents, 0)
+
+    def test_public_delivery_can_be_disabled_per_tenant(self) -> None:
+        self.tenant.delivery_enabled = False
+        self.session.add(self.tenant)
+        self.session.commit()
+
+        cfg = self.client.get(
+            f"/public/tenants/{self.tenant.id}/satisfecho-delivery-config"
+        )
+        self.assertEqual(cfg.status_code, 403, cfg.text)
+        self.assertEqual(cfg.json()["detail"], "delivery_disabled")
+
+        body, status = self._create_public()
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["_raw"].json()["detail"], "delivery_disabled")
+
+        summary = self.client.get(f"/public/tenants/{self.tenant.id}")
+        self.assertEqual(summary.status_code, 200, summary.text)
+        self.assertFalse(summary.json()["delivery_enabled"])
+
+    def test_disabled_tenant_rejects_marketplace_webhook(self) -> None:
+        self.tenant.delivery_enabled = False
+        integration = models.DeliveryMarketplaceIntegration(
+            tenant_id=self.tenant.id,
+            provider_key="mock",
+            enabled=True,
+            webhook_ingest_token="disabled-tenant-webhook-token",
+        )
+        self.session.add(self.tenant)
+        self.session.add(integration)
+        self.session.commit()
+
+        response = self.client.post(
+            "/public/webhooks/delivery/disabled-tenant-webhook-token",
+            json={},
+        )
+        self.assertEqual(response.status_code, 503, response.text)
+        self.assertEqual(response.json()["detail"], "Delivery disabled")
 
     def test_public_create_applies_delivery_fee(self) -> None:
         self.tenant.delivery_fee_cents = 350

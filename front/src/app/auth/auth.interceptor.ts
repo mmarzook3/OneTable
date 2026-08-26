@@ -16,14 +16,20 @@ function isPublicRoute(url: string): boolean {
     path === '/login' ||
     path === '/register' ||
     path === '/signup' ||
+    path.startsWith('/forgot-password') ||
+    path.startsWith('/reset-password') ||
     path === '/courier/login' ||
+    path.startsWith('/courier/forgot-password') ||
     path.startsWith('/customer/login') ||
     path.startsWith('/customer/register') ||
     path.startsWith('/customer/verify-email') ||
+    path.startsWith('/customer/forgot-password') ||
+    path.startsWith('/customer/reset-password') ||
     path.startsWith('/provider/login') ||
     path.startsWith('/provider/register') ||
     path.startsWith('/provider/forgot-password') ||
     path.startsWith('/platform/login') ||
+    path.startsWith('/platform/forgot-password') ||
     path.startsWith('/menu/') ||
     path.startsWith('/public-menu/') ||
     path.startsWith('/delivery/') ||

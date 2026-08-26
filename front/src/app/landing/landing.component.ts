@@ -1,22 +1,28 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  inject,
+  Injector,
+  OnDestroy,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { QRCodeComponent } from 'angularx-qrcode';
-import { ApiService, PublicTableLookupChoice, TenantSummary } from '../services/api.service';
-import { FormsModule } from '@angular/forms';
+import { Html5Qrcode } from 'html5-qrcode';
+import { ApiService, TenantSummary } from '../services/api.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
+import { extractScanakiGuestRoute } from './guest-qr-route';
 
-/** Only tenant 1 is shown on the public landing page (displayed as Restaurant Demo). */
-const LANDING_DEMO_TENANT_ID = 1;
-/** Demo table name for the landing guest ordering flow (must exist on demo tenant). */
-const LANDING_DEMO_TABLE_NAME = 'Take Away';
+const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink, TranslateModule, FormsModule, LanguagePickerComponent, QRCodeComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, QRCodeComponent, LandingSiteFooterComponent],
   template: `
     <div class="landing-page">
       <div class="landing-hero__bg" aria-hidden="true">
@@ -25,22 +31,40 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
         <div class="landing-hero__orb landing-hero__orb--3"></div>
       </div>
 
-      <nav class="landing-nav" aria-label="Main">
+      <nav class="landing-nav" aria-label="Main" (keydown.escape)="closeMobileNav()">
         <a routerLink="/" class="landing-nav__brand">
           <span class="landing-nav__mark" aria-hidden="true"></span>
           <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
         </a>
-        <div class="landing-nav__links">
-          <a routerLink="/features" class="landing-nav__link">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
-          <a routerLink="/pricing" class="landing-nav__link">{{ 'LANDING.NAV_PRICING' | translate }}</a>
-          <a routerLink="/about" class="landing-nav__link" data-testid="landing-nav-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
-          <a href="#guests" class="landing-nav__link">{{ 'LANDING.NAV_GUESTS' | translate }}</a>
-          <a href="#demo" class="landing-nav__link">{{ 'LANDING.NAV_DEMO' | translate }}</a>
+        <button
+          type="button"
+          class="landing-nav__toggle"
+          [class.landing-nav__toggle--open]="mobileNavOpen()"
+          [attr.aria-label]="(mobileNavOpen() ? 'LANDING.CLOSE_MENU' : 'LANDING.OPEN_MENU') | translate"
+          [attr.aria-expanded]="mobileNavOpen()"
+          aria-controls="landing-navigation-content"
+          data-testid="landing-mobile-menu-toggle"
+          (click)="toggleMobileNav()"
+        >
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+        <div
+          id="landing-navigation-content"
+          class="landing-nav__links"
+          [class.landing-nav__links--open]="mobileNavOpen()"
+        >
+          <a routerLink="/features" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
+          <a routerLink="/pricing" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_PRICING' | translate }}</a>
+          <a routerLink="/about" class="landing-nav__link" data-testid="landing-nav-about" (click)="closeMobileNav()">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
+          <a href="#guests" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_GUESTS' | translate }}</a>
+          <a href="#demo" class="landing-nav__link" (click)="closeMobileNav()">{{ 'LANDING.NAV_DEMO' | translate }}</a>
         </div>
-        <div class="landing-nav__actions">
+        <div class="landing-nav__actions" [class.landing-nav__actions--open]="mobileNavOpen()">
           <app-language-picker class="landing-language-picker"></app-language-picker>
-          <a routerLink="/login" class="landing-nav__login">{{ 'LANDING.LOGIN' | translate }}</a>
-          <a routerLink="/register" class="landing-nav__cta" data-testid="landing-hero-cta">
+          <a routerLink="/login" class="landing-nav__login" (click)="closeMobileNav()">{{ 'LANDING.LOGIN' | translate }}</a>
+          <a routerLink="/register" class="landing-nav__cta" data-testid="landing-hero-cta" (click)="closeMobileNav()">
             {{ 'LANDING.CTA_CREATE_QR_MENU' | translate }}
           </a>
         </div>
@@ -50,14 +74,13 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
         <div class="landing-hero__content">
           <div class="landing-hero__copy">
             <p class="landing-badge">
-              <span class="landing-badge__dot" aria-hidden="true"></span>
-              {{ 'LANDING.BADGE' | translate }}
+              {{ 'LANDING.PLATFORM_BADGE' | translate }}
             </p>
             <h1 class="landing-hero__title">
               {{ 'LANDING.TITLE' | translate }}
               <span class="landing-hero__title-accent">{{ 'LANDING.TITLE_ACCENT' | translate }}</span>
             </h1>
-            <p class="landing-hero__subtitle">{{ 'LANDING.SUBTITLE' | translate }}</p>
+            <p class="landing-hero__subtitle">{{ 'LANDING.PLATFORM_SUBTITLE' | translate }}</p>
             <div class="landing-hero__actions">
               <a routerLink="/register" class="landing-btn landing-btn--primary" data-testid="landing-primary-cta">
                 {{ 'LANDING.CTA_CREATE_QR_MENU' | translate }}
@@ -177,9 +200,11 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
               </figure>
 
               <div class="landing-qr-demo__content">
+                <p class="landing-qr-demo__badge">{{ 'LANDING.DEMO_BADGE' | translate }}</p>
                 <p class="landing-qr-demo__label" data-testid="landing-tenant-name">{{ getTenantDisplayName(tenant) }}</p>
                 <h2 id="landing-qr-demo-heading" class="landing-qr-demo__title">{{ 'LANDING.QR_DEMO_TITLE' | translate }}</h2>
                 <p class="landing-qr-demo__lede">{{ 'LANDING.QR_DEMO_LEDE' | translate }}</p>
+                <p class="landing-qr-demo__notice">{{ 'LANDING.DEMO_DATA_NOTICE' | translate }}</p>
                 <ol class="landing-qr-demo__steps">
                   <li>{{ 'LANDING.QR_DEMO_STEP_1' | translate }}</li>
                   <li>{{ 'LANDING.QR_DEMO_STEP_2' | translate }}</li>
@@ -204,61 +229,82 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
             <p class="landing-guests__demo-note">{{ 'LANDING.GUEST_DEMO_NOTE' | translate }}</p>
           </div>
 
-          <div class="landing-guests__form" aria-label="{{ 'LANDING.AT_TABLE_LABEL' | translate }}">
-            <label class="landing-guests__label" for="landing-table-code">{{ 'LANDING.GUEST_TABLE_LABEL' | translate }}</label>
-            <div class="landing-guests__row">
-              <input
-                id="landing-table-code"
-                type="text"
-                [(ngModel)]="tableCode"
-                [placeholder]="'LANDING.TABLE_CODE_PLACEHOLDER' | translate"
-                class="landing-guests__input"
-                (ngModelChange)="onTableCodeInput()"
-                (keyup.enter)="goToTableMenu()"
-              />
-              <button
-                type="button"
-                class="landing-guests__submit"
-                [disabled]="tableLookupLoading()"
-                (click)="goToTableMenu()"
-              >
-                {{ 'LANDING.GO' | translate }}
-              </button>
-            </div>
+          <div class="landing-guests__scanner" aria-label="{{ 'LANDING.GUEST_SCAN_TITLE' | translate }}">
+            <p class="landing-guests__label">{{ 'LANDING.GUEST_SCAN_TITLE' | translate }}</p>
+            <button
+              type="button"
+              class="landing-guests__scan-btn"
+              data-testid="landing-open-guest-scanner"
+              [disabled]="guestScannerStarting()"
+              (click)="openGuestScanner()"
+            >
+              {{
+                guestScannerStarting()
+                  ? ('LANDING.GUEST_SCANNER_STARTING' | translate)
+                  : ('LANDING.GUEST_SCAN_BUTTON' | translate)
+              }}
+            </button>
+            <p class="landing-guests__scan-note">{{ 'LANDING.GUEST_SCAN_HELP' | translate }}</p>
             <button
               type="button"
               class="landing-guests__demo-btn"
-              [disabled]="tableLookupLoading()"
               (click)="tryDemoTable()"
             >
               {{ 'LANDING.GUEST_TRY_DEMO' | translate }}
             </button>
-            @if (tableLookupError()) {
-              <p class="landing-guests__error" role="alert">{{ tableLookupError() }}</p>
-            }
-            @if (tableLookupChoices().length > 0) {
-              <p class="landing-guests__pick-title">{{ 'LANDING.TABLE_MULTIPLE_TITLE' | translate }}</p>
-              <p class="landing-guests__pick-hint">{{ 'LANDING.TABLE_MULTIPLE_HINT' | translate }}</p>
-              <ul class="landing-guests__choices">
-                @for (c of tableLookupChoices(); track c.tenant_id + '-' + c.table_token) {
-                  <li>
-                    <button type="button" class="landing-guests__choice-btn" (click)="selectRestaurantForTable(c)">
-                      {{ c.tenant_name }}
-                    </button>
-                  </li>
-                }
-              </ul>
+            @if (guestDemoError()) {
+              <p class="landing-guests__error" role="alert">{{ guestDemoError()! | translate }}</p>
             }
           </div>
         </div>
       </section>
 
+      @if (guestScannerOpen()) {
+        <div class="landing-scanner-backdrop" (click)="closeGuestScanner()">
+          <section
+            class="landing-scanner"
+            role="dialog"
+            aria-modal="true"
+            data-testid="landing-guest-scanner"
+            [attr.aria-label]="'LANDING.GUEST_SCANNER_TITLE' | translate"
+            (click)="$event.stopPropagation()"
+          >
+            <header class="landing-scanner__header">
+              <div>
+                <h2>{{ 'LANDING.GUEST_SCANNER_TITLE' | translate }}</h2>
+                <p>{{ 'LANDING.GUEST_SCANNER_HELP' | translate }}</p>
+              </div>
+              <button
+                type="button"
+                class="landing-scanner__close"
+                [attr.aria-label]="'COMMON.CLOSE' | translate"
+                (click)="closeGuestScanner()"
+              >
+                ×
+              </button>
+            </header>
+            @if (guestScannerError()) {
+              <p class="landing-scanner__error" role="alert">{{ guestScannerError()! | translate }}</p>
+            }
+            <div [id]="guestQrReaderId" class="landing-scanner__reader"></div>
+            <div class="landing-scanner__actions">
+              @if (guestScannerError()) {
+                <button type="button" class="landing-scanner__retry" (click)="retryGuestScanner()">
+                  {{ 'LANDING.GUEST_SCANNER_RETRY' | translate }}
+                </button>
+              }
+              <button type="button" class="landing-scanner__cancel" (click)="closeGuestScanner()">
+                {{ 'COMMON.CANCEL' | translate }}
+              </button>
+            </div>
+          </section>
+        </div>
+      }
+
       <app-landing-site-footer></app-landing-site-footer>
     </div>
   `,
   styles: [`
-    @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
-
     .landing-page {
       --landing-bg: #050506;
       --landing-surface: rgba(255, 255, 255, 0.04);
@@ -363,6 +409,19 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       gap: var(--space-5);
     }
 
+    .landing-nav__links--open {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      flex: 0 0 100%;
+      order: 3;
+      gap: 0;
+      padding: var(--space-2);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      background: rgba(18, 18, 20, 0.96);
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+    }
+
     .landing-nav__link {
       color: var(--landing-muted);
       font-size: 0.9375rem;
@@ -371,16 +430,91 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       transition: color 0.15s ease;
     }
 
+    .landing-nav__links--open .landing-nav__link {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0.625rem 0.75rem;
+      border-radius: 10px;
+      color: var(--landing-text);
+    }
+
+    .landing-nav__links--open .landing-nav__link:hover,
+    .landing-nav__links--open .landing-nav__link:focus-visible {
+      background: rgba(255, 255, 255, 0.08);
+      outline: none;
+    }
+
+    .landing-nav__toggle {
+      display: inline-grid;
+      place-content: center;
+      width: 44px;
+      height: 44px;
+      margin-left: auto;
+      padding: 0;
+      gap: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--landing-text);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .landing-nav__toggle:hover,
+    .landing-nav__toggle:focus-visible {
+      border-color: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.12);
+      outline: none;
+    }
+
+    .landing-nav__toggle:focus-visible {
+      box-shadow: 0 0 0 3px rgba(211, 82, 51, 0.35);
+    }
+
+    .landing-nav__toggle:active {
+      transform: scale(0.97);
+    }
+
+    .landing-nav__toggle span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+      transform-origin: center;
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .landing-nav__toggle--open span:nth-child(1) {
+      transform: translateY(7px) rotate(45deg);
+    }
+
+    .landing-nav__toggle--open span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .landing-nav__toggle--open span:nth-child(3) {
+      transform: translateY(-7px) rotate(-45deg);
+    }
+
     .landing-nav__link:hover {
       color: var(--landing-text);
       text-decoration: none;
     }
 
     .landing-nav__actions {
-      display: flex;
+      display: none;
       align-items: center;
       gap: var(--space-2);
-      margin-left: auto;
+    }
+
+    .landing-nav__actions--open {
+      display: flex;
+      flex: 0 0 100%;
+      order: 4;
+      flex-wrap: wrap;
+      padding: 0 var(--space-2) var(--space-2);
     }
 
     .landing-language-picker {
@@ -394,6 +528,10 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       font-weight: 500;
       text-decoration: none;
       padding: var(--space-2) var(--space-3);
+    }
+
+    .landing-nav__actions--open .landing-nav__login {
+      display: inline-flex;
     }
 
     .landing-nav__login:hover {
@@ -425,8 +563,36 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
     }
 
     @media (min-width: 768px) {
+      .landing-nav {
+        flex-wrap: nowrap;
+      }
+
+      .landing-nav__toggle {
+        display: none;
+      }
+
       .landing-nav__links {
         display: flex;
+        order: initial;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .landing-nav__links .landing-nav__link {
+        min-height: auto;
+        padding: 0;
+      }
+
+      .landing-nav__actions {
+        display: flex;
+        flex: initial;
+        order: initial;
+        flex-wrap: nowrap;
+        margin-left: auto;
+        padding: 0;
       }
 
       .landing-nav__login {
@@ -464,22 +630,13 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
     .landing-badge {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
       margin: 0 0 var(--space-5);
-      padding: 0.375rem 0.875rem 0.375rem 0.625rem;
+      padding: 0.375rem 0.875rem;
       border-radius: 999px;
       border: 1px solid var(--landing-border);
       background: rgba(255, 255, 255, 0.04);
       font-size: 0.8125rem;
       color: var(--landing-muted);
-    }
-
-    .landing-badge__dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #ff8a65, #d35233);
-      box-shadow: 0 0 12px rgba(255, 107, 71, 0.8);
     }
 
     .landing-hero__title {
@@ -493,9 +650,11 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
 
     .landing-hero__title-accent {
       display: block;
-      font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+      font-family: inherit;
       font-style: italic;
-      font-weight: 400;
+      font-weight: 500;
+      line-height: 1.1;
+      padding-bottom: 0.08em;
       letter-spacing: -0.02em;
       background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.72) 100%);
       -webkit-background-clip: text;
@@ -784,9 +943,14 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       max-width: 34rem;
     }
 
+    .landing-guests__scanner {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
     .landing-guests__label {
-      display: block;
-      margin: 0 0 var(--space-2);
+      margin: 0;
       font-size: 0.8125rem;
       font-weight: 600;
       letter-spacing: 0.04em;
@@ -794,57 +958,41 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       color: var(--landing-muted);
     }
 
-    .landing-guests__row {
-      display: flex;
-      gap: var(--space-2);
-      min-width: 0;
-    }
-
-    .landing-guests__input {
-      flex: 1 1 0;
-      min-width: 0;
-      padding: 0.875rem 1rem;
-      border-radius: 12px;
-      border: 1px solid var(--landing-border);
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--landing-text);
-      font-size: 1rem;
-    }
-
-    .landing-guests__input::placeholder {
-      color: rgba(250, 250, 250, 0.38);
-    }
-
-    .landing-guests__input:focus {
-      outline: none;
-      border-color: rgba(255, 255, 255, 0.24);
-      box-shadow: 0 0 0 3px rgba(255, 107, 71, 0.18);
-    }
-
-    .landing-guests__submit {
-      flex-shrink: 0;
-      padding: 0.875rem 1.25rem;
+    .landing-guests__scan-btn {
+      width: 100%;
+      padding: 0.95rem 1.25rem;
       border: none;
       border-radius: 12px;
       background: #fff;
       color: #0a0a0b;
-      font-size: 0.9375rem;
-      font-weight: 600;
+      font-size: 1rem;
+      font-weight: 700;
       cursor: pointer;
-      transition: opacity 0.15s ease;
+      transition: opacity 0.15s ease, transform 0.15s ease;
     }
 
-    .landing-guests__submit:hover:not(:disabled) {
+    .landing-guests__scan-btn:hover:not(:disabled) {
       opacity: 0.92;
+      transform: translateY(-1px);
     }
 
-    .landing-guests__submit:disabled {
+    .landing-guests__scan-btn:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .landing-guests__scan-btn:disabled {
       opacity: 0.55;
       cursor: not-allowed;
     }
 
+    .landing-guests__scan-note {
+      margin: 0;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      color: var(--landing-muted);
+    }
+
     .landing-guests__demo-btn {
-      margin-top: var(--space-3);
       width: 100%;
       padding: 0.75rem 1rem;
       border-radius: 12px;
@@ -867,59 +1015,140 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       cursor: not-allowed;
     }
 
-    @media (max-width: 480px) {
-      .landing-guests__row {
-        flex-wrap: wrap;
-      }
-
-      .landing-guests__submit {
-        flex: 1 1 auto;
-      }
-    }
-
     .landing-guests__error {
-      margin: var(--space-3) 0 0;
+      margin: 0;
       font-size: 0.875rem;
       color: #fca5a5;
     }
 
-    .landing-guests__pick-title {
-      margin: var(--space-4) 0 var(--space-2);
-      font-weight: 600;
-      font-size: 0.9375rem;
+    .landing-scanner-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: var(--space-4);
+      background: rgba(5, 5, 6, 0.86);
+      backdrop-filter: blur(14px);
+    }
+
+    .landing-scanner {
+      width: min(100%, 32rem);
+      max-height: calc(100dvh - 2rem);
+      overflow-y: auto;
+      padding: var(--space-5);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 20px;
+      background: #121214;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+    }
+
+    .landing-scanner__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+
+    .landing-scanner__header h2 {
+      margin: 0 0 var(--space-2);
+      font-size: 1.35rem;
       color: var(--landing-text);
     }
 
-    .landing-guests__pick-hint {
-      margin: 0 0 var(--space-3);
-      font-size: 0.875rem;
+    .landing-scanner__header p {
+      margin: 0;
+      line-height: 1.55;
       color: var(--landing-muted);
     }
 
-    .landing-guests__choices {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
-    }
-
-    .landing-guests__choice-btn {
-      width: 100%;
-      padding: var(--space-3) var(--space-4);
-      text-align: center;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--landing-text);
+    .landing-scanner__close {
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
       border: 1px solid var(--landing-border);
       border-radius: 12px;
-      font-weight: 500;
-      font-size: 0.9375rem;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--landing-text);
+      font-size: 1.5rem;
+      line-height: 1;
       cursor: pointer;
     }
 
-    .landing-guests__choice-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
+    .landing-scanner__error {
+      margin: 0 0 var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      border-radius: 12px;
+      background: rgba(127, 29, 29, 0.22);
+      color: #fecaca;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .landing-scanner__reader {
+      min-height: 280px;
+      overflow: hidden;
+      border: 1px solid var(--landing-border);
+      border-radius: 16px;
+      background: #080809;
+    }
+
+    :host ::ng-deep .landing-scanner__reader video {
+      object-fit: cover;
+      border-radius: 15px;
+    }
+
+    .landing-scanner__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .landing-scanner__retry,
+    .landing-scanner__cancel {
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .landing-scanner__retry {
+      border: none;
+      background: #fff;
+      color: #0a0a0b;
+    }
+
+    .landing-scanner__cancel {
+      border: 1px solid var(--landing-border);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--landing-text);
+    }
+
+    @media (max-width: 480px) {
+      .landing-scanner-backdrop {
+        padding: var(--space-2);
+      }
+
+      .landing-scanner {
+        padding: var(--space-4);
+      }
+
+      .landing-scanner__reader {
+        min-height: 240px;
+      }
+
+      .landing-scanner__actions {
+        flex-direction: column;
+      }
+
+      .landing-scanner__retry,
+      .landing-scanner__cancel {
+        width: 100%;
+      }
     }
 
     .landing-qr-demo {
@@ -1013,6 +1242,27 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
       color: var(--landing-accent);
     }
 
+    .landing-qr-demo__badge {
+      display: inline-flex;
+      width: fit-content;
+      margin: 0 0 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .landing-qr-demo__notice {
+      margin: 0;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
     .landing-qr-demo__title {
       margin: 0 0 var(--space-3);
       font-size: clamp(1.5rem, 3.5vw, 2rem);
@@ -1083,19 +1333,26 @@ const LANDING_DEMO_TABLE_NAME = 'Take Away';
     }
   `],
 })
-export class LandingComponent implements OnInit {
+export class LandingComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private router = inject(Router);
   private translate = inject(TranslateService);
   private apiErr = inject(ApiErrorMessageService);
+  private injector = inject(Injector);
+
+  readonly guestQrReaderId = LANDING_GUEST_QR_READER_ID;
 
   tenants = signal<TenantSummary[]>([]);
   loading = signal(true);
   error = signal<string | null>(null);
-  tableCode = '';
-  tableLookupLoading = signal(false);
-  tableLookupError = signal<string | null>(null);
-  tableLookupChoices = signal<PublicTableLookupChoice[]>([]);
+  guestScannerOpen = signal(false);
+  guestScannerStarting = signal(false);
+  guestScannerError = signal<string | null>(null);
+  guestDemoError = signal<string | null>(null);
+  mobileNavOpen = signal(false);
+
+  private guestQrScanner: Html5Qrcode | null = null;
+  private guestScanDecodeHandled = false;
 
   ngOnInit(): void {
     // `ApiService` constructor already calls `checkAuth()` once; avoid a second `/users/me` (extra 401 noise).
@@ -1115,13 +1372,16 @@ export class LandingComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    void this.stopGuestScanner();
+  }
+
   private loadTenants(): void {
     this.loading.set(true);
     this.error.set(null);
     this.api.getPublicTenants().subscribe({
       next: (list) => {
-        const demo = list.filter((t) => t.id === LANDING_DEMO_TENANT_ID);
-        this.tenants.set(demo);
+        this.tenants.set(list.filter((tenant) => tenant.is_demo === true).slice(0, 1));
         this.loading.set(false);
       },
       error: (err) => {
@@ -1135,6 +1395,14 @@ export class LandingComponent implements OnInit {
     return this.translate.instant('LANDING.RESTAURANT_DEMO_NAME');
   }
 
+  toggleMobileNav(): void {
+    this.mobileNavOpen.update((open) => !open);
+  }
+
+  closeMobileNav(): void {
+    this.mobileNavOpen.set(false);
+  }
+
   /** Absolute URL to the read-only public menu page (for landing QR codes). */
   getPublicMenuUrl(tenantId: number): string {
     if (typeof window === 'undefined') return `/public-menu/${tenantId}`;
@@ -1142,52 +1410,92 @@ export class LandingComponent implements OnInit {
   }
 
   tryDemoTable(): void {
-    this.tableCode = LANDING_DEMO_TABLE_NAME;
-    this.goToTableMenu();
-  }
-
-  onTableCodeInput(): void {
-    this.tableLookupError.set(null);
-    if (this.tableLookupChoices().length > 0) {
-      this.tableLookupChoices.set([]);
-    }
-  }
-
-  goToTableMenu(): void {
-    const raw = this.tableCode?.trim();
-    if (!raw) {
+    const demo = this.tenants().find((tenant) => tenant.is_demo === true);
+    if (demo?.take_away_table_token) {
+      this.guestDemoError.set(null);
+      void this.router.navigate(['/menu', demo.take_away_table_token]);
       return;
     }
-    this.tableLookupError.set(null);
-    this.tableLookupChoices.set([]);
-    this.tableLookupLoading.set(true);
-    this.api.lookupPublicTable(raw).subscribe({
-      next: (res) => {
-        this.tableLookupLoading.set(false);
-        if (res.table_token) {
-          void this.router.navigate(['/menu', res.table_token]);
-          return;
-        }
-        if (res.ambiguous && res.choices?.length) {
-          this.tableLookupChoices.set(res.choices);
-          return;
-        }
-        this.tableLookupError.set(this.translate.instant('LANDING.TABLE_LOOKUP_FAILED'));
-      },
-      error: (err) => {
-        this.tableLookupLoading.set(false);
-        if (err?.status === 404) {
-          this.tableLookupError.set(this.translate.instant('LANDING.TABLE_NOT_FOUND'));
-        } else {
-          this.tableLookupError.set(this.translate.instant('LANDING.TABLE_LOOKUP_FAILED'));
-        }
-      },
-    });
+    this.guestDemoError.set('LANDING.GUEST_DEMO_UNAVAILABLE');
   }
 
-  selectRestaurantForTable(choice: PublicTableLookupChoice): void {
-    this.tableLookupChoices.set([]);
-    this.tableLookupError.set(null);
-    void this.router.navigate(['/menu', choice.table_token]);
+  openGuestScanner(): void {
+    this.guestScannerError.set(null);
+    this.guestScannerStarting.set(true);
+    this.guestScanDecodeHandled = false;
+    this.guestScannerOpen.set(true);
+    afterNextRender(
+      () => {
+        void this.startGuestScanner();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  closeGuestScanner(): void {
+    this.guestScannerOpen.set(false);
+    this.guestScannerStarting.set(false);
+    this.guestScannerError.set(null);
+    this.guestScanDecodeHandled = false;
+    void this.stopGuestScanner();
+  }
+
+  retryGuestScanner(): void {
+    this.guestScannerError.set(null);
+    this.guestScannerStarting.set(true);
+    this.guestScanDecodeHandled = false;
+    void this.startGuestScanner();
+  }
+
+  private async startGuestScanner(): Promise<void> {
+    try {
+      await this.stopGuestScanner();
+      if (!this.guestScannerOpen()) return;
+      const scanner = new Html5Qrcode(LANDING_GUEST_QR_READER_ID);
+      this.guestQrScanner = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => this.onGuestQrDecoded(decodedText),
+        () => {},
+      );
+    } catch {
+      await this.stopGuestScanner();
+      if (this.guestScannerOpen()) {
+        this.guestScannerError.set('LANDING.GUEST_SCANNER_CAMERA_ERROR');
+      }
+    } finally {
+      this.guestScannerStarting.set(false);
+    }
+  }
+
+  private async stopGuestScanner(): Promise<void> {
+    const scanner = this.guestQrScanner;
+    this.guestQrScanner = null;
+    if (!scanner) return;
+    try {
+      await scanner.stop();
+    } catch {
+      // The camera may not have started, or it may already be stopped.
+    }
+    try {
+      await scanner.clear();
+    } catch {
+      // The host element can disappear while the route is changing.
+    }
+  }
+
+  private onGuestQrDecoded(decodedText: string): void {
+    if (this.guestScanDecodeHandled) return;
+    const route = extractScanakiGuestRoute(decodedText, window.location.origin);
+    this.guestScanDecodeHandled = true;
+    void this.stopGuestScanner();
+    if (!route) {
+      this.guestScannerError.set('LANDING.GUEST_SCANNER_INVALID');
+      return;
+    }
+    this.guestScannerOpen.set(false);
+    this.guestScannerError.set(null);
+    void this.router.navigateByUrl(route);
   }
 }

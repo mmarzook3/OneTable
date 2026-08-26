@@ -7,7 +7,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -284,6 +284,86 @@ async def customer_resend_verification(
     if customer and not customer.email_verified:
         await _issue_and_send_verification(customer, session, lang)
     return {"status": "ok", "message": msg}
+
+
+@router.post("/password-reset/request")
+@limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
+async def customer_password_reset_request(
+    request: Request,
+    body: models.CustomerPasswordResetRequest,
+    lang: str = Depends(_requested_language),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Request a customer reset link without revealing whether the account exists."""
+    msg = get_message("password_reset_sent", lang)
+    try:
+        email = normalize_email_address(body.email)
+    except ValueError:
+        return {"status": "ok", "message": msg}
+    base = (settings.public_app_base_url or "").strip().rstrip("/")
+    if not base:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=api_error_payload("password_reset_not_configured", lang),
+        )
+    customer = session.exec(
+        select(models.Customer).where(models.Customer.email == email)
+    ).first()
+    if customer is None:
+        return {"status": "ok", "message": msg}
+    raw = secrets.token_urlsafe(32)
+    customer.password_reset_token_hash = _token_hash(raw)
+    customer.password_reset_sent_at = datetime.now(timezone.utc)
+    customer.updated_at = datetime.now(timezone.utc)
+    session.add(customer)
+    session.flush()
+    reset_url = f"{base}/customer/reset-password?token={quote(raw, safe='')}"
+    sent = await email_svc.send_password_reset_email(
+        customer.email,
+        reset_url,
+        tenant=None,
+        lang=lang,
+    )
+    if not sent:
+        customer.password_reset_token_hash = None
+        customer.password_reset_sent_at = None
+        session.add(customer)
+    session.commit()
+    return {"status": "ok", "message": msg}
+
+
+@router.post("/password-reset/confirm")
+@limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
+def customer_password_reset_confirm(
+    request: Request,
+    body: models.CustomerPasswordResetConfirm,
+    lang: str = Depends(_requested_language),
+    session: Session = Depends(get_session),
+) -> dict:
+    token_hash = _token_hash(body.token.strip())
+    customer = session.exec(
+        select(models.Customer).where(
+            models.Customer.password_reset_token_hash == token_hash
+        )
+    ).first()
+    now = datetime.now(timezone.utc)
+    sent_at = customer.password_reset_sent_at if customer else None
+    if sent_at is not None and sent_at.tzinfo is None:
+        sent_at = sent_at.replace(tzinfo=timezone.utc)
+    max_age = timedelta(minutes=settings.password_reset_token_expire_minutes)
+    if customer is None or sent_at is None or now - sent_at > max_age:
+        raise HTTPException(
+            status_code=400,
+            detail=api_error_payload("password_reset_invalid", lang),
+        )
+    customer.hashed_password = security.get_password_hash(body.new_password)
+    customer.password_reset_token_hash = None
+    customer.password_reset_sent_at = None
+    customer.token_version = (customer.token_version or 0) + 1
+    customer.updated_at = now
+    session.add(customer)
+    session.commit()
+    return {"status": "ok"}
 
 
 @router.get("/orders")

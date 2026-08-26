@@ -19,14 +19,14 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
 
         <form [formGroup]="form" (ngSubmit)="onSubmit()">
           <div class="form-group">
-            <label for="email">{{ 'AUTH.EMAIL' | translate }}</label>
+            <label for="email">Username or email</label>
             <input
               id="email"
-              type="email"
+              type="text"
               name="username"
               formControlName="username"
-              [placeholder]="'AUTH.EMAIL_PLACEHOLDER' | translate"
-              autocomplete="email"
+              placeholder="Enter your platform username"
+              autocomplete="username"
             >
           </div>
           <div class="form-group">
@@ -58,6 +58,8 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         </form>
 
         <div class="auth-actions-foot">
+          <a routerLink="/platform/forgot-password">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
+          <span aria-hidden="true"> · </span>
           <a routerLink="/login">{{ 'PLATFORM_AUTH.BACK_STAFF_LOGIN' | translate }}</a>
         </div>
       </div>
@@ -146,7 +148,7 @@ export class PlatformLoginComponent {
   showPassword = signal(false);
 
   form = this.fb.group({
-    username: ['', [Validators.required, Validators.email]],
+    username: ['', Validators.required],
     password: ['', Validators.required]
   });
 

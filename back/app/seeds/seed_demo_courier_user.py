@@ -1,5 +1,5 @@
 """
-Ensure tenant 1 has one courier-role user for Satisfecho Delivery / courier demos.
+Ensure tenant 1 has one courier-role user for Scanaki Delivery / courier demos.
 
 Idempotent: if any courier already exists on tenant 1, does nothing. Otherwise
 creates (or promotes) the demo courier using COURIER_EMAIL / COURIER_PASSWORD

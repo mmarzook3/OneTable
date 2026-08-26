@@ -3,7 +3,7 @@ import { DomSanitizer, SafeResourceUrl, SafeStyle } from '@angular/platform-brow
 import { FormsModule } from '@angular/forms';
 import { CommonModule, SlicePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { ApiService, Product, ProductQuestion, OrderItemCreate, OrderHistoryItem } from '../services/api.service';
+import { ApiService, Product, ProductQuestion, OrderItemCreate, OrderHistoryItem, TableCartResponse } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { environment } from '../../environments/environment';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
@@ -21,6 +21,10 @@ interface CartItem {
   customization_summary?: string | null;
   status?: string;  // Item status from backend
   itemId?: number;  // Backend item ID for editing
+  /** Shared draft cart line id (server) */
+  lineId?: string;
+  sessionId?: string;
+  customerName?: string | null;
 }
 
 interface PlacedOrder {
@@ -30,6 +34,8 @@ interface PlacedOrder {
   total: number;
   status: string;
 }
+
+type MenuQuickFilter = 'all' | 'offers' | 'vegetarian' | 'vegan' | 'gluten_free' | 'customisable';
 
 @Component({
   selector: 'app-menu',
@@ -59,25 +65,55 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectedSubcategory = signal<string | null>(null);
   availableCategories = signal<string[]>([]);
   availableSubcategories = signal<string[]>([]);
+  searchQuery = signal('');
+  selectedQuickFilter = signal<MenuQuickFilter>('all');
+  quickFilterCounts = computed(() => {
+    const products = this.products();
+    return {
+      offers: products.filter((product) => this.matchesQuickFilter(product, 'offers')).length,
+      vegetarian: products.filter((product) => this.matchesQuickFilter(product, 'vegetarian')).length,
+      vegan: products.filter((product) => this.matchesQuickFilter(product, 'vegan')).length,
+      gluten_free: products.filter((product) => this.matchesQuickFilter(product, 'gluten_free')).length,
+      customisable: products.filter((product) => this.matchesQuickFilter(product, 'customisable')).length,
+    };
+  });
+  categoryCounts = computed(() => {
+    const counts = new Map<string, number>();
+    for (const product of this.products()) {
+      if (product.category) counts.set(product.category, (counts.get(product.category) || 0) + 1);
+    }
+    return counts;
+  });
 
   // Tenant info
   tenantName = signal('');
   tableName = signal('');
+  locationName = signal('');
+  servicePointType = signal<'table' | 'room'>('table');
+  orderingContextLabel = signal('');
+  orderingPointAssignmentVersion = signal<number | null>(null);
   tenantLogo = signal<string | null>(null);
   tenantDescription = signal<string | null>(null);
   tenantPhone = signal<string | null>(null);
   tenantWhatsapp = signal<string | null>(null);
   tenantAddress = signal<string | null>(null);
   tenantWebsite = signal<string | null>(null);
-  tenantCurrency = signal<string>('€');
-  tenantCurrencyCode = signal<string>('EUR');
+  tenantCurrency = signal<string>('£');
+  tenantCurrencyCode = signal<string>('GBP');
   immediatePaymentRequired = signal(false);
   tenantPublicBackgroundColor = signal<string | null>(null);
   tenantRevolutConfigured = signal(false);
   tenantHeaderBackgroundFilename = signal<string | null>(null);
+  orderingMode = signal<'activation_pin' | 'automatic' | 'menu_only'>('activation_pin');
+  orderingAllowed = signal(true);
+  orderingMessage = signal('');
+  automaticMode = computed(() => this.orderingMode() === 'automatic');
+  tableConfirmed = signal(false);
 
   // Cart & Orders
   cart = signal<CartItem[]>([]);
+  /** When true, cart mutations go to the shared table cart API (#349). */
+  sharedCartEnabled = signal(false);
   orderNotes = '';
   /** Cart line keys with expanded per-item comment field */
   expandedCommentKeys = signal<Set<string>>(new Set());
@@ -90,13 +126,13 @@ export class MenuComponent implements OnInit, OnDestroy {
   lastOrderId = signal(0);
   ordersExpanded = signal(true);
   menuExpanded = signal(true);
+  private notesSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // Product details toggles (legacy)
   showIngredientsFor = signal<number | null>(null);
   showDescriptionFor = signal<number | null>(null);
 
   // New UI state
-  isScrolled = signal(false);
   cartExpanded = signal(false);
   /** Product ids in cart — grid/featured cards get a light “in cart” background. */
   productIdsInCart = computed(() => {
@@ -150,6 +186,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private clientSecret = '';
   private currentOrderId = 0;
   private paymentIntentId = '';
+  private stripeConnectedAccountId: string | null = null;
 
   // Internal
   private tableToken = '';
@@ -158,6 +195,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private sessionId = '';
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
+  private pendingOrderIdempotencyKey: string | null = null;
 
   // Computed
   tableGreeting = computed(() => {
@@ -175,19 +213,6 @@ export class MenuComponent implements OnInit, OnDestroy {
     return orders[0].status === 'paid';
   });
 
-  // Featured products (first 5 with images, for now)
-  featuredProducts = computed(() => {
-    return this.products()
-      .filter(p => p.image_filename)
-      .slice(0, 6);
-  });
-
-  // Listen for scroll to update sticky nav state
-  @HostListener('window:scroll')
-  onScroll() {
-    this.isScrolled.set(window.scrollY > 200);
-  }
-
   ngOnInit() {
     this.tableToken = this.route.snapshot.params['token'];
     this.staffAccess =
@@ -204,6 +229,10 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.ws?.close();
+    for (const t of this.notesSyncTimers.values()) {
+      clearTimeout(t);
+    }
+    this.notesSyncTimers.clear();
   }
 
   // ============================================
@@ -264,7 +293,13 @@ export class MenuComponent implements OnInit, OnDestroy {
         }));
         this.products.set(productsWithSource);
         this.tenantName.set(data.tenant_name);
-        this.tableName.set(data.table_name);
+        this.tableName.set(data.service_point_label || data.table_name);
+        this.locationName.set(data.location_name || '');
+        this.servicePointType.set(data.service_point_type || 'table');
+        this.orderingContextLabel.set(
+          data.ordering_context_label || `Ordering from ${data.service_point_label || data.table_name}`
+        );
+        this.orderingPointAssignmentVersion.set(data.ordering_point_assignment_version ?? null);
         this.tenantId = data.tenant_id;
 
         this.connectWebSocket();
@@ -289,21 +324,26 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.tenantWhatsapp.set(data.tenant_whatsapp || null);
         this.tenantAddress.set(data.tenant_address || null);
         this.tenantWebsite.set(data.tenant_website || null);
-        const code = (data.tenant_currency_code || 'EUR').toUpperCase();
+        const code = (data.tenant_currency_code || 'GBP').toUpperCase();
         this.tenantCurrencyCode.set(code);
-        this.tenantCurrency.set(data.tenant_currency || '€');
+        this.tenantCurrency.set(data.tenant_currency || '£');
         this.immediatePaymentRequired.set(data.tenant_immediate_payment_required || false);
+        this.orderingMode.set(data.ordering_mode || 'activation_pin');
+        this.orderingAllowed.set(data.ordering_availability?.allowed !== false);
+        this.orderingMessage.set(data.ordering_availability?.customer_message || '');
         this.tenantPublicBackgroundColor.set(data.tenant_public_background_color ?? null);
         this.tenantHeaderBackgroundFilename.set(data.tenant_header_background_filename ?? null);
 
         if (data.tenant_stripe_publishable_key) {
           this.api.setTenantStripeKey(data.tenant_stripe_publishable_key);
         }
+        this.stripeConnectedAccountId = data.tenant_stripe_connected_account_id || null;
         this.tenantRevolutConfigured.set(!!data.tenant_revolut_configured);
 
         // Table session status
         this.tableIsActive.set(data.table_is_active !== false);  // Default true for backward compatibility
         this.tableRequiresPin.set(data.table_requires_pin === true);
+        this.sharedCartEnabled.set(data.table_shared_cart === true);
 
         // Check if the table session has changed (table was closed and reopened).
         // If active_order_id differs from what we stored, clear stale data and
@@ -320,6 +360,7 @@ export class MenuComponent implements OnInit, OnDestroy {
           this.currentPin = '';
           this.placedOrders.set([]);
           this.customerName.set('');
+          this.cart.set([]);
 
           // Re-initialize session with fresh IDs
           const newSessionId = this.generateUUID();
@@ -336,6 +377,10 @@ export class MenuComponent implements OnInit, OnDestroy {
           if (storedPin) {
             this.currentPin = storedPin;
           }
+        }
+
+        if (this.sharedCartEnabled()) {
+          this.loadSharedCart();
         }
 
         this.loading.set(false);
@@ -414,6 +459,10 @@ export class MenuComponent implements OnInit, OnDestroy {
         } else if (data.type === 'item_removed' || data.type === 'item_updated' || data.type === 'order_cancelled' || data.type === 'items_added' || data.type === 'new_order') {
           this.audio.playCustomerOrderChange();
           this.loadStoredOrders();
+        } else if (data.type === 'cart_updated') {
+          if (this.sharedCartEnabled()) {
+            this.loadSharedCart();
+          }
         }
       } catch { }
     };
@@ -442,6 +491,34 @@ export class MenuComponent implements OnInit, OnDestroy {
   selectSubcategory(subcategoryCode: string | null) {
     this.selectedSubcategory.set(subcategoryCode);
     this.applyFilter(this.selectedCategory(), subcategoryCode);
+  }
+
+  updateMenuSearch(event: Event): void {
+    this.searchQuery.set((event.target as HTMLInputElement).value);
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  clearMenuSearch(): void {
+    this.searchQuery.set('');
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  selectQuickFilter(filter: MenuQuickFilter): void {
+    this.selectedQuickFilter.set(filter);
+    this.applyFilter(this.selectedCategory(), this.selectedSubcategory());
+  }
+
+  clearAllMenuFilters(): void {
+    this.searchQuery.set('');
+    this.selectedQuickFilter.set('all');
+    this.selectedCategory.set(null);
+    this.selectedSubcategory.set(null);
+    this.updateSubcategories(null);
+    this.applyFilter(null, null);
+  }
+
+  categoryProductCount(category: string): number {
+    return this.categoryCounts().get(category) || 0;
   }
 
   updateSubcategories(category: string | null) {
@@ -561,6 +638,31 @@ export class MenuComponent implements OnInit, OnDestroy {
       }
     }
 
+    const query = this.searchQuery().trim().toLocaleLowerCase();
+    if (query) {
+      filtered = filtered.filter((product) =>
+        [
+          product.name,
+          product.description,
+          product.detailed_description,
+          product.ingredients,
+          product.category,
+          product.subcategory,
+          product.winery,
+          product.grape_variety,
+          product.country,
+          product.region,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLocaleLowerCase().includes(query)),
+      );
+    }
+
+    const quickFilter = this.selectedQuickFilter();
+    if (quickFilter !== 'all') {
+      filtered = filtered.filter((product) => this.matchesQuickFilter(product, quickFilter));
+    }
+
     filtered = filtered.map(p => ({
       ...p,
       _source: p._source || 'unknown'
@@ -569,33 +671,19 @@ export class MenuComponent implements OnInit, OnDestroy {
     this.filteredProducts.set(filtered);
   }
 
-  getSubcategoryLabel(subcategoryCode: string): string {
-    return resolveSubcategoryLabel(subcategoryCode, this.translate);
+  private matchesQuickFilter(product: Product, filter: Exclude<MenuQuickFilter, 'all'>): boolean {
+    if (filter === 'offers') {
+      return !!product.promo_label ||
+        (product.list_price_cents != null && product.list_price_cents > product.price_cents);
+    }
+    if (filter === 'vegetarian') return this.isVegetarian(product);
+    if (filter === 'vegan') return this.isVegan(product);
+    if (filter === 'gluten_free') return this.isGlutenFree(product);
+    return (product.questions?.length || 0) > 0;
   }
 
-  // ============================================
-  // CATEGORY ICONS (for sticky nav)
-  // ============================================
-  getCategoryIcon(category: string): string {
-    const icons: Record<string, string> = {
-      'Starters': '🥗',
-      'Main Course': '🍝',
-      'Desserts': '🍰',
-      'Beverages': '🍷',
-      'Sides': '🥔',
-      'Wine': '🍷',
-      'Appetizers': '🥗',
-      'Entrees': '🍖',
-      'Pasta': '🍝',
-      'Pizza': '🍕',
-      'Seafood': '🦐',
-      'Meat': '🥩',
-      'Salads': '🥗',
-      'Soups': '🍲',
-      'Coffee': '☕',
-      'Tea': '🍵',
-    };
-    return icons[category] || '🍽️';
+  getSubcategoryLabel(subcategoryCode: string): string {
+    return resolveSubcategoryLabel(subcategoryCode, this.translate);
   }
 
   // ============================================
@@ -641,9 +729,65 @@ export class MenuComponent implements OnInit, OnDestroy {
     return `${source}-${id}-${name}-${price}${answersKey ? '-' + answersKey : ''}`;
   }
 
-  getCartLineKey(item: Pick<CartItem, 'product' | 'customization_answers' | 'notes'>): string {
+  getCartLineKey(item: Pick<CartItem, 'product' | 'customization_answers' | 'notes' | 'lineId' | 'sessionId'>): string {
+    if (item.lineId) {
+      return `line:${item.lineId}`;
+    }
     const notePart = (item.notes || '').trim();
-    return `${this.getProductKey(item.product, item.customization_answers)}|${notePart}`;
+    const sess = item.sessionId || this.sessionId || '';
+    return `${this.getProductKey(item.product, item.customization_answers)}|${notePart}|${sess}`;
+  }
+
+  isMyCartItem(item: CartItem): boolean {
+    if (!item.sessionId) return true;
+    return item.sessionId === this.sessionId;
+  }
+
+  private applySharedCartResponse(res: TableCartResponse): void {
+    if (!res.shared) {
+      this.sharedCartEnabled.set(false);
+      return;
+    }
+    this.sharedCartEnabled.set(true);
+    const mapped: CartItem[] = (res.items || []).map(line => ({
+      lineId: line.line_id,
+      sessionId: line.session_id,
+      customerName: line.customer_name ?? null,
+      product: {
+        id: line.product_id,
+        name: line.product_name,
+        price_cents: line.price_cents,
+        _source: (line.source as Product['_source']) || undefined,
+      } as Product,
+      quantity: line.quantity,
+      notes: line.notes || '',
+      customization_answers: line.customization_answers || undefined,
+    }));
+    this.cart.set(mapped);
+    if (mapped.length > 0 && !this.cartExpanded()) {
+      // Keep collapsed summary visible; do not force expand on remote updates
+    }
+  }
+
+  loadSharedCart(): void {
+    if (!this.tableToken) return;
+    this.api.getTableCart(this.tableToken).subscribe({
+      next: res => this.applySharedCartResponse(res),
+      error: () => {
+        // Fall back to local cart if shared cart API fails
+        this.sharedCartEnabled.set(false);
+      },
+    });
+  }
+
+  private syncCartFromResponse(res: TableCartResponse, flashProduct?: Product, flashKey?: string): void {
+    this.applySharedCartResponse(res);
+    if (flashProduct && flashKey) {
+      this.flashProductAdded(flashProduct, flashKey);
+    }
+    if (this.cart().length === 1) {
+      this.cartExpanded.set(true);
+    }
   }
 
   toggleCartItemComment(item: CartItem): void {
@@ -663,16 +807,39 @@ export class MenuComponent implements OnInit, OnDestroy {
   updateCartItemNotes(item: CartItem, notes: string): void {
     const trimmed = notes.slice(0, this.maxNoteLength);
     const oldKey = this.getCartLineKey(item);
+    if (!this.isMyCartItem(item)) {
+      return;
+    }
     this.cart.update(items =>
       items.map(i => (this.getCartLineKey(i) === oldKey ? { ...i, notes: trimmed } : i))
     );
     if (trimmed.trim()) {
       this.expandedCommentKeys.update(set => {
         const next = new Set(set);
-        next.add(`${this.getProductKey(item.product, item.customization_answers)}|${trimmed.trim()}`);
+        next.add(this.getCartLineKey({ ...item, notes: trimmed }));
         next.delete(oldKey);
         return next;
       });
+    }
+    if (this.sharedCartEnabled() && item.lineId) {
+      const lineId = item.lineId;
+      const prev = this.notesSyncTimers.get(lineId);
+      if (prev) clearTimeout(prev);
+      this.notesSyncTimers.set(
+        lineId,
+        setTimeout(() => {
+          this.notesSyncTimers.delete(lineId);
+          this.api
+            .updateTableCartItem(this.tableToken, lineId, {
+              session_id: this.sessionId,
+              notes: trimmed,
+            })
+            .subscribe({
+              next: res => this.applySharedCartResponse(res),
+              error: () => this.loadSharedCart(),
+            });
+        }, 400)
+      );
     }
   }
 
@@ -705,6 +872,9 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isVegetarian(product: Product): boolean {
+    if (product.dietary_tags?.includes('vegetarian') || product.dietary_tags?.includes('vegan')) {
+      return true;
+    }
     const ingredients = product.ingredients?.toLowerCase() || '';
     const subcategory = product.subcategory?.toLowerCase() || '';
     return subcategory.includes('vegetarian') ||
@@ -713,6 +883,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isVegan(product: Product): boolean {
+    if (product.dietary_tags?.includes('vegan')) return true;
     const ingredients = product.ingredients?.toLowerCase() || '';
     const subcategory = product.subcategory?.toLowerCase() || '';
     return subcategory.includes('vegan') ||
@@ -721,6 +892,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   isGlutenFree(product: Product): boolean {
+    if (product.dietary_tags?.includes('gluten_free')) return true;
     const ingredients = product.ingredients?.toLowerCase() || '';
     return ingredients.includes('sin gluten') ||
       ingredients.includes('gluten-free') ||
@@ -759,17 +931,62 @@ export class MenuComponent implements OnInit, OnDestroy {
   // CART OPERATIONS
   // ============================================
   addToCart(product: Product, customizationAnswers?: Record<string, string | number | string[]>) {
-    const newLine: CartItem = { product, quantity: 1, notes: '', customization_answers: customizationAnswers };
+    const newLine: CartItem = {
+      product,
+      quantity: 1,
+      notes: '',
+      customization_answers: customizationAnswers,
+      sessionId: this.sessionId,
+      customerName: this.customerName() || null,
+    };
+    const lineKey = this.getCartLineKey(newLine);
+
+    if (this.sharedCartEnabled()) {
+      this.api
+        .addTableCartItem(this.tableToken, {
+          session_id: this.sessionId,
+          customer_name: this.customerName() || undefined,
+          product_id: product.id!,
+          quantity: 1,
+          source: product._source || undefined,
+          customization_answers:
+            customizationAnswers && Object.keys(customizationAnswers).length
+              ? customizationAnswers
+              : undefined,
+        })
+        .subscribe({
+          next: res => this.syncCartFromResponse(res, product, lineKey),
+          error: () => {
+            // Local fallback if shared cart write fails
+            this.sharedCartEnabled.set(false);
+            this.addToCartLocal(product, customizationAnswers);
+          },
+        });
+      return;
+    }
+
+    this.addToCartLocal(product, customizationAnswers);
+  }
+
+  private addToCartLocal(product: Product, customizationAnswers?: Record<string, string | number | string[]>) {
+    const newLine: CartItem = {
+      product,
+      quantity: 1,
+      notes: '',
+      customization_answers: customizationAnswers,
+      sessionId: this.sessionId,
+    };
     const lineKey = this.getCartLineKey(newLine);
     this.cart.update(items => {
       const existing = items.find(i => this.getCartLineKey(i) === lineKey);
       if (existing) {
-        return items.map(i => this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity + 1 } : i);
+        return items.map(i =>
+          this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity + 1 } : i
+        );
       }
       return [...items, newLine];
     });
     this.flashProductAdded(product, lineKey);
-    // Auto-expand cart when adding first item
     if (this.cart().length === 1) {
       this.cartExpanded.set(true);
     }
@@ -869,17 +1086,54 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   incrementItem(item: CartItem) {
+    if (!this.isMyCartItem(item)) return;
     const lineKey = this.getCartLineKey(item);
-    this.cart.update(items => items.map(i => this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity + 1 } : i));
+    if (this.sharedCartEnabled() && item.lineId) {
+      this.api
+        .updateTableCartItem(this.tableToken, item.lineId, {
+          session_id: this.sessionId,
+          quantity: item.quantity + 1,
+        })
+        .subscribe({
+          next: res => this.syncCartFromResponse(res, item.product, lineKey),
+          error: () => this.loadSharedCart(),
+        });
+      return;
+    }
+    this.cart.update(items =>
+      items.map(i => (this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity + 1 } : i))
+    );
     this.flashProductAdded(item.product, lineKey);
   }
 
   decrementItem(item: CartItem) {
+    if (!this.isMyCartItem(item)) return;
     const lineKey = this.getCartLineKey(item);
+    if (this.sharedCartEnabled() && item.lineId) {
+      if (item.quantity <= 1) {
+        this.api.deleteTableCartItem(this.tableToken, item.lineId, this.sessionId).subscribe({
+          next: res => this.applySharedCartResponse(res),
+          error: () => this.loadSharedCart(),
+        });
+      } else {
+        this.api
+          .updateTableCartItem(this.tableToken, item.lineId, {
+            session_id: this.sessionId,
+            quantity: item.quantity - 1,
+          })
+          .subscribe({
+            next: res => this.applySharedCartResponse(res),
+            error: () => this.loadSharedCart(),
+          });
+      }
+      return;
+    }
     if (item.quantity <= 1) {
       this.cart.update(items => items.filter(i => this.getCartLineKey(i) !== lineKey));
     } else {
-      this.cart.update(items => items.map(i => this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity - 1 } : i));
+      this.cart.update(items =>
+        items.map(i => (this.getCartLineKey(i) === lineKey ? { ...i, quantity: i.quantity - 1 } : i))
+      );
     }
   }
 
@@ -931,7 +1185,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   formatPrice(priceCents: number): string {
-    const currencyCode = this.tenantCurrencyCode() || 'EUR';
+    const currencyCode = this.tenantCurrencyCode() || 'GBP';
     const locale = navigator.language || 'en-US';
     return new Intl.NumberFormat(locale, {
       style: 'currency',
@@ -955,6 +1209,14 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ORDER SUBMISSION
   // ============================================
   submitOrder() {
+    if (!this.orderingAllowed()) {
+      alert(this.orderingMessage() || 'Ordering is unavailable right now.');
+      return;
+    }
+    if (this.automaticMode() && !this.tableConfirmed()) {
+      alert(this.translate.instant('MENU.CONFIRM_TABLE_REQUIRED', { table: this.tableName() }));
+      return;
+    }
     // Check if table is active
     if (!this.tableIsActive()) {
       alert('This table is not accepting orders. Please ask staff for assistance.');
@@ -993,7 +1255,12 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   private async doSubmitOrder() {
-    const items: OrderItemCreate[] = this.cart().map(item => ({
+    const myLines = this.cart().filter(item => this.isMyCartItem(item));
+    if (myLines.length === 0) {
+      alert(this.translate.instant('MENU.PLACE_OWN_ITEMS_ONLY'));
+      return;
+    }
+    const items: OrderItemCreate[] = myLines.map(item => ({
       product_id: item.product.id!,
       quantity: item.quantity,
       notes: item.notes?.trim() || undefined,
@@ -1021,6 +1288,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
 
     this.submitting.set(true);
+    this.pendingOrderIdempotencyKey ??= this.generateUUID();
     this.api.submitOrder(this.tableToken, {
       items,
       notes: this.orderNotes.trim() || undefined,
@@ -1029,10 +1297,14 @@ export class MenuComponent implements OnInit, OnDestroy {
       pin: this.currentPin || undefined,
       staff_access: this.staffAccess ?? undefined,
       latitude,
-      longitude
+      longitude,
+      idempotency_key: this.pendingOrderIdempotencyKey,
+      ordering_point_assignment_version: this.orderingPointAssignmentVersion(),
+      location_confirmed: this.automaticMode() ? this.tableConfirmed() : true,
     }).subscribe({
       next: (response: any) => {
         const orderId = response.order_id;
+        this.pendingOrderIdempotencyKey = null;
 
         if (response.session_id && response.session_id !== this.sessionId) {
           console.warn('Session ID mismatch - order may belong to different session');
@@ -1043,9 +1315,8 @@ export class MenuComponent implements OnInit, OnDestroy {
           localStorage.setItem(`customer_name_${this.tableToken}`, response.customer_name);
         }
 
-        this.cart.set([]);
-        this.cartExpanded.set(false);
         this.orderNotes = '';
+        this.tableConfirmed.set(false);
         this.expandedCommentKeys.set(new Set());
         this.lastOrderId.set(orderId);
         this.showSuccessToast.set(true);
@@ -1053,10 +1324,18 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.ordersExpanded.set(true);
         this.submitting.set(false);
 
+        if (this.sharedCartEnabled()) {
+          // Backend already dropped this session's draft lines; refresh to keep others'
+          this.loadSharedCart();
+        } else {
+          this.cart.set([]);
+          this.cartExpanded.set(false);
+        }
+
         this.loadStoredOrders();
 
         // Auto-trigger payment if immediate payment is required
-        if (this.immediatePaymentRequired()) {
+        if (response.payment_required || this.immediatePaymentRequired()) {
           setTimeout(() => {
             const currentOrder = this.placedOrders().find(o => o.id === orderId);
             if (currentOrder) {
@@ -1068,7 +1347,9 @@ export class MenuComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.submitting.set(false);
         const detail = err.error?.detail;
-        const errorMsg = typeof detail === 'string' ? detail : 'Failed to place order.';
+        const errorMsg = typeof detail === 'string'
+          ? detail
+          : detail?.customer_message || 'Failed to place order.';
 
         if (err.status === 429) {
           this.currentPin = '';
@@ -1204,8 +1485,8 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   loadOrderHistory() {
-    if (!this.tableToken) return;
-    this.api.getOrderHistory(this.tableToken, 10).subscribe({
+    if (!this.tableToken || !this.sessionId) return;
+    this.api.getOrderHistory(this.tableToken, this.sessionId, 10).subscribe({
       next: (orders) => this.orderHistory.set(orders),
       error: () => this.orderHistory.set([])
     });
@@ -1425,7 +1706,7 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Reset stale state from previous attempts
     this.paymentSuccess.set(false);
     this.cardError.set('');
-    this.api.createPaymentIntent(this.currentOrderId, this.tableToken).subscribe({
+    this.api.createPaymentIntent(this.currentOrderId, this.tableToken, null, this.sessionId).subscribe({
       next: async (response: any) => {
         this.clientSecret = response.client_secret;
         this.paymentIntentId = response.payment_intent_id;
@@ -1452,14 +1733,20 @@ export class MenuComponent implements OnInit, OnDestroy {
     }
     // Check if Stripe.js is already available globally
     if ((window as any).Stripe) {
-      this.stripe = (window as any).Stripe(this.api.getStripePublishableKey());
+      this.stripe = (window as any).Stripe(
+        this.api.getStripePublishableKey(),
+        this.stripeConnectedAccountId ? { stripeAccount: this.stripeConnectedAccountId } : undefined,
+      );
       this.mountCard();
       return;
     }
     const script = document.createElement('script');
     script.src = 'https://js.stripe.com/v3/';
     script.onload = () => {
-      this.stripe = (window as any).Stripe(this.api.getStripePublishableKey());
+      this.stripe = (window as any).Stripe(
+        this.api.getStripePublishableKey(),
+        this.stripeConnectedAccountId ? { stripeAccount: this.stripeConnectedAccountId } : undefined,
+      );
       this.mountCard();
     };
     script.onerror = () => {
@@ -1507,7 +1794,13 @@ export class MenuComponent implements OnInit, OnDestroy {
       this.cardError.set(error.message);
       this.processingPayment.set(false);
     } else if (paymentIntent.status === 'succeeded') {
-      this.api.confirmPayment(this.currentOrderId, this.tableToken, this.paymentIntentId).subscribe({
+      this.api.confirmPayment(
+        this.currentOrderId,
+        this.tableToken,
+        this.paymentIntentId,
+        null,
+        this.sessionId,
+      ).subscribe({
         next: () => {
           this.processingPayment.set(false);
           this.paymentSuccess.set(true);

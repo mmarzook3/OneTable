@@ -8,7 +8,7 @@ excludes removed and cancelled items. For restaurant owner revenue analysis.
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO, StringIO
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -68,15 +68,18 @@ def _get_revenue_items(
     tenant_id: int,
     from_date: date,
     to_date: date,
+    location_id: int | None = None,
 ):
     """Load orders and items that count toward revenue in the date range."""
-    orders = session.exec(
+    order_query = (
         select(models.Order)
         .where(models.Order.tenant_id == tenant_id)
         .where(models.Order.deleted_at.is_(None))
         .where(models.Order.status.in_([s.value for s in REVENUE_STATUSES]))
-        .order_by(models.Order.created_at.asc())
-    ).all()
+    )
+    if location_id is not None:
+        order_query = order_query.where(models.Order.location_id == location_id)
+    orders = session.exec(order_query.order_by(models.Order.created_at.asc())).all()
 
     result = []
     for order in orders:
@@ -114,6 +117,9 @@ def _get_revenue_items(
                 "date": rev_date,
                 "table_id": order.table_id,
                 "table_name": table_name,
+                "location_id": order.location_id,
+                "location_name": order.location_name_snapshot or "Legacy",
+                "service_point_label": order.service_point_label_snapshot or table_name,
                 "waiter_id": waiter_id,
                 "waiter_name": waiter_name or "Unassigned",
                 "product_id": item.product_id,
@@ -129,11 +135,17 @@ def _get_revenue_items(
     return result
 
 
-def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_date: date) -> dict:
+def _build_report_payload(
+    tenant_id: int,
+    session: Session,
+    from_date: date,
+    to_date: date,
+    location_id: int | None = None,
+) -> dict:
     """Build full report dict for a tenant and date range."""
     if from_date > to_date:
         from_date, to_date = to_date, from_date
-    rows = _get_revenue_items(session, tenant_id, from_date, to_date)
+    rows = _get_revenue_items(session, tenant_id, from_date, to_date, location_id)
 
     tips_by_day: dict[str, int] = defaultdict(int)
     tips_by_waiter: dict[str, int] = defaultdict(int)
@@ -145,6 +157,8 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         .where(models.Order.status.in_([s.value for s in REVENUE_STATUSES]))
     ).all()
     for order in orders_for_tips:
+        if location_id is not None and order.location_id != location_id:
+            continue
         rev_date = _revenue_date(order)
         if not _in_range(rev_date, from_date, to_date):
             continue
@@ -248,6 +262,29 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         for k, v in sorted(by_table.items(), key=lambda x: -x[1]["revenue_cents"])
     ]
 
+    by_location: dict[tuple[int | None, str], dict[str, Any]] = defaultdict(
+        lambda: {"revenue_cents": 0, "order_ids": set(), "quantity": 0}
+    )
+    for row in rows:
+        key = (row.get("location_id"), row.get("location_name") or "Legacy")
+        by_location[key]["revenue_cents"] += row["revenue_cents"]
+        by_location[key]["order_ids"].add(row["order_id"])
+        by_location[key]["quantity"] += row["quantity"]
+    by_location_list = [
+        {
+            "location_id": key[0],
+            "location_name": key[1],
+            "revenue_cents": value["revenue_cents"],
+            "order_count": len(value["order_ids"]),
+            "quantity": value["quantity"],
+            "average_order_value_cents": (
+                round(value["revenue_cents"] / len(value["order_ids"]))
+                if value["order_ids"] else 0
+            ),
+        }
+        for key, value in sorted(by_location.items(), key=lambda item: item[0][1])
+    ]
+
     # By waiter
     by_waiter: dict[str, dict] = defaultdict(
         lambda: {"revenue_cents": 0, "cost_cents": 0, "profit_cents": 0, "order_count": set()}
@@ -329,6 +366,7 @@ def _build_report_payload(tenant_id: int, session: Session, from_date: date, to_
         "by_product": by_product_list,
         "by_category": by_category_list,
         "by_table": by_table_list,
+        "by_location": by_location_list,
         "by_waiter": by_waiter_list,
     }
 
@@ -342,9 +380,16 @@ def get_sales_reports(
     session: Session = Depends(get_session),
     from_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     to_date: date = Query(..., description="End date (YYYY-MM-DD)"),
+    location_id: int | None = Query(default=None),
 ) -> dict:
     """Combined sales report for the given date range. Uses paid/completed orders only."""
-    return _build_report_payload(current_user.tenant_id, session, from_date, to_date)
+    if location_id is not None:
+        location = session.get(models.TenantLocation, location_id)
+        if location is None or location.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=404, detail="Location not found")
+    return _build_report_payload(
+        current_user.tenant_id, session, from_date, to_date, location_id
+    )
 
 
 def _csv_stream(rows: list[dict], keys: list[str], header_row: list[str]) -> bytes:
@@ -372,11 +417,18 @@ def export_report(
     format: str = Query("csv", description="csv or xlsx"),
     report: str = Query("summary", description="summary, products, category, table, waiter"),
     lang: str | None = Query(None, description="UI language for headers (e.g. en, es, de)"),
+    location_id: int | None = Query(default=None),
 ) -> StreamingResponse:
     """Export report as CSV or Excel. Same date range as reports."""
     if from_date > to_date:
         from_date, to_date = to_date, from_date
-    data = _build_report_payload(current_user.tenant_id, session, from_date, to_date)
+    if location_id is not None:
+        location = session.get(models.TenantLocation, location_id)
+        if location is None or location.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=404, detail="Location not found")
+    data = _build_report_payload(
+        current_user.tenant_id, session, from_date, to_date, location_id
+    )
     L = report_export_labels(lang)
 
     if format.lower() == "xlsx":

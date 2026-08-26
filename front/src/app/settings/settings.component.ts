@@ -1334,8 +1334,74 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   </div>
                   
                   <div class="divider"></div>
+
+                  <h3>Scanaki ordering</h3>
+                  <p class="hint">Automatic mode lets guests order without staff activating a table. Orders reach the kitchen only after Stripe confirms payment.</p>
+                  <div class="form-group">
+                    <label for="ordering_mode">Ordering mode</label>
+                    <select id="ordering_mode" [(ngModel)]="formData.ordering_mode" name="ordering_mode" class="input-medium">
+                      <option value="automatic">Automatic QR/NFC ordering</option>
+                      <option value="activation_pin">Staff activation and PIN</option>
+                      <option value="menu_only">Menu browsing only</option>
+                    </select>
+                  </div>
+                  <div class="form-group checkbox-row">
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="formData.ordering_paused" name="ordering_paused">
+                      <span class="slider round"></span>
+                    </label>
+                    <div>
+                      <label class="check-label">Pause customer ordering</label>
+                      <p class="hint">The menu remains visible, but checkout is disabled.</p>
+                    </div>
+                  </div>
+                  @if (formData.ordering_paused) {
+                    <div class="form-group">
+                      <label for="ordering_pause_reason">Customer message</label>
+                      <input id="ordering_pause_reason" type="text" maxlength="240" [(ngModel)]="formData.ordering_pause_reason" name="ordering_pause_reason" />
+                    </div>
+                  }
+                  <div class="form-group checkbox-row">
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="formData.require_kds_online" name="require_kds_online">
+                      <span class="slider round"></span>
+                    </label>
+                    <div>
+                      <label class="check-label">Require a kitchen tablet online</label>
+                      <p class="hint">Ordering pauses automatically when no KDS heartbeat is received.</p>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="kds_timeout">Kitchen offline timeout in seconds</label>
+                    <input id="kds_timeout" type="number" min="30" max="900" [(ngModel)]="formData.kds_heartbeat_timeout_seconds" name="kds_heartbeat_timeout_seconds" class="input-small" />
+                  </div>
+                  <div class="form-group checkbox-row">
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="formData.strict_fifo_kds" name="strict_fifo_kds">
+                      <span class="slider round"></span>
+                    </label>
+                    <div>
+                      <label class="check-label">Strict first-in, first-out kitchen queue</label>
+                      <p class="hint">Tickets are ordered by kitchen release time; urgent flags do not jump the queue.</p>
+                    </div>
+                  </div>
+
+                  <div class="divider"></div>
                   
                   <h3>Stripe Integration</h3>
+                  <div class="form-group">
+                    <label for="stripe_payment_mode">Stripe account mode</label>
+                    <select id="stripe_payment_mode" [(ngModel)]="formData.stripe_payment_mode" name="stripe_payment_mode" class="input-medium">
+                      <option value="tenant_keys">The pub's own Stripe keys</option>
+                      <option value="connect">Stripe Connect direct charges</option>
+                    </select>
+                  </div>
+                  @if (formData.stripe_payment_mode === 'connect') {
+                    <div class="form-group">
+                      <label for="stripe_connected_account_id">Connected account ID</label>
+                      <input id="stripe_connected_account_id" type="text" [(ngModel)]="formData.stripe_connected_account_id" name="stripe_connected_account_id" class="code-input" placeholder="acct_..." />
+                    </div>
+                  }
                   <div class="form-group">
                     <label>{{ 'SETTINGS.STRIPE_PUBLISHABLE_KEY' | translate }}</label>
                     <input type="text" [(ngModel)]="formData.stripe_publishable_key" name="stripe_publishable_key" class="code-input" />
@@ -1343,6 +1409,11 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   <div class="form-group">
                     <label>{{ 'SETTINGS.STRIPE_SECRET_KEY' | translate }}</label>
                     <input type="password" [(ngModel)]="formData.stripe_secret_key" name="stripe_secret_key" placeholder="••••••••••••••••" />
+                  </div>
+                  <div class="form-group">
+                    <label>Stripe webhook signing secret</label>
+                    <input type="password" [(ngModel)]="formData.stripe_webhook_secret" name="stripe_webhook_secret" placeholder="whsec_..." />
+                    <p class="hint">Webhook URL: /api/payments/stripe/webhook/{{ formData.id }}</p>
                   </div>
 
                   <h3>{{ 'SETTINGS.REVOLUT_INTEGRATION' | translate }}</h3>
@@ -1542,7 +1613,18 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                   <div class="divider"></div>
                   <h3>{{ 'SETTINGS.SATISFECHO_DELIVERY_TITLE' | translate }}</h3>
                   <p class="section-desc">{{ 'SETTINGS.SATISFECHO_DELIVERY_DESC' | translate }}</p>
-                  <div class="form-group">
+                  <div class="form-group checkbox-row">
+                    <label class="switch">
+                      <input type="checkbox" [(ngModel)]="formData.delivery_enabled" name="delivery_enabled" />
+                      <span class="slider round"></span>
+                    </label>
+                    <div>
+                      <label class="check-label">{{ 'SETTINGS.DELIVERY_ENABLED' | translate }}</label>
+                      <p class="hint">{{ 'SETTINGS.DELIVERY_ENABLED_HINT' | translate }}</p>
+                    </div>
+                  </div>
+                  @if (formData.delivery_enabled) {
+                    <div class="form-group">
                     <label for="delivery_fee_cents">{{ 'SETTINGS.DELIVERY_FEE_CENTS' | translate }}</label>
                     <input
                       type="number"
@@ -1554,8 +1636,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       placeholder="0"
                     />
                     <p class="hint">{{ 'SETTINGS.DELIVERY_FEE_HINT' | translate }}</p>
-                  </div>
-                  <div class="form-group">
+                    </div>
+                    <div class="form-group">
                     <label for="delivery_radius_meters">{{ 'SETTINGS.DELIVERY_RADIUS' | translate }}</label>
                     <input
                       type="number"
@@ -1567,8 +1649,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       placeholder="0"
                     />
                     <p class="hint">{{ 'SETTINGS.DELIVERY_RADIUS_HINT' | translate }}</p>
-                  </div>
-                  <div class="form-group">
+                    </div>
+                    <div class="form-group">
                     <label for="delivery_postal_codes">{{ 'SETTINGS.DELIVERY_POSTAL_CODES' | translate }}</label>
                     <textarea
                       id="delivery_postal_codes"
@@ -1578,7 +1660,8 @@ import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB } from '../shared/image-upl
                       [placeholder]="'SETTINGS.DELIVERY_POSTAL_CODES_PH' | translate"
                     ></textarea>
                     <p class="hint">{{ 'SETTINGS.DELIVERY_POSTAL_CODES_HINT' | translate }}</p>
-                  </div>
+                    </div>
+                  }
                 </div>
               }
 
@@ -2951,9 +3034,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** ISO 4217 codes for per-tenant prices (GitHub #41). */
   readonly tenantCurrencyCodes: string[] = [
+    'GBP',
     'EUR',
     'USD',
-    'GBP',
     'JPY',
     'MXN',
     'CHF',
@@ -2986,7 +3069,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   prepaymentMinorUnits = 0;
 
   getPrepaymentMinorDigits(): number {
-    const raw = (this.formData.currency_code || 'EUR').trim().toUpperCase();
+    const raw = (this.formData.currency_code || 'GBP').trim().toUpperCase();
     if (!raw || raw.length !== 3) {
       return 2;
     }
@@ -3011,8 +3094,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   getPrepaymentCurrencySymbol(): string {
-    const raw = (this.formData.currency_code || 'EUR').trim().toUpperCase();
-    const code = raw.length === 3 ? raw : 'EUR';
+    const raw = (this.formData.currency_code || 'GBP').trim().toUpperCase();
+    const code = raw.length === 3 ? raw : 'GBP';
     try {
       const parts = new Intl.NumberFormat(undefined, {
         style: 'currency',
@@ -3025,8 +3108,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   getPrepaymentCurrencyLabel(): string {
-    const raw = (this.formData.currency_code || 'EUR').trim().toUpperCase();
-    const code = raw.length === 3 ? raw : 'EUR';
+    const raw = (this.formData.currency_code || 'GBP').trim().toUpperCase();
+    const code = raw.length === 3 ? raw : 'GBP';
     const sym = this.getPrepaymentCurrencySymbol();
     return sym && sym !== code ? `${code} (${sym})` : code;
   }
@@ -3244,6 +3327,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }> = {};
 
   formData: Partial<TenantSettings> = {
+    id: undefined,
     name: '',
     business_type: null,
     description: null,
@@ -3257,11 +3341,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
     ccc: null,
     default_tax_id: null,
     opening_hours: null,
-    currency_code: 'EUR',
+    currency_code: 'GBP',
     stripe_secret_key: null,
     stripe_publishable_key: null,
+    stripe_webhook_secret: null,
+    stripe_payment_mode: 'tenant_keys',
+    stripe_connected_account_id: null,
     revolut_merchant_secret: null,
     immediate_payment_required: false,
+    ordering_mode: 'activation_pin',
+    ordering_paused: false,
+    ordering_pause_reason: null,
+    require_kds_online: false,
+    kds_heartbeat_timeout_seconds: 120,
+    strict_fifo_kds: true,
     timezone: null,
     country_code: null,
     smtp_host: null,
@@ -3288,6 +3381,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     guest_birthday_capture_enabled: true,
     guest_birthday_marketing_enabled: false,
     guest_birthday_consent_text: null,
+    delivery_enabled: true,
     delivery_fee_cents: 0,
     delivery_radius_meters: null,
     delivery_postal_codes: null,
@@ -3370,6 +3464,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       next: (settings) => {
         this.settings.set(settings);
         this.formData = {
+          id: settings.id,
           name: settings.name || '',
           business_type: settings.business_type || null,
           description: settings.description || null,
@@ -3383,11 +3478,20 @@ export class SettingsComponent implements OnInit, OnDestroy {
           ccc: settings.ccc || null,
           default_tax_id: settings.default_tax_id ?? null,
           opening_hours: settings.opening_hours || null,
-          currency_code: settings.currency_code || 'EUR',
+          currency_code: settings.currency_code || 'GBP',
           stripe_secret_key: null,
           stripe_publishable_key: settings.stripe_publishable_key || null,
+          stripe_webhook_secret: null,
+          stripe_payment_mode: settings.stripe_payment_mode || 'tenant_keys',
+          stripe_connected_account_id: settings.stripe_connected_account_id || null,
           revolut_merchant_secret: null,
           immediate_payment_required: settings.immediate_payment_required || false,
+          ordering_mode: settings.ordering_mode || 'activation_pin',
+          ordering_paused: settings.ordering_paused || false,
+          ordering_pause_reason: settings.ordering_pause_reason || null,
+          require_kds_online: settings.require_kds_online || false,
+          kds_heartbeat_timeout_seconds: settings.kds_heartbeat_timeout_seconds || 120,
+          strict_fifo_kds: settings.strict_fifo_kds !== false,
           timezone: settings.timezone || null,
           country_code: settings.country_code ?? null,
           smtp_host: settings.smtp_host ?? null,
@@ -3414,6 +3518,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
           guest_birthday_capture_enabled: settings.guest_birthday_capture_enabled ?? true,
           guest_birthday_marketing_enabled: settings.guest_birthday_marketing_enabled ?? false,
           guest_birthday_consent_text: settings.guest_birthday_consent_text ?? null,
+          delivery_enabled: settings.delivery_enabled ?? true,
           delivery_fee_cents: settings.delivery_fee_cents ?? 0,
           delivery_radius_meters: settings.delivery_radius_meters ?? null,
           delivery_postal_codes: this.formatDeliveryPostalCodesForForm(settings.delivery_postal_codes),
@@ -3683,7 +3788,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   formatProviderPrice(cents: number | null | undefined): string {
     if (cents == null) return '—';
-    return (cents / 100).toFixed(2) + ' €';
+    return '£' + (cents / 100).toFixed(2);
   }
 
   openAddProviderModal() {
@@ -4402,6 +4507,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     if (updateData.stripe_secret_key === '') {
       delete updateData.stripe_secret_key;
+    }
+    if (updateData.stripe_webhook_secret === '') {
+      delete updateData.stripe_webhook_secret;
     }
     if (updateData.revolut_merchant_secret === '') {
       delete updateData.revolut_merchant_secret;

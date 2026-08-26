@@ -7,7 +7,7 @@
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/test-landing-provider-links.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL   App URL (default: auto-detect port 4203, 4202, 4200 or https://scanaki.uk)
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
  */
 
@@ -35,7 +35,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const headless = isHeadless();
@@ -102,23 +102,17 @@ async function main() {
     console.log('   Provider login link: OK');
     console.log('   Register as provider link: OK');
 
-    const contactEl = await page.$('[data-testid="landing-contact-us"]');
-    if (!contactEl) {
-      console.log('   FAIL: "Contact us" link not found ([data-testid="landing-contact-us"]).');
+    const sourceControlLinks = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('a[href]'))
+        .map((link) => link.getAttribute('href') || '')
+        .filter((href) => /github\.com|gitlab\.com|bitbucket\.org/i.test(href)),
+    );
+    if (sourceControlLinks.length) {
+      console.log('   FAIL: Public landing must not expose source-control links:', sourceControlLinks);
       await browser.close();
       process.exit(1);
     }
-    const contactHref = await page.evaluate(() => {
-      const el = document.querySelector('[data-testid="landing-contact-us"]');
-      return el ? el.getAttribute('href') || '' : '';
-    });
-    const expectedMailto = 'mailto:hello@satisfecho.de';
-    if (contactHref !== expectedMailto) {
-      console.log('   FAIL: Contact link href expected', expectedMailto, 'got:', contactHref);
-      await browser.close();
-      process.exit(1);
-    }
-    console.log('   Contact us (mailto) link: OK');
+    console.log('   No source-control links: OK');
 
     const termsEl = await page.$('[data-testid="landing-terms"]');
     const privacyEl = await page.$('[data-testid="landing-privacy"]');

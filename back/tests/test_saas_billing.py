@@ -20,7 +20,11 @@ from app.saas_billing import (
     SAAS_STATUS_NONE,
     SAAS_STATUS_PAST_DUE,
     SAAS_STATUS_TRIALING,
+    SAAS_STATUS_SUSPENDED,
+    apply_stripe_subscription_object,
     construct_saas_webhook_event,
+    create_checkout_session,
+    ensure_table_capacity,
     initial_status_for_new_tenant,
     path_is_saas_exempt,
     plan_config,
@@ -42,20 +46,23 @@ def test_path_is_saas_exempt():
     assert not path_is_saas_exempt("/reports/sales")
 
 
-def test_plan_config_includes_plans_catalog():
-    """Public pricing page (#328) expects a multi-tier-ready plans[] array."""
+def test_plan_config_has_managed_pricing_tiers():
     cfg = plan_config()
     assert "enabled" in cfg
     assert isinstance(cfg["trial_days"], int)
     assert isinstance(cfg["price_cents"], int)
     assert isinstance(cfg["currency"], str)
-    assert isinstance(cfg["plans"], list) and len(cfg["plans"]) >= 1
-    hosted = cfg["plans"][0]
-    assert hosted["id"] == "hosted_standard"
-    assert hosted["price_cents"] == cfg["price_cents"]
-    assert hosted["trial_days"] == cfg["trial_days"]
-    assert hosted["currency"] == cfg["currency"]
-    assert hosted["interval"] == "month"
+    assert cfg["currency"] == "gbp"
+    assert cfg["extra_table_price_cents"] == 399
+    assert len(cfg["plans"]) == 3
+    assert [plan["id"] for plan in cfg["plans"]] == ["lite", "pro", "ultra"]
+    assert [plan["name"] for plan in cfg["plans"]] == ["Lite", "Pro", "Ultra"]
+    assert [plan["price_cents"] for plan in cfg["plans"]] == [999, 3999, 8499]
+    assert [plan["included_tables"] for plan in cfg["plans"]] == [2, 20, 45]
+    assert all(plan["currency"] == "gbp" for plan in cfg["plans"])
+    assert all(plan["interval"] == "month" for plan in cfg["plans"])
+    assert all(plan["extra_table_price_cents"] == 399 for plan in cfg["plans"])
+    assert cfg["price_cents"] == 999
 
 
 def test_saas_config_endpoint_returns_plans():
@@ -63,8 +70,8 @@ def test_saas_config_endpoint_returns_plans():
     res = client.get("/saas/config")
     assert res.status_code == 200
     body = res.json()
-    assert isinstance(body.get("plans"), list) and body["plans"]
-    assert body["plans"][0]["id"] == "hosted_standard"
+    assert [plan["id"] for plan in body["plans"]] == ["lite", "pro", "ultra"]
+    assert body["extra_table_price_cents"] == 399
 
 
 def test_tenant_has_access_when_paywall_disabled():
@@ -97,6 +104,29 @@ def test_grandfathered_and_active_trial_allowed():
         assert tenant_has_saas_access(expired) is False
 
 
+def test_stripe_sync_preserves_manual_suspension_while_collection_paused():
+    with Session(engine) as session:
+        tenant = models.Tenant(
+            name=f"Suspended-{uuid.uuid4().hex[:8]}",
+            saas_subscription_status=SAAS_STATUS_SUSPENDED,
+            saas_stripe_subscription_id=f"sub_{uuid.uuid4().hex[:10]}",
+        )
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        apply_stripe_subscription_object(
+            session,
+            tenant,
+            {
+                "id": tenant.saas_stripe_subscription_id,
+                "status": "active",
+                "pause_collection": {"behavior": "void"},
+                "cancel_at_period_end": False,
+            },
+        )
+        assert tenant.saas_subscription_status == SAAS_STATUS_SUSPENDED
+
+
 def test_initial_status_depends_on_flag():
     with patch("app.saas_billing.paywall_enabled", return_value=True):
         assert initial_status_for_new_tenant() == SAAS_STATUS_NONE
@@ -116,11 +146,78 @@ def test_start_trial_persists():
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             with patch("app.saas_billing.settings") as mock_settings:
                 mock_settings.saas_trial_days = 14
-                updated = start_trial(session, tenant)
+                updated = start_trial(session, tenant, "pro")
         assert updated.saas_subscription_status == SAAS_STATUS_TRIALING
+        assert updated.saas_plan_code == "pro"
         assert updated.saas_trial_ends_at is not None
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             assert tenant_has_saas_access(updated) is True
+
+
+def test_table_plan_limit_and_extra_table_allowance():
+    with Session(engine) as session:
+        tenant = models.Tenant(name=f"Limit-{uuid.uuid4().hex[:8]}", saas_plan_code="lite")
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        session.add_all([
+            models.Table(name="T1", tenant_id=tenant.id),
+            models.Table(name="T2", tenant_id=tenant.id),
+        ])
+        session.commit()
+        try:
+            ensure_table_capacity(session, tenant.id, additional_tables=1)
+            assert False, "expected table plan limit"
+        except HTTPException as exc:
+            assert exc.status_code == 402
+            assert exc.detail["code"] == "table_plan_limit"
+        tenant.saas_extra_tables = 1
+        session.add(tenant)
+        session.commit()
+        current, limit = ensure_table_capacity(session, tenant.id, additional_tables=1)
+        assert current == 2
+        assert limit == 3
+
+
+def test_checkout_bills_extra_table_quantity():
+    with Session(engine) as session:
+        tenant = models.Tenant(
+            name=f"CheckoutExtra-{uuid.uuid4().hex[:8]}",
+            saas_plan_code="pro",
+            saas_extra_tables=3,
+        )
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+        user = models.User(
+            email=f"extra-{uuid.uuid4().hex[:8]}@amvara.de",
+            hashed_password="test",
+            role=models.UserRole.owner,
+            tenant_id=tenant.id,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        fake_checkout = type("Checkout", (), {"url": "https://checkout.stripe.test/session"})()
+        with (
+            patch("app.saas_billing.settings.stripe_secret_key", "sk_test_platform"),
+            patch("app.saas_billing.settings.saas_pro_stripe_price_id", "price_pro"),
+            patch("app.saas_billing.settings.saas_extra_table_stripe_price_id", "price_extra"),
+            patch("app.saas_billing.stripe.checkout.Session.create", return_value=fake_checkout) as create,
+        ):
+            url = create_checkout_session(
+                session,
+                tenant,
+                user,
+                success_url="https://scanaki.uk/paywall?ok=1",
+                cancel_url="https://scanaki.uk/paywall",
+                plan_code="pro",
+            )
+        assert url == "https://checkout.stripe.test/session"
+        assert create.call_args.kwargs["line_items"] == [
+            {"price": "price_pro", "quantity": 1},
+            {"price": "price_extra", "quantity": 3},
+        ]
 
 
 def test_webhook_past_due_without_confirm_checkout():
@@ -147,7 +244,7 @@ def test_webhook_past_due_without_confirm_checkout():
                     "customer": tenant.saas_stripe_customer_id,
                     "status": "past_due",
                     "current_period_end": period_end,
-                    "metadata": {"tenant_id": str(tenant.id)},
+                    "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                 }
             },
         }
@@ -219,9 +316,9 @@ def test_webhook_checkout_completed_resolves_tenant_by_reference():
                         "object": "subscription",
                         "status": "active",
                         "current_period_end": period_end,
-                        "metadata": {"tenant_id": str(tenant.id)},
+                        "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                     },
-                    "metadata": {"tenant_id": str(tenant.id)},
+                    "metadata": {"tenant_id": str(tenant.id), "plan_code": "ultra"},
                 }
             },
         }
@@ -231,6 +328,7 @@ def test_webhook_checkout_completed_resolves_tenant_by_reference():
         assert tenant.saas_subscription_status == SAAS_STATUS_ACTIVE
         assert tenant.saas_stripe_subscription_id
         assert tenant.saas_stripe_customer_id
+        assert tenant.saas_plan_code == "ultra"
         with patch("app.saas_billing.paywall_enabled", return_value=True):
             assert tenant_has_saas_access(tenant) is True
 

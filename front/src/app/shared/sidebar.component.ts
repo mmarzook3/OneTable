@@ -28,7 +28,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
           <span></span>
         </button>
         <div class="mobile-brand" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-          <span class="header-title">POS</span>
+          <span class="header-title">Scanaki</span>
           @if (tenantOrgName()) {
             <span class="header-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
               tenantOrgName()
@@ -40,7 +40,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
       <aside class="sidebar">
         <div class="sidebar-header">
           <div class="logo-container" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-            <span class="logo">POS</span>
+            <span class="logo">Scanaki</span>
             <span class="version">{{ version }} <span class="commit-hash">{{ commitHash }}</span></span>
             @if (tenantOrgName()) {
               <span class="sidebar-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
@@ -117,6 +117,14 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
                   @if (canViewTables() && moduleEnabled('tables')) {
                     <a [routerLink]="tablesArea.entryPath()" class="nav-sublink" [class.active]="isTablesNavActive()" (click)="closeSidebar()">
                       <span>{{ 'NAV.TABLES' | translate }}</span>
+                    </a>
+                  }
+                  @if (canViewSettings()) {
+                    <a routerLink="/locations" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
+                      <span>Locations</span>
+                    </a>
+                    <a routerLink="/plaque-requests" routerLinkActive="active" class="nav-sublink" (click)="closeSidebar()">
+                      <span>QR/NFC plaque requests</span>
                     </a>
                   }
                   @if (moduleEnabled('kitchen_bar')) {
@@ -406,7 +414,7 @@ export class SidebarComponent implements OnInit, AfterViewInit, OnDestroy {
 
   brandTitle = computed(() => {
     const org = this.tenantOrgName();
-    return org ? `POS (${org})` : 'POS';
+    return org ? `Scanaki (${org})` : 'Scanaki';
   });
 
   ngOnInit() {

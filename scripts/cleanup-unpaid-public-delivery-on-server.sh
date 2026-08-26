@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cancel abandoned unpaid public Satisfecho Delivery checkouts past the TTL (all tenants).
+# Cancel abandoned unpaid public Scanaki Delivery checkouts past the TTL (all tenants).
 # Idempotent; does not touch staff-created delivery orders or re-notify kitchen.
 #
 # Manual (from repo root on the server, e.g. amvara9):
@@ -17,7 +17,7 @@
 
 set -e
 cd "$(dirname "$0")/.."
-echo "Cleaning up unpaid public Satisfecho Delivery orders past TTL..."
+echo "Cleaning up unpaid public Scanaki Delivery orders past TTL..."
 docker compose --env-file config.env -f docker-compose.yml -f docker-compose.prod.yml exec -T back \
   python -m app.seeds.cleanup_unpaid_public_delivery "$@"
 echo "Done."

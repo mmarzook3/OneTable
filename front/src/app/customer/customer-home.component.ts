@@ -75,7 +75,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
       </section>
 
       <p class="foot">
-        <a routerLink="/">Satisfecho</a>
+        <a routerLink="/">Scanaki</a>
       </p>
     </div>
   `,

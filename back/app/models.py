@@ -3,9 +3,16 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, Text, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, ForeignKey, Text, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
+from sqlalchemy.ext.compiler import compiles
 from sqlmodel import Field, Relationship, SQLModel
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_for_sqlite(_type: JSONB, _compiler: object, **_kwargs: object) -> str:
+    """Keep focused in-memory tests portable while production remains PostgreSQL JSONB."""
+    return "JSON"
 
 
 # ============ TAX (VAT/IVA) ============
@@ -57,7 +64,7 @@ class OrderChannel(str, Enum):
     """How the order was placed / fulfilled (kitchen + courier distinguish channels)."""
 
     table = "table"  # dine-in (default)
-    satisfecho_delivery = "satisfecho_delivery"  # first-party Satisfecho Delivery
+    satisfecho_delivery = "satisfecho_delivery"  # first-party Scanaki Delivery
     marketplace = "marketplace"  # third-party (Glovo/Uber); usually paired with delivery_integration_id
 
 
@@ -86,6 +93,15 @@ class Tenant(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Only explicitly marked fictional tenants may appear on the public marketing landing page.
+    is_demo: bool = Field(default=False, index=True)
+
+    # Scanaki first-login setup. Platform provisioning starts new restaurants
+    # at not_started; existing and self-managed tenants remain completed.
+    onboarding_status: str = Field(default="completed", max_length=32, index=True)
+    onboarding_step: int = Field(default=0)
+    onboarding_started_at: datetime | None = None
+    onboarding_completed_at: datetime | None = None
 
     # Business Profile Fields
     business_type: BusinessType | None = Field(default=None)
@@ -109,12 +125,23 @@ class Tenant(SQLModel, table=True):
         default=False
     )  # Require immediate payment for orders
 
+    # Scanaki dine-in ordering policy. Legacy tenants retain the staff activation/PIN flow.
+    ordering_mode: str = Field(default="activation_pin", max_length=32)
+    ordering_paused: bool = Field(default=False)
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    ordering_service_hours: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    require_kds_online: bool = Field(default=False)
+    kds_heartbeat_timeout_seconds: int = Field(default=120)
+    strict_fifo_kds: bool = Field(default=True)
+
     # Currency: store ISO 4217 code internally; frontend derives symbol via Intl.
     # Keep `currency` (symbol) for backward compatibility.
     currency_code: str | None = Field(
-        default=None
-    )  # ISO 4217, e.g. EUR, USD, MXN, INR, CNY, TWD
-    currency: str | None = Field(default=None)  # Legacy symbol (€, $, etc.)
+        default="GBP"
+    )  # ISO 4217, e.g. GBP, EUR, USD, MXN, INR, CNY, TWD
+    currency: str | None = Field(default="£")  # Legacy symbol (£, €, $, etc.)
 
     # Default UI language for this tenant (e.g. en, es, ca, de, zh-CN, hi)
     default_language: str | None = Field(default=None)
@@ -131,6 +158,16 @@ class Tenant(SQLModel, table=True):
     stripe_publishable_key: str | None = Field(
         default=None
     )  # Stripe publishable key for this tenant
+    # Payment secrets are encrypted with the server secret. stripe_secret_key remains only
+    # as a migration source for older installations and is cleared after encryption.
+    stripe_secret_key_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    stripe_webhook_secret_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    stripe_payment_mode: str = Field(default="tenant_keys", max_length=32)
+    stripe_connected_account_id: str | None = Field(default=None, max_length=128, index=True)
 
     revolut_merchant_secret: str | None = Field(
         default=None
@@ -188,7 +225,8 @@ class Tenant(SQLModel, table=True):
     guest_birthday_marketing_enabled: bool = Field(default=False)
     guest_birthday_consent_text: str | None = Field(default=None)  # GDPR copy when marketing enabled
 
-    # Satisfecho Delivery: flat fee + coverage (postal list and/or radius from lat/lng)
+    # Scanaki Delivery: tenant switch, flat fee, and coverage (postal list and/or radius from lat/lng)
+    delivery_enabled: bool = Field(default=True)
     delivery_fee_cents: int = Field(default=0)
     delivery_radius_meters: int | None = Field(default=None)
     delivery_postal_codes: str | None = Field(
@@ -257,15 +295,150 @@ class Tenant(SQLModel, table=True):
     tse_serial_number: str | None = Field(default=None, max_length=128)
     tse_signature_counter: int = Field(default=1)
 
-    # Platform SaaS subscription (Satisfecho paywall — not restaurant guest payments)
+    # Platform SaaS subscription (Scanaki paywall - not restaurant guest payments)
     # none | trialing | active | canceled | past_due | grandfathered
     saas_subscription_status: str = Field(default="grandfathered", max_length=32)
     saas_trial_ends_at: datetime | None = Field(default=None)
     saas_subscription_ends_at: datetime | None = Field(default=None)
     saas_stripe_customer_id: str | None = Field(default=None, max_length=255)
     saas_stripe_subscription_id: str | None = Field(default=None, max_length=255)
+    saas_plan_code: str = Field(default="lite", max_length=16, index=True)
+    saas_extra_tables: int = Field(default=0, ge=0)
+    invitation_sent_at: datetime | None = None
+    invitation_last_error: str | None = Field(default=None, max_length=500)
+    saas_cancel_at_period_end: bool = Field(default=False)
+    saas_suspended_at: datetime | None = None
+    saas_last_payment_failed_at: datetime | None = None
+    saas_last_payment_at: datetime | None = None
+    saas_last_invoice_id: str | None = Field(default=None, max_length=255)
+    saas_last_invoice_status: str | None = Field(default=None, max_length=32)
+    saas_last_invoice_amount_cents: int | None = None
+    saas_last_invoice_currency: str | None = Field(default=None, max_length=8)
+    # Contract snapshot. Public pricing changes do not alter existing customers until migrated.
+    saas_monthly_price_cents: int | None = Field(default=None, ge=0)
+    saas_extra_table_unit_price_cents: int | None = Field(default=None, ge=0)
+    saas_included_tables: int | None = Field(default=None, ge=0)
 
     users: list["User"] = Relationship(back_populates="tenant")
+
+
+class SaasSubscriptionEvent(SQLModel, table=True):
+    """Immutable platform billing lifecycle event for audit and reporting."""
+
+    __tablename__ = "saas_subscription_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    event_type: str = Field(max_length=64, index=True)
+    source: str = Field(default="system", max_length=32)
+    old_status: str | None = Field(default=None, max_length=32)
+    new_status: str | None = Field(default=None, max_length=32)
+    plan_code: str | None = Field(default=None, max_length=16)
+    amount_cents: int | None = None
+    currency: str | None = Field(default=None, max_length=8)
+    stripe_event_id: str | None = Field(default=None, max_length=255, unique=True, index=True)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
+
+
+class SaasPlanPricing(SQLModel, table=True):
+    """Immutable tier revision; one active revision exists for each plan code."""
+
+    __tablename__ = "saas_plan_pricing"
+
+    id: int | None = Field(default=None, primary_key=True)
+    plan_code: str = Field(max_length=16, index=True)
+    version: int = Field(ge=1)
+    name: str = Field(max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    regular_price_cents: int = Field(ge=0)
+    offer_price_cents: int | None = Field(default=None, ge=0)
+    currency: str = Field(default="gbp", max_length=8)
+    billing_interval: str = Field(default="month", max_length=16)
+    included_tables: int = Field(ge=0)
+    extra_table_price_cents: int = Field(ge=0)
+    trial_days: int = Field(default=14, ge=0)
+    offer_badge: str | None = Field(default=None, max_length=80)
+    offer_starts_at: datetime | None = None
+    offer_ends_at: datetime | None = None
+    is_featured: bool = False
+    is_public: bool = True
+    stripe_product_id: str | None = Field(default=None, max_length=255)
+    stripe_regular_price_id: str | None = Field(default=None, max_length=255)
+    stripe_offer_price_id: str | None = Field(default=None, max_length=255)
+    stripe_extra_table_price_id: str | None = Field(default=None, max_length=255)
+    is_active: bool = True
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+
+class SaasPricingEvent(SQLModel, table=True):
+    """Operator audit record for a tier publication and any customer migration."""
+
+    __tablename__ = "saas_pricing_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    pricing_id: int | None = Field(default=None, foreign_key="saas_plan_pricing.id")
+    plan_code: str = Field(max_length=16, index=True)
+    action: str = Field(default="published", max_length=32)
+    migration_mode: str = Field(default="new_customers_only", max_length=32)
+    migrated_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
+    )
+
+
+class PlatformSettings(SQLModel, table=True):
+    """Singleton Scanaki operator identity, legal and global email configuration."""
+
+    __tablename__ = "platform_settings"
+
+    id: int = Field(default=1, primary_key=True)
+    company_legal_name: str | None = Field(default=None, max_length=200)
+    support_email: str | None = Field(default=None, max_length=320)
+    contact_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    website_url: str | None = Field(default=None, max_length=2048)
+    company_number: str | None = Field(default=None, max_length=100)
+    vat_number: str | None = Field(default=None, max_length=100)
+    terms_url: str | None = Field(default=None, max_length=2048)
+    privacy_url: str | None = Field(default=None, max_length=2048)
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_use_tls: bool = True
+    smtp_user: str | None = Field(default=None, max_length=320)
+    smtp_password_encrypted: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    email_from: str | None = Field(default=None, max_length=320)
+    email_from_name: str | None = Field(default=None, max_length=200)
+    smtp_last_tested_at: datetime | None = None
+    smtp_last_test_success: bool | None = None
+    smtp_last_test_message: str | None = Field(default=None, max_length=500)
+    updated_by_user_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class User(SQLModel, table=True):
@@ -299,6 +472,8 @@ class User(SQLModel, table=True):
     otp_secret: str | None = Field(default=None, exclude=True)  # Never serialized in API responses
     otp_enabled: bool = Field(default=False)
     employee_number: str | None = Field(default=None, max_length=64)
+    must_change_password: bool = Field(default=False)
+    temporary_password_issued_at: datetime | None = None
 
 
 class PasswordResetToken(SQLModel, table=True):
@@ -338,6 +513,10 @@ class Customer(SQLModel, table=True):
     email_verification_sent_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    password_reset_token_hash: str | None = Field(default=None, max_length=64, index=True)
+    password_reset_sent_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     token_version: int = Field(default=0)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -362,6 +541,15 @@ class CustomerLogin(SQLModel):
 
 class CustomerResendVerification(SQLModel):
     email: str
+
+
+class CustomerPasswordResetRequest(SQLModel):
+    email: str
+
+
+class CustomerPasswordResetConfirm(SQLModel):
+    token: str = Field(min_length=16, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class CustomerResponse(SQLModel):
@@ -418,6 +606,156 @@ class PlatformTenantSummary(SQLModel):
     user_count: int = 0
     order_count: int = 0
     reservation_count: int = 0
+    onboarding_status: str = "completed"
+    onboarding_step: int = 0
+    saas_plan_code: str = "lite"
+    saas_extra_tables: int = 0
+    table_limit: int = 2
+    ordering_points_unlimited: bool = False
+    invitation_sent_at: datetime | None = None
+    invitation_last_error: str | None = None
+    subscription_status: str = "none"
+    trial_ends_at: datetime | None = None
+    renewal_at: datetime | None = None
+    cancel_at_period_end: bool = False
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
+    stripe_customer_url: str | None = None
+    last_payment_failed_at: datetime | None = None
+    monthly_cents: int = 0
+
+
+class PlatformRestaurantCreate(SQLModel):
+    restaurant_name: str = Field(min_length=2, max_length=200)
+    owner_email: str = Field(min_length=3, max_length=320)
+    owner_name: str | None = Field(default=None, max_length=200)
+    plan_code: str = Field(default="lite", max_length=16)
+
+
+class PlatformRestaurantCredentials(SQLModel):
+    tenant_id: int
+    restaurant_name: str
+    username: str
+    temporary_password: str
+    password_setup_url: str | None = None
+    plan_code: str = "lite"
+    table_limit: int = 2
+    ordering_points_unlimited: bool = False
+    invitation_email_sent: bool = False
+
+
+class PlatformTenantPlanUpdate(SQLModel):
+    plan_code: str = Field(max_length=16)
+    extra_tables: int = Field(default=0, ge=0, le=500)
+    proration_behavior: str = Field(default="create_prorations", max_length=32)
+
+
+class PlatformSubscriptionAction(SQLModel):
+    action: str = Field(max_length=32)
+    immediate: bool = False
+
+
+class PlatformPricingPublish(SQLModel):
+    name: str = Field(min_length=1, max_length=80)
+    description: str | None = Field(default=None, max_length=500)
+    regular_price_cents: int = Field(ge=0, le=10_000_000)
+    offer_price_cents: int | None = Field(default=None, ge=0, le=10_000_000)
+    currency: str = Field(default="gbp", min_length=3, max_length=8)
+    included_tables: int = Field(ge=0, le=10_000)
+    extra_table_price_cents: int = Field(ge=0, le=1_000_000)
+    trial_days: int = Field(default=14, ge=0, le=365)
+    offer_badge: str | None = Field(default=None, max_length=80)
+    offer_starts_at: datetime | None = None
+    offer_ends_at: datetime | None = None
+    is_featured: bool = False
+    is_public: bool = True
+    stripe_product_id: str | None = Field(default=None, max_length=255)
+    stripe_regular_price_id: str | None = Field(default=None, max_length=255)
+    stripe_offer_price_id: str | None = Field(default=None, max_length=255)
+    stripe_extra_table_price_id: str | None = Field(default=None, max_length=255)
+    create_stripe_prices: bool = False
+    migration_mode: str = Field(default="new_customers_only", max_length=32)
+
+
+class PlatformSettingsUpdate(SQLModel):
+    company_legal_name: str | None = Field(default=None, max_length=200)
+    support_email: str | None = Field(default=None, max_length=320)
+    contact_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=2000)
+    website_url: str | None = Field(default=None, max_length=2048)
+    company_number: str | None = Field(default=None, max_length=100)
+    vat_number: str | None = Field(default=None, max_length=100)
+    terms_url: str | None = Field(default=None, max_length=2048)
+    privacy_url: str | None = Field(default=None, max_length=2048)
+    smtp_host: str | None = Field(default=None, max_length=255)
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    smtp_use_tls: bool = True
+    smtp_user: str | None = Field(default=None, max_length=320)
+    smtp_password: str | None = Field(default=None, max_length=1000)
+    clear_smtp_password: bool = False
+    email_from: str | None = Field(default=None, max_length=320)
+    email_from_name: str | None = Field(default=None, max_length=200)
+
+
+class PlatformSmtpTestRequest(SQLModel):
+    recipient_email: str | None = Field(default=None, max_length=320)
+
+
+class PlatformPasswordChange(SQLModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
+class RestaurantOnboardingState(SQLModel):
+    status: str
+    current_step: int
+    must_change_password: bool
+    restaurant_name: str
+    business_type: str | None = None
+    owner_name: str | None = None
+    owner_email: str
+    business_email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    currency_code: str
+    timezone: str
+    ordering_mode: str
+    ordering_service_hours: dict | None = None
+    floor_count: int = 0
+    table_count: int = 0
+    product_count: int = 0
+    payment_configured: bool = False
+
+
+class RestaurantOnboardingPassword(SQLModel):
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class RestaurantOnboardingBusiness(SQLModel):
+    restaurant_name: str = Field(min_length=2, max_length=200)
+    business_type: BusinessType = BusinessType.restaurant
+    owner_name: str | None = Field(default=None, max_length=200)
+    business_email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=64)
+    address: str | None = Field(default=None, max_length=500)
+
+
+class RestaurantOnboardingOperations(SQLModel):
+    days_open: list[str]
+    opening_time: str = Field(min_length=5, max_length=5)
+    closing_time: str = Field(min_length=5, max_length=5)
+
+
+class RestaurantOnboardingTables(SQLModel):
+    floor_name: str = Field(default="Main", min_length=1, max_length=100)
+    table_prefix: str = Field(default="Table ", min_length=1, max_length=40)
+    table_count: int = Field(default=10, ge=1, le=100)
+    seats_per_table: int = Field(default=4, ge=1, le=50)
+
+
+class RestaurantOnboardingProgress(SQLModel):
+    current_step: int = Field(ge=0, le=5)
 
 
 class PlatformStaffContact(SQLModel):
@@ -432,6 +770,7 @@ class PlatformTenantDetail(PlatformTenantSummary):
     address: str | None = None
     website: str | None = None
     staff_users: list[PlatformStaffContact] = []
+    readiness: dict = Field(default_factory=dict)
 
 
 class PlatformLoginSummary(SQLModel):
@@ -487,6 +826,25 @@ class KitchenStationDefaultsUpdate(SQLModel):
     default_bar_station_id: int | None = None
 
 
+class KitchenDevice(SQLModel, table=True):
+    """Authenticated KDS browser heartbeat used to gate unattended ordering."""
+
+    __tablename__ = "kitchen_device"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "device_key", name="uq_kitchen_device_tenant_key"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    device_key: str = Field(max_length=64, index=True)
+    name: str = Field(max_length=120)
+    display_route: str = Field(default="kitchen", max_length=16, index=True)
+    station_id: int | None = Field(default=None, foreign_key="kitchen_station.id", index=True)
+    last_seen_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    revoked_at: datetime | None = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class Product(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
@@ -495,6 +853,11 @@ class Product(TenantMixin, table=True):
     description: str | None = None
     image_filename: str | None = None  # Stored in uploads/{tenant_id}/products/
     ingredients: str | None = None  # Comma-separated list
+    is_available: bool = Field(default=True, index=True)
+    allergens: list[str] | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    dietary_tags: list[str] | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    allergen_notes: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    allergen_reviewed: bool = Field(default=False)
     category: str | None = Field(
         default=None, index=True
     )  # Main category: "Starters", "Main Course", "Desserts", "Beverages", "Sides"
@@ -707,10 +1070,113 @@ class TableGroup(TenantMixin, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class TenantLocation(TenantMixin, table=True):
+    """Operational service area within one restaurant tenant."""
+
+    __tablename__ = "tenant_location"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "slug", name="uq_tenant_location_tenant_slug"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=120)
+    display_name: str = Field(max_length=160)
+    slug: str = Field(max_length=120, index=True)
+    location_type: str = Field(default="pub", max_length=32)
+    is_active: bool = Field(default=True, index=True)
+    sort_order: int = Field(default=0)
+    menu_mode: str = Field(default="inherit", max_length=16)
+    hours_mode: str = Field(default="inherit", max_length=16)
+    kitchen_mode: str = Field(default="inherit", max_length=16)
+    payment_mode: str = Field(default="inherit", max_length=16)
+    opening_hours_override: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    ordering_hours_override: dict | None = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
+    default_kitchen_station_id: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    payment_account_reference: str | None = Field(default=None, max_length=128)
+    ordering_paused: bool = Field(default=False)
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LocationMenuProduct(TenantMixin, table=True):
+    """Location-specific menu visibility/price overrides without duplicating products."""
+
+    __tablename__ = "location_menu_product"
+    __table_args__ = (
+        UniqueConstraint(
+            "location_id",
+            "tenant_product_id",
+            name="uq_location_menu_product_tenant_product",
+        ),
+        UniqueConstraint(
+            "location_id",
+            "product_id",
+            name="uq_location_menu_product_product",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="tenant_location.id", index=True)
+    tenant_product_id: int | None = Field(default=None, foreign_key="tenantproduct.id", index=True)
+    product_id: int | None = Field(default=None, foreign_key="product.id", index=True)
+    enabled: bool | None = None
+    price_cents_override: int | None = Field(default=None, ge=0)
+    category_override: str | None = Field(default=None, max_length=120)
+    sort_order_override: int | None = None
+    available_from: date | None = None
+    available_until: date | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class LocationDateOverride(TenantMixin, table=True):
+    """One-day opening/ordering exception for a tenant location."""
+
+    __tablename__ = "location_date_override"
+    __table_args__ = (
+        UniqueConstraint("location_id", "override_date", name="uq_location_date_override"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="tenant_location.id", index=True)
+    override_date: date = Field(index=True)
+    is_closed: bool = Field(default=False)
+    opening_hours: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    ordering_hours: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    note: str | None = Field(default=None, max_length=240)
+
+
+class LocationAuditEvent(TenantMixin, table=True):
+    """Immutable operational audit record for multi-location configuration."""
+
+    __tablename__ = "location_audit_event"
+
+    id: int | None = Field(default=None, primary_key=True)
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    table_id: int | None = Field(default=None, foreign_key="table.id", index=True)
+    action: str = Field(max_length=64, index=True)
+    actor_user_id: int | None = Field(default=None, foreign_key="user.id", index=True)
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
 class Table(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str  # e.g., "Table 5"
     token: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True)
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    service_point_type: str = Field(default="table", max_length=16, index=True)
+    display_number: str | None = Field(default=None, max_length=64)
+    customer_label: str | None = Field(default=None, max_length=120)
+    is_ordering_enabled: bool = Field(default=True, index=True)
+    assignment_version: int = Field(default=1, ge=1)
     # Canvas layout properties
     floor_id: int | None = Field(default=None, foreign_key="floor.id")
     x_position: float = Field(default=0)
@@ -730,6 +1196,126 @@ class Table(TenantMixin, table=True):
     is_active: bool = Field(default=False, index=True)  # Whether table is accepting orders
     active_order_id: int | None = Field(default=None)  # Current shared order for this table
     activated_at: datetime | None = Field(default=None)  # When table was activated
+
+    # Permanent QR/NFC plaque production lifecycle. The table token remains stable on rename.
+    plaque_status: str = Field(default="not_created", max_length=32, index=True)
+    plaque_last_tested_at: datetime | None = None
+    nfc_written_at: datetime | None = None
+    nfc_locked_at: datetime | None = None
+    token_rotated_at: datetime | None = None
+
+
+class SmartPlaqueRequest(TenantMixin, table=True):
+    """Restaurant request for reusable Scanaki QR/NFC plaques."""
+
+    __tablename__ = "smart_plaque_request"
+    id: int | None = Field(default=None, primary_key=True)
+    requested_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    quantity: int = Field(ge=1, le=100)
+    status: str = Field(default="requested", max_length=24, index=True)
+    delivery_contact_name: str = Field(max_length=160)
+    delivery_address: str = Field(max_length=500)
+    restaurant_notes: str | None = Field(default=None, max_length=500)
+    platform_notes: str | None = Field(default=None, max_length=500)
+    tracking_reference: str | None = Field(default=None, max_length=160)
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    approved_at: datetime | None = None
+    preparing_at: datetime | None = None
+    shipped_at: datetime | None = None
+    delivered_at: datetime | None = None
+    completed_at: datetime | None = None
+    declined_at: datetime | None = None
+    cancelled_at: datetime | None = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class SmartPlaque(SQLModel, table=True):
+    """A reusable physical QR/NFC plaque with a permanent Scanaki URL."""
+
+    __tablename__ = "smart_plaque"
+    id: int | None = Field(default=None, primary_key=True)
+    public_code: str = Field(max_length=64, unique=True, index=True)
+    batch_label: str | None = Field(default=None, max_length=100, index=True)
+    status: str = Field(default="available", max_length=24, index=True)
+    request_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey("smart_plaque_request.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+    )
+    assigned_tenant_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("tenant.id", ondelete="SET NULL"), nullable=True, index=True),
+    )
+    table_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("table.id", ondelete="SET NULL"), nullable=True, unique=True),
+    )
+    created_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    assigned_by_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    assigned_at: datetime | None = None
+    nfc_written_at: datetime | None = None
+    nfc_verified_at: datetime | None = None
+    nfc_locked_at: datetime | None = None
+    installed_at: datetime | None = None
+
+
+class SmartPlaqueAssignmentEvent(SQLModel, table=True):
+    """Tenant-safe audit history for plaque assignment and release actions."""
+
+    __tablename__ = "smart_plaque_assignment_event"
+    id: int | None = Field(default=None, primary_key=True)
+    plaque_id: int = Field(
+        sa_column=Column(
+            ForeignKey("smart_plaque.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    action: str = Field(max_length=32)
+    from_tenant_id: int | None = None
+    from_table_id: int | None = None
+    to_tenant_id: int | None = None
+    to_table_id: int | None = None
+    actor_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+
+
+class SmartPlaqueRequestEvent(SQLModel, table=True):
+    """Immutable audit trail for plaque request and fulfilment changes."""
+
+    __tablename__ = "smart_plaque_request_event"
+    id: int | None = Field(default=None, primary_key=True)
+    request_id: int = Field(
+        sa_column=Column(
+            ForeignKey("smart_plaque_request.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    action: str = Field(max_length=32, index=True)
+    actor_user_id: int | None = Field(
+        default=None,
+        sa_column=Column(ForeignKey("user.id", ondelete="SET NULL"), nullable=True),
+    )
+    detail: dict | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
 
 class Shift(TenantMixin, table=True):
@@ -1153,9 +1739,26 @@ class TseTransaction(SQLModel, table=True):
 
 
 class Order(TenantMixin, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "public_idempotency_key",
+            name="uq_order_tenant_public_idempotency",
+        ),
+    )
+
     id: int | None = Field(default=None, primary_key=True)
     # Null when soft-deleted and unlinked, or legacy cleanup; active orders always have a table.
     table_id: int | None = Field(default=None, foreign_key="table.id")
+    location_id: int | None = Field(default=None, foreign_key="tenant_location.id", index=True)
+    location_name_snapshot: str | None = Field(default=None, max_length=160)
+    service_point_type_snapshot: str | None = Field(default=None, max_length=16)
+    service_point_label_snapshot: str | None = Field(default=None, max_length=120)
+    kitchen_station_id_snapshot: int | None = Field(
+        default=None, foreign_key="kitchen_station.id", index=True
+    )
+    payment_account_snapshot: str | None = Field(default=None, max_length=128)
+    ordering_point_assignment_version_snapshot: int | None = None
     status: OrderStatus = Field(default=OrderStatus.pending)
     notes: str | None = None  # General order notes
     session_id: str | None = Field(default=None, index=True)  # Unique session identifier per browser
@@ -1177,6 +1780,15 @@ class Order(TenantMixin, table=True):
     paid_by_user_id: int | None = None  # Who marked it as paid (staff)
     payment_method: str | None = None  # 'stripe', 'cash', 'terminal', 'revolut', etc.
     revolut_order_id: str | None = None  # Revolut Merchant order id when paying via Revolut
+    # Public prepayment orders are invisible to KDS until kitchen_released_at is set.
+    requires_prepayment: bool = Field(default=False, index=True)
+    kitchen_released_at: datetime | None = Field(default=None, index=True)
+    payment_state: str | None = Field(default=None, max_length=32, index=True)
+    payment_amount_cents: int | None = Field(default=None, ge=0)
+    payment_currency: str | None = Field(default=None, max_length=3)
+    stripe_payment_intent_id: str | None = Field(default=None, max_length=128, unique=True, index=True)
+    public_idempotency_key: str | None = Field(default=None, max_length=64, index=True)
+    checkout_locked_at: datetime | None = None
     tip_percent_applied: int | None = None  # Preset % charged as tip when staff marked paid (null = no tip)
     tip_amount_cents: int | None = None  # Tip amount in cents (gross; VAT split uses tenant tip_tax_rate_percent)
     tip_attributed_user_id: int | None = Field(default=None, foreign_key="user.id")
@@ -1199,7 +1811,7 @@ class Order(TenantMixin, table=True):
     )
     external_order_ref: str | None = Field(default=None, max_length=256, index=True)
 
-    # First-party Satisfecho Delivery (no delivery_integration_id); table_id stays null
+    # First-party Scanaki Delivery (no delivery_integration_id); table_id stays null
     order_channel: OrderChannel = Field(default=OrderChannel.table, max_length=32, index=True)
     delivery_address: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     customer_phone: str | None = Field(default=None, max_length=40)
@@ -1364,6 +1976,12 @@ class ProductUpdate(SQLModel):
     price_cents: int | None = None
     cost_cents: int | None = None
     ingredients: str | None = None
+    description: str | None = None
+    is_available: bool | None = None
+    allergens: list[str] | None = None
+    dietary_tags: list[str] | None = None
+    allergen_notes: str | None = None
+    allergen_reviewed: bool | None = None
     category: str | None = None
     subcategory: str | None = None
     tax_id: int | None = None  # Override default tax; null = use tenant default
@@ -1372,9 +1990,23 @@ class ProductUpdate(SQLModel):
     kitchen_station_id: int | None = None  # null = clear mapping
 
 
+class ProductAvailabilityItem(SQLModel):
+    product_id: int = Field(ge=1)
+    is_available: bool
+
+
+class ProductAvailabilityBulkUpdate(SQLModel):
+    items: list[ProductAvailabilityItem] = Field(min_length=1, max_length=500)
+
+
 class TableCreate(SQLModel):
     name: str
     floor_id: int | None = None
+    location_id: int | None = None
+    service_point_type: str = "table"
+    display_number: str | None = None
+    customer_label: str | None = None
+    is_ordering_enabled: bool = True
 
 
 class TableUpdate(SQLModel):
@@ -1388,6 +2020,11 @@ class TableUpdate(SQLModel):
     height: float | None = None
     seat_count: int | None = None
     assigned_waiter_id: int | None = None
+    location_id: int | None = None
+    service_point_type: str | None = None
+    display_number: str | None = None
+    customer_label: str | None = None
+    is_ordering_enabled: bool | None = None
 
 
 class TableGroupCreate(SQLModel):
@@ -1654,10 +2291,13 @@ class OrderCreate(SQLModel):
     staff_access: str | None = None  # Staff link token: when valid, PIN is not required
     latitude: float | None = None  # Optional GPS latitude for location verification
     longitude: float | None = None  # Optional GPS longitude for location verification
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=64)
+    ordering_point_assignment_version: int | None = Field(default=None, ge=1)
+    location_confirmed: bool | None = None
 
 
 class SatisfechoDeliveryOrderCreate(SQLModel):
-    """Staff create first-party Satisfecho Delivery order (no table, no marketplace integration)."""
+    """Staff create first-party Scanaki Delivery order (no table, no marketplace integration)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1668,7 +2308,7 @@ class SatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class PublicSatisfechoDeliveryOrderCreate(SQLModel):
-    """Public guest create for Satisfecho Delivery (address + phone required; no courier assign)."""
+    """Public guest create for Scanaki Delivery (address + phone required; no courier assign)."""
 
     items: list[OrderItemCreate]
     delivery_address: str
@@ -1681,7 +2321,7 @@ class PublicSatisfechoDeliveryOrderCreate(SQLModel):
 
 
 class OrderDeliveryUpdate(SQLModel):
-    """Update delivery metadata on a Satisfecho Delivery order."""
+    """Update delivery metadata on a Scanaki Delivery order."""
 
     delivery_address: str | None = None
     customer_phone: str | None = None
@@ -1817,6 +2457,13 @@ class TenantUpdate(SQLModel):
     ccc: str | None = None
     opening_hours: str | None = None  # JSON string
     immediate_payment_required: bool | None = None
+    ordering_mode: str | None = None
+    ordering_paused: bool | None = None
+    ordering_pause_reason: str | None = Field(default=None, max_length=240)
+    ordering_service_hours: dict | None = None
+    require_kds_online: bool | None = None
+    kds_heartbeat_timeout_seconds: int | None = Field(default=None, ge=30, le=900)
+    strict_fifo_kds: bool | None = None
 
     # Preferred configuration: ISO 4217 currency code.
     currency_code: str | None = None
@@ -1832,6 +2479,9 @@ class TenantUpdate(SQLModel):
 
     stripe_secret_key: str | None = None
     stripe_publishable_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_payment_mode: str | None = None
+    stripe_connected_account_id: str | None = None
     revolut_merchant_secret: str | None = None
     # inventory_tracking_enabled: bool | None = None  # Commented out - migration not applied
 
@@ -1875,7 +2525,8 @@ class TenantUpdate(SQLModel):
     guest_birthday_marketing_enabled: bool | None = None
     guest_birthday_consent_text: str | None = None
 
-    # Satisfecho Delivery fee + coverage
+    # Scanaki Delivery availability, fee + coverage
+    delivery_enabled: bool | None = None
     delivery_fee_cents: int | None = None
     delivery_radius_meters: int | None = None
     delivery_postal_codes: str | None = None  # JSON array string or empty to clear

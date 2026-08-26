@@ -106,9 +106,39 @@ async function main() {
       const priceText = (document.querySelector('[data-testid="pricing-price"]')?.textContent || '').trim();
       const trialText = (document.querySelector('[data-testid="pricing-trial"]')?.textContent || '').trim();
       const registerOk = !!document.querySelector('a[data-testid="pricing-cta-register"]');
-      const selfHostOk = !!document.querySelector('[data-testid="pricing-self-host"]');
-      const billingActive = !!document.querySelector('[data-testid="pricing-billing-active"]');
-      const billingInactive = !!document.querySelector('[data-testid="pricing-billing-inactive"]');
+      const selfHostPresent = !!document.querySelector('[data-testid="pricing-self-host"]');
+      const bannedPositioning = /open[ -]?source|agpl/i.test(document.body?.innerText || '');
+      const billingNotes = document.querySelectorAll(
+        '[data-testid="pricing-billing-active"], [data-testid="pricing-billing-inactive"]',
+      ).length;
+      const planCards = Array.from(document.querySelectorAll('[data-testid="pricing-plan-card"]')).map(
+        (card) => {
+          const rect = card.getBoundingClientRect();
+          const topFor = (selector) => card.querySelector(selector)?.getBoundingClientRect().top ?? null;
+          const decimal = card.querySelector('.pricing-card__decimal');
+          const whole = card.querySelector('.pricing-card__whole');
+          return {
+            id: card.getAttribute('data-plan-id') || '',
+            text: (card.textContent || '').replace(/\s+/g, ' ').trim(),
+            height: rect.height,
+            nameTop: topFor('.pricing-card__name'),
+            ledeTop: topFor('.pricing-card__lede'),
+            offerTop: topFor('.pricing-card__offer'),
+            priceTop: topFor('.pricing-card__price'),
+            trialTop: topFor('.pricing-card__trial'),
+            extraTop: topFor('.pricing-card__extra'),
+            includesTop: topFor('.pricing-card__includes'),
+            ctaTop: topFor('.pricing-btn'),
+            decimalText: decimal?.textContent?.trim() || '',
+            decimalFontSize: decimal ? parseFloat(getComputedStyle(decimal).fontSize) : 0,
+            wholeFontSize: whole ? parseFloat(getComputedStyle(whole).fontSize) : 0,
+            standardText:
+              card.querySelector('[data-testid="pricing-standard-price"]')?.textContent?.trim() || '',
+            dealText: card.querySelector('.pricing-card__deal')?.textContent?.trim() || '',
+            usesStruckReference: !!card.querySelector('s, del'),
+          };
+        },
+      );
       const rawKeyDump =
         title.includes('PRICING_PAGE.') ||
         (document.body?.innerText || '').includes('PRICING_PAGE.TITLE');
@@ -121,14 +151,15 @@ async function main() {
         priceText,
         trialText,
         registerOk,
-        selfHostOk,
-        billingActive,
-        billingInactive,
+        selfHostPresent,
+        bannedPositioning,
+        billingNotes,
+        planCards,
         rawKeyDump,
         priceMentionsAmount,
         trialMentionsDays,
       };
-    }, { price_cents: cfg.price_cents, trial_days: cfg.trial_days });
+    }, { price_cents: cfg.price_cents, trial_days: cfg.trial_days, plans: cfg.plans });
 
     if (!shell.title || shell.rawKeyDump) {
       console.error('FAIL: Hero title missing or untranslated. Got:', JSON.stringify(shell.title));
@@ -158,23 +189,69 @@ async function main() {
     }
     console.log('   Trial:', shell.trialText);
 
-    if (!shell.registerOk || !shell.selfHostOk) {
-      console.error('FAIL: Missing register CTA or self-host card.', shell);
+    if (!shell.registerOk || shell.selfHostPresent || shell.bannedPositioning) {
+      console.error('FAIL: Pricing must show managed signup only, without legacy positioning.', shell);
       process.exit(1);
     }
 
-    if (cfg.enabled) {
-      if (!shell.billingActive || shell.billingInactive) {
-        console.error('FAIL: enabled=true but billing-active note missing.', shell);
+    const expectedPlans = [
+      { id: 'lite', name: 'Lite', price: '£9.99', standard: '£34.97', tables: '2 tables', extra: '£3.99' },
+      { id: 'pro', name: 'Pro', price: '£39.99', standard: '£139.97', tables: '20 tables', extra: '£3.99' },
+      { id: 'ultra', name: 'Ultra', price: '£84.99', standard: '£297.47', tables: '45 tables', extra: '£3.99' },
+    ];
+    if (shell.planCards.length !== expectedPlans.length) {
+      console.error('FAIL: Expected exactly three managed pricing cards.', shell.planCards);
+      process.exit(1);
+    }
+    for (const expected of expectedPlans) {
+      const card = shell.planCards.find((row) => row.id === expected.id);
+      if (
+        !card ||
+        !card.text.includes(expected.name) ||
+        !card.text.replace(/\s/g, '').includes(expected.price) ||
+        card.standardText !== expected.standard ||
+        !/launch deal/i.test(card.dealText) ||
+        card.usesStruckReference ||
+        !card.text.includes(expected.tables) ||
+        !card.text.includes(expected.extra)
+      ) {
+        console.error('FAIL: Pricing card mismatch.', expected, card);
         process.exit(1);
       }
-      console.log('   Billing note: active (matches SAAS_PAYWALL_ENABLED)');
-    } else {
-      if (!shell.billingInactive || shell.billingActive) {
-        console.error('FAIL: enabled=false but billing-inactive note missing.', shell);
+    }
+
+    const alignedFields = [
+      'height',
+      'nameTop',
+      'ledeTop',
+      'offerTop',
+      'priceTop',
+      'trialTop',
+      'extraTop',
+      'includesTop',
+      'ctaTop',
+    ];
+    for (const field of alignedFields) {
+      const values = shell.planCards.map((card) => card[field]);
+      if (values.some((value) => typeof value !== 'number')) {
+        console.error(`FAIL: Missing pricing-card alignment metric ${field}.`, shell.planCards);
         process.exit(1);
       }
-      console.log('   Billing note: inactive (does not imply paywall everywhere)');
+      if (Math.max(...values) - Math.min(...values) > 2) {
+        console.error(`FAIL: Pricing cards are not symmetrical at ${field}.`, values);
+        process.exit(1);
+      }
+    }
+    for (const card of shell.planCards) {
+      if (!/^\.\d{2}$/.test(card.decimalText) || card.decimalFontSize >= card.wholeFontSize) {
+        console.error('FAIL: Price decimal must contain two digits and render smaller.', card);
+        process.exit(1);
+      }
+    }
+
+    if (shell.billingNotes !== 0) {
+      console.error('FAIL: Internal billing status note must not appear on public pricing.', shell);
+      process.exit(1);
     }
 
     if (pageErrors.length) {
@@ -183,7 +260,7 @@ async function main() {
     }
 
     await browser.close();
-    console.log('\n>>> RESULT: /pricing loads with live saas/config price, trial, and self-host tier.');
+    console.log('\n>>> RESULT: /pricing loads with live saas/config price, trial, and managed signup.');
     process.exit(0);
   } catch (err) {
     console.error('Error:', err.message);

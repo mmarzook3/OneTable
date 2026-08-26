@@ -35,7 +35,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const headless = isHeadless();

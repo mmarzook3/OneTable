@@ -8,11 +8,335 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-08-25
+
 ### Added
+
+- **Internal Pilot tier:** Added an unpublished, platform-managed tier with unlimited active ordering points, all Scanaki modules and no public Stripe checkout; it remains excluded from landing-page pricing and restaurant self-signup.
 
 ### Changed
 
+- **Yew Trees pilot entitlement:** Assigned The Yew Trees Pub to the internal Pilot tier with unlimited ordering points, full feature access and zero internal recurring contract value while retaining venue-level feature switches such as delivery availability.
+
+## [2.2.0] - 2026-08-25
+
+### Added
+
+- **Multi-location ordering:** Added tenant-scoped pubs, lounges and hotel buildings with permanent room/table ordering points, subscription allowance enforcement and backward-compatible QR/NFC tokens.
+- **Location-aware customer journey:** Location and Room/Table context now persists through menus, baskets, confirmation, checkout, payment success, receipts, order status and customer history; stale plaque assignments are rejected safely.
+- **Location inheritance and overrides:** Added master-menu inheritance with location price/availability overrides, separate opening and ordering schedules, date/range exceptions, emergency pauses, kitchen-station routing and payment-account separation readiness.
+- **Location operations workspace:** Added responsive owner and platform CRM controls for location identity, room/table bulk creation and preview, plan impact, menus, hours, routing, plaques and launch readiness.
+- **Location-aware kitchen and reporting:** KDS cards now show and filter by origin while preserving paid-release FIFO; sales reports support location filters, subtotals, average order value, failures, refunds, busiest points and preparation-time metrics.
+
+### Changed
+
+- **Ordering-point subscriptions:** Active rooms and tables now share the existing plan allowance; disabled draft points do not consume capacity, while backward-compatible table billing fields remain intact.
+- **Yew Trees pilot:** Provisioning now creates The Yew Trees, Sports Lounge, Premium Building and Main Building with the approved names, Pro allowance, confirmed hours and inherited main menu/kitchen/payment configuration without inventing TBP room or lounge numbers.
+
+## [2.1.184] - 2026-08-25
+
+### Added
+
+- **Kitchen stock control:** Added a tablet-friendly Stock workspace to the Kitchen and Bar displays with menu images, search, station-aware filtering, clear available/sold-out states and atomic bulk saving.
+- **Restricted availability permission:** Kitchen and bar staff can now change only product availability while product names, descriptions, prices and other catalogue details remain protected.
+- **Immediate customer-menu updates:** Saving an item as sold out removes it from customer ordering menus and synchronises linked restaurant catalogue entries.
+
+## [2.1.183] - 2026-08-25
+
 ### Fixed
+
+- **Midnight opening hours:** Reservation slot generation now treats a close at `00:00` as midnight after the venue's opening time, preserving same-day booking slots for pubs that close at midnight.
+
+## [2.1.182] - 2026-08-25
+
+### Changed
+
+- **Platform CRM workspace:** Rebuilt the platform-operator portal around a persistent left navigation, compact top bar, grouped workspace/revenue/operations sections and operator account controls.
+- **Focused overview:** Replaced the loose metric cards with a recurring-revenue summary strip, recent restaurant directory, subscription health and compact account-activity table.
+- **Restaurant directory:** Added a dedicated searchable customer page with onboarding filters, plan allowances, usage, owner contacts and direct venue actions.
+- **Responsive operations:** Added a mobile navigation drawer, route-aware active states, consistent content containment and shared shell coverage for every platform tool and tenant detail page.
+
+## [2.1.181] - 2026-08-25
+
+### Added
+
+- **Platform settings console:** Added platform-admin controls for Scanaki legal identity, company and VAT numbers, support/contact details, address, website and product-wide Terms and Privacy links.
+- **Encrypted platform SMTP:** Added platform-managed host, port, TLS, username, sender identity and write-only encrypted password storage with environment fallback, masking and connection status.
+- **SMTP delivery test:** Added a protected real-email test action with sanitised success/failure reporting and retained last-test status.
+- **Username-based operator login:** Platform operators can now sign in with a username as well as an email-form identifier, including case-insensitive matching.
+
+## [2.1.180] - 2026-08-25
+
+### Added
+
+- **Platform-managed pricing:** Added a Pricing & Offers console where platform operators control tier names, descriptions, monthly prices, included tables, extra-table charges, trials, visibility and featured status without a deployment.
+- **Scheduled discounts:** Added explicit regular and offer prices, percentage assistance, deal badges and optional offer start/end dates; the landing page and public SaaS configuration now reflect the active revision immediately.
+- **Safe Stripe price versioning:** Added optional Stripe Product/Price creation with retained price identifiers and explicit new-customers-only, next-renewal or immediate-proration migration modes.
+- **Contract snapshots and pricing audit:** Existing tenant prices and entitlements are preserved by default, MRR uses contracted values, and every pricing publication records an immutable migration result.
+
+## [2.1.179] - 2026-08-25
+
+### Added
+
+- **Complete subscription console:** Added a dedicated platform workspace with MRR, revenue and churn reporting; active, trial, overdue, suspended and canceling counts; search, plan/status/health filters and pagination for large tenant portfolios.
+- **Full billing operations:** Added activate, suspend, scheduled cancel, immediate cancel and grandfather controls; existing Stripe subscription plan and extra-table synchronisation with explicit prorations; and direct live/test Stripe customer links.
+- **Invoices, payments and audit history:** Added sanitised Stripe invoice and PaymentIntent history plus an immutable tenant billing-event ledger with unique Stripe event IDs.
+- **Failure and revenue lifecycle:** Added `invoice.paid`, `invoice.payment_failed` and `invoice.payment_action_required` processing, current billing-health snapshots, failed-payment queues and idempotent revenue recording.
+
+## [2.1.178] - 2026-08-25
+
+### Fixed
+
+- **Extra-table subscription billing:** Stripe subscription Checkout now includes the configured recurring extra-table Price with the operator-approved quantity, while refusing checkout if extra tables exist without a billing Price.
+
+## [2.1.177] - 2026-08-25
+
+### Added
+
+- **Enforced Scanaki plans:** Persisted Lite, Pro and Ultra plan selection, enforced included plus purchased table allowances, added separate Stripe Price support per tier, and gave platform operators plan and extra-table controls.
+- **Secure restaurant invitations:** New platform-created restaurants receive a single-use password-setup email when SMTP is configured, with delivery status retained for operator review and a manual secure-link fallback.
+- **Menu safety and service controls:** Added instant sold-out/available actions, structured dietary tags, the 14 standard allergen categories, allergen notes and an explicit restaurant review confirmation in all supported languages.
+- **Launch-readiness dashboard:** Added platform checks for profile, hours, menu, prices, allergens, plan limits, plaques/NFC, kitchen, Stripe, legal URLs and onboarding completion.
+- **Installable kitchen:** Added a Scanaki Kitchen web manifest and safe service worker shell for Android home-screen and standalone installation while preserving network-first live order data.
+
+## [2.1.176] - 2026-08-24
+
+### Added
+
+- **Automated Scanaki operations:** Added secure installation for daily encrypted backups, weekly isolated restore tests, five-minute application/container/payment checks, TLS-expiry and disk monitoring, locking, log rotation and an optional failure webhook.
+- **Portable recovery:** Added checksum-verified encrypted dumps and compose-aware restore validation that works with both the isolated Scanaki VPS stack and the standard production overlay.
+
+## [2.1.175] - 2026-08-24
+
+### Security
+
+- **Patched Angular runtime:** Updated Angular framework, router, compiler, build and SSR packages to 21.2.21, clearing all reported production dependency vulnerabilities.
+- **Browser security policy:** Added HSTS, Content Security Policy, frame denial, MIME sniffing protection, strict referrer handling and a minimal Permissions Policy while retaining Stripe, analytics, QR camera and location flows.
+
+### Fixed
+
+- **Green legal-link regression:** Updated the public-tenant test to match the intentional product-level Terms and Privacy fallback URLs.
+- **Reliable Windows Docker startup:** Normalized the optional marketing sync script inside the container so CRLF checkouts no longer produce shell errors.
+
+## [2.1.174] - 2026-08-24
+
+### Fixed
+
+- **Footer navigation position:** New routes opened from footer links now start at the top, browser back and forward navigation restores saved positions, and same-page anchors continue scrolling to their target.
+
+## [2.1.173] - 2026-08-24
+
+### Fixed
+
+- **Mobile landing navigation:** Added a visible 44px hamburger button below the desktop breakpoint, an accessible open/close state, and a compact panel containing every navigation, language, login, and account action without horizontal overflow.
+
+## [2.1.172] - 2026-08-24
+
+### Fixed
+
+- **Direct user manual route:** Served the Angular manual page for both `/manual-usuario` and `/manual-usuario/` instead of allowing the matching static asset directory to redirect direct visits to a 403 response.
+
+## [2.1.171] - 2026-08-24
+
+### Fixed
+
+- **Scanaki user manual branding:** Removed the remaining legacy product name from the English and Spanish manual content and from every translated browser title.
+
+## [2.1.170] - 2026-08-24
+
+### Changed
+
+- **Modern QR and NFC ordering:** Rebuilt the live table-ordering catalogue with a polished mobile-first layout, stronger dish photography, cleaner pricing, modern product tags, and a compact sticky discovery area.
+- **Faster dish discovery:** Added instant dish and ingredient search, dietary and offer filters, customisable-item filtering, category counts, and a one-action reset when no dishes match.
+- **Lighter browsing:** Removed the duplicate featured-product row and scroll-state listener, lazy-loaded dish images, and deferred off-screen card rendering while preserving customisation, cart, payment, and live order tracking.
+- **Responsive service flow:** Added three-column desktop, two-column tablet, and compact phone layouts with accessible labels, touch-sized controls, dark mode, and reduced-motion support.
+
+## [2.1.169] - 2026-08-24
+
+### Changed
+
+- **Modern public menu:** Replaced the narrow accordion list with a food-forward responsive menu using large photography, a branded hero, modern card hierarchy, clearer prices, and polished light and dark themes.
+- **Faster browsing:** Added sticky search, horizontally scrollable category filters, live result counts, category item counts, and a one-action reset when no dishes match.
+- **Mobile-first cards:** Added compact image-and-content rows on phones, two-column tablet and three-column desktop grids, touch-sized controls, lazy images, and reduced-motion support.
+- **Complete menu states:** Added structured loading skeletons, refined empty and error states, preserved demo and read-only notices, tenant branding, delivery or booking actions, legal links, and language switching.
+
+## [2.1.168] - 2026-08-24
+
+### Changed
+
+- **Launch deal pricing:** Marked the existing Lite, Pro, and Ultra monthly charges as launch deals and displayed a planned standard price calculated at 3.5 times each current price.
+- **Transparent comparison:** Used “Planned standard price” without a struck-through “was” claim, keeping the comparison clear while no established full-price sales history exists.
+- **Preserved card rhythm:** Added the offer row to every tier and extended alignment checks so the symmetrical pricing layout and smaller decimal styling remain intact.
+
+## [2.1.167] - 2026-08-24
+
+### Changed
+
+- **No source-control links:** Removed repository, issue, and discussion links from the shared marketing footer, landing page, About page, staff login, provider login and registration, dashboard, and staff sidebar.
+- **Clean managed-hosting copy:** Replaced repository cloning and self-managed deployment instructions with Scanaki managed-hosting guidance across all supported languages.
+
+## [2.1.166] - 2026-08-24
+
+### Changed
+
+- **Symmetrical pricing cards:** Positioned the Pro badge outside normal card flow and standardised card row heights so every plan name, allowance, price, trial, add-on, feature list, and button aligns across the tier grid.
+- **Price hierarchy:** Split each monthly price into whole-pound and decimal elements, rendering the two decimal digits smaller while preserving the complete accessible currency label.
+
+## [2.1.165] - 2026-08-24
+
+### Changed
+
+- **Trusted guest entry:** Removed the public table-name field from the landing page and replaced it with a camera QR scanner, preventing accidental matches against similarly named tables at other restaurants.
+- **Printed-name privacy:** Restricted the legacy public table lookup endpoint to opaque tokens, so printed table names can no longer disclose matching restaurants or table tokens.
+- **Strict Scanaki routes:** The guest scanner accepts only Scanaki smart-plaque and table-menu URLs, rejects unrelated QR codes and external domains, and stops the camera when closed or after a result.
+- **Clear scanner states:** Added translated camera permission, invalid-code, retry, cancellation, demo-unavailable, and NFC alternative guidance across all supported languages.
+
+## [2.1.164] - 2026-08-24
+
+### Changed
+
+- **QR and NFC consistency:** Updated the landing demo, guest instructions, table help, accessibility labels, and launch prompts so every QR reference also explains the equivalent NFC action.
+- **Multilingual NFC guidance:** Added the same scan-or-tap instructions across all supported landing-page languages.
+
+## [2.1.163] - 2026-08-24
+
+### Changed
+
+- **Clear product promise:** The landing hero now explains that guests scan QR or tap NFC to order and pay from their table, with requests sent directly to the kitchen or bar.
+- **Inclusive digital-menu wording:** Replaced QR-only calls to action and feature copy with language that covers both QR and NFC ordering across every supported language.
+- **Search clarity:** Updated landing and registration metadata to describe Scanaki as a QR and NFC table-ordering platform.
+
+## [2.1.162] - 2026-08-24
+
+### Added
+
+- **Demo menu photography:** Added a cohesive set of ten generated food and soft-drink photographs for every item in the fictional landing demo menu.
+- **Durable image seeding:** The landing demo seed now packages, installs, and assigns its product images idempotently on every deployment.
+
+## [2.1.161] - 2026-08-24
+
+### Changed
+
+- **Pricing clarity:** Removed the internal billing-status note from public tier cards so the page shows customer pricing and allowances only.
+
+## [2.1.160] - 2026-08-24
+
+### Changed
+
+- **Three managed tiers:** Public pricing now offers Lite (2 tables, £9.99/month), Pro (20 tables, £39.99/month), and Ultra (45 tables, £84.99/month).
+- **Extra tables:** Every tier shows the £3.99 per additional table monthly add-on.
+- **Pricing focus:** The pricing page contains managed tiers only, with Pro highlighted as the most popular option.
+
+## [2.1.159] - 2026-08-24
+
+### Changed
+
+- **United Kingdom currency:** New restaurants, unconfigured tenants, hosted plan pricing, payment fallbacks, menus, reports, invoices, and staff forms now default to GBP with the pound symbol (`£`).
+- **UK examples:** Currency hints, reservation prepayment examples, and pricing-calculator examples now use pounds and pence.
+
+## [2.1.158] - 2026-08-24
+
+### Changed
+
+- **Product positioning:** Removed legacy licensing promotional wording from customer-facing marketing, metadata, feature, pricing, About, invoice, and staff-navigation surfaces.
+- **Managed service focus:** Pricing now presents the managed Scanaki plan only, while the required repository access remains neutrally labelled as the product repository.
+
+## [2.1.157] - 2026-08-24
+
+### Added
+
+- **Dedicated landing demo:** The marketing landing page now uses a fictional Scanaki demo tenant with demo-only tables and a non-alcoholic sample menu.
+
+### Fixed
+
+- **Customer privacy:** Real restaurant tenants and their contact details are excluded from the public landing tenant list, while their direct QR, menu, and booking URLs continue to work.
+- **Demo safety:** The demo public menu is clearly labelled and does not offer live delivery or booking actions.
+
+## [2.1.156] - 2026-08-24
+
+### Added
+
+- **Per-restaurant delivery switch:** Restaurant settings can now disable Scanaki Delivery without affecting table ordering or reservations.
+
+### Fixed
+
+- **Delivery enforcement:** Disabled restaurants reject both public and staff-created delivery orders at the API, and their public delivery page clearly reports that delivery is unavailable.
+
+## [2.1.154] - 2026-08-24
+
+### Added
+
+- **User manual language switch (#353):** Public `/manual-usuario` is now an Angular page with the marketing language picker and shared footer. Spanish and English manual bodies load from `content/es.html` and `content/en.html`; other UI locales use English until more translations exist. Footer and About links use the SPA route.
+
+## [2.1.153] - 2026-08-23
+
+### Fixed
+
+- **QR menu order history (#350):** Public `/menu/{table_token}` order history no longer lists every guest’s paid orders at the same table. `GET /menu/{table_token}/order-history` requires `session_id` and scopes results to that browser session or, when logged in, the end-user customer at the tenant. Table orders set `Order.customer_id` when the customer cookie is present. Staff back-office table views are unchanged.
+
+## [2.1.152] - 2026-08-23
+
+### Added
+
+- **User manual on marketing site (#352):** Published the Spanish user manual at `/manual-usuario/` (static assets from `docs/manual-usuario/`). **User manual** links on the shared marketing footer, `/about`, and `/features`.
+
+### Changed
+
+- **Agent loop (FEAT waiting for human):** Feature coder step skips parked **FEAT** tasks after one waiting GitHub comment until a human replies on the linked issue (`scripts/agent-feat-waiting-human-preflight.sh`).
+
+## [2.1.155] - 2026-08-23
+
+### Fixed
+
+- **Scanaki domain spelling:** Corrected the canonical domain to `https://scanaki.uk` across application metadata, email defaults, QR/NFC guidance, production configuration, tests, documentation and the social-sharing image.
+
+## [2.1.154] - 2026-08-23
+
+### Changed
+
+- **Scanaki rebrand:** Renamed the customer-facing One Table product to Scanaki across the public site, legal pages, staff application, onboarding, platform portal, QR/NFC plaque artwork, delivery labels, email sender defaults and all supported languages.
+- **Canonical domain:** Updated SEO metadata, canonical links, sitemap, robots, payment examples, production smoke defaults and plaque deployment guidance to `https://scanaki.uk`.
+- **Compatibility preserved:** Kept database channel values, Python module names, encryption salts, `ONETABLE_*` operations variables, script filenames and the existing `mmarzook3/OneTable` source URL unchanged to avoid breaking stored data or deployments.
+
+### Added
+
+- **Scanaki social card:** Replaced the legacy social-sharing bitmap with a 1200x630 Scanaki card displaying `scanaki.uk`.
+
+## [2.1.153] - 2026-08-23
+
+### Added
+
+- **Reusable OneTable smart plaques:** Platform operators can manufacture permanent `/p/{code}` QR inventory, while restaurant owners scan a plaque with the device camera, assign or safely reassign it to a table, and optionally write plus read-back-verify the same URL through Android Web NFC.
+- **Permanent plaque resolution:** QR and NFC links now resolve their current restaurant/table assignment at scan time, allowing a 3D-printed plaque to move between tables without reprinting or rewriting its NFC tag.
+
+### Changed
+
+- **Table setup:** Adding a table now immediately opens the guided QR/NFC assignment sheet, with manual-code fallback, active-session protection, cross-tenant takeover protection, replacement warnings, audit history, and automatic hidden-token rotation.
+
+### Fixed
+
+- **Plaque cleanup:** Available plaque deletion now cascades only its assignment audit rows across both migration-first and metadata-first deployments.
+
+## [2.1.152] - 2026-08-23
+
+### Added
+
+- **One Table restaurant provisioning:** Platform operators can create a restaurant owner from `/platform/restaurants/new` and receive a one-time temporary password plus password-creation link.
+- **Resumable first-login onboarding:** New restaurant owners are guided through password security, business details, ordering hours, bulk table QR/NFC allocation, starter menu items, and a safe launch review before entering the dashboard.
+
+### Changed
+
+- **Safe onboarding launch:** Restaurants without both a menu and tenant Stripe credentials remain browse-only after setup, preventing accidental unpaid ordering.
+
+### Fixed
+
+- **Tenant cleanup:** Tenant purge now removes tenant login-history rows before staff accounts, avoiding a foreign-key failure after an owner has signed in.
+
+## [2.1.151] - 2026-08-20
+
+### Added
+
+- **Shared table cart for dine-in QR (#349):** Guests on the same activated table QR now share a live draft cart before Place Order (Redis + WebSocket). Each device keeps its own session for attribution; Place Order still sends only that device’s lines. Take Away stays local-only. Docs 0008/0009 updated.
 
 ## [2.1.150] - 2026-08-20
 

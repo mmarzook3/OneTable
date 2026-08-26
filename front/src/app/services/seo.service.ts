@@ -12,45 +12,45 @@ export interface SeoPageConfig {
   noindex?: boolean;
 }
 
-const BRAND = 'Satisfecho';
+const BRAND = 'Scanaki';
 const DEFAULT_DESCRIPTION =
-  'Open-source restaurant platform — QR menus, ordering, reservations, payments, kitchen & bar displays, shifts, inventory, and reports.';
+  'QR and NFC table ordering for restaurants. Guests scan or tap, order and pay, and requests reach the kitchen or bar instantly.';
 const OG_IMAGE_PATH = '/og-image.png';
 
 /** Exact marketing / public shell pages with fixed English meta (crawler-friendly). */
 const MARKETING_PAGES: Record<string, Omit<SeoPageConfig, 'path'>> = {
   '/': {
-    title: `${BRAND} — Open-source restaurant platform`,
+    title: `${BRAND} - QR and NFC table ordering`,
     description: DEFAULT_DESCRIPTION,
   },
   '/features': {
-    title: `Features — ${BRAND}`,
+    title: `Features - ${BRAND}`,
     description:
-      'Everything Satisfecho offers: QR menus, online payments, kitchen displays, shift planning, inventory, and more — one platform for guests, staff, and owners.',
+      'Everything Scanaki offers: QR and NFC menus, online payments, kitchen displays, shift planning, inventory, and more - one platform for guests, staff, and owners.',
   },
   '/about': {
-    title: `About us — ${BRAND}`,
+    title: `About us - ${BRAND}`,
     description:
-      'Satisfecho is an open-source restaurant platform operated by Amvara Consulting S.L. Learn who we are and how the product helps restaurants.',
+      'Scanaki is a Fixaki restaurant platform that helps pubs and restaurants serve guests with less manual work.',
   },
   '/register': {
-    title: `Create your restaurant — ${BRAND}`,
-    description: `Sign up for ${BRAND} and launch QR menus, ordering, and reservations for your restaurant.`,
+    title: `Create your restaurant - ${BRAND}`,
+    description: `Sign up for ${BRAND} and launch QR and NFC menus, table ordering, payments, and reservations for your restaurant.`,
   },
   '/signup': {
-    title: `Create your restaurant — ${BRAND}`,
-    description: `Sign up for ${BRAND} and launch QR menus, ordering, and reservations for your restaurant.`,
+    title: `Create your restaurant - ${BRAND}`,
+    description: `Sign up for ${BRAND} and launch QR and NFC menus, table ordering, payments, and reservations for your restaurant.`,
   },
   '/orders': {
-    title: `Order online — ${BRAND}`,
+    title: `Order online - ${BRAND}`,
     description: `Find restaurants on ${BRAND} and place take-away or home orders online.`,
   },
   '/terms': {
-    title: `Terms of service — ${BRAND}`,
+    title: `Terms of service - ${BRAND}`,
     description: `Terms of service for the ${BRAND} restaurant platform.`,
   },
   '/privacy': {
-    title: `Privacy policy — ${BRAND}`,
+    title: `Privacy policy - ${BRAND}`,
     description: `Privacy policy for the ${BRAND} restaurant platform.`,
   },
 };
@@ -81,6 +81,7 @@ const NOINDEX_PREFIXES = [
   '/guest-feedback',
   '/provider',
   '/courier',
+  '/customer',
   '/platform',
 ];
 
@@ -117,13 +118,13 @@ export class SeoService {
 
   /** Public /features/:slug detail pages (fixed English meta for crawlers). */
   applyFeatureDetail(path: string, title: string, description: string): void {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://satisfecho.de';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk';
     this.applyTags({ title, description, path }, origin);
   }
 
   applyForUrl(rawUrl: string): void {
     const path = this.normalizePath(rawUrl);
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://satisfecho.de';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk';
 
     if (this.isNoindexPath(path)) {
       this.applyTags({
@@ -178,7 +179,7 @@ export class SeoService {
 
   private setOgBasics(opts: { title: string; description: string; url: string }): void {
     const image = this.absoluteUrl(
-      typeof window !== 'undefined' ? window.location.origin : 'https://satisfecho.de',
+      typeof window !== 'undefined' ? window.location.origin : 'https://scanaki.uk',
       OG_IMAGE_PATH,
     );
     this.meta.updateTag({ property: 'og:type', content: 'website' });

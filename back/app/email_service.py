@@ -36,18 +36,34 @@ def _effective_smtp_config(tenant: Optional["Tenant"] = None) -> dict[str, Any]:
         and tenant.smtp_user
         and tenant.smtp_password
     )
+    # Platform-managed SMTP supersedes VPS values for global Scanaki email.
+    # Import lazily to avoid coupling email module import order to database startup.
+    try:
+        from .platform_settings_service import effective_platform_smtp_config
+
+        platform_cfg = effective_platform_smtp_config()
+    except Exception:
+        platform_cfg = {
+            "host": settings.smtp_host,
+            "port": settings.smtp_port,
+            "use_tls": settings.smtp_use_tls,
+            "user": settings.smtp_user,
+            "password": settings.smtp_password,
+            "from_email": settings.email_from,
+            "from_name": settings.email_from_name,
+        }
     return {
-        "host": (tenant.smtp_host or settings.smtp_host) if use_tenant else settings.smtp_host,
-        "port": (tenant.smtp_port if tenant and tenant.smtp_port is not None else settings.smtp_port)
+        "host": (tenant.smtp_host or platform_cfg["host"]) if use_tenant else platform_cfg["host"],
+        "port": (tenant.smtp_port if tenant and tenant.smtp_port is not None else platform_cfg["port"])
         if use_tenant
-        else settings.smtp_port,
-        "use_tls": (tenant.smtp_use_tls if tenant and tenant.smtp_use_tls is not None else settings.smtp_use_tls)
+        else platform_cfg["port"],
+        "use_tls": (tenant.smtp_use_tls if tenant and tenant.smtp_use_tls is not None else platform_cfg["use_tls"])
         if use_tenant
-        else settings.smtp_use_tls,
-        "user": (tenant.smtp_user or settings.smtp_user) if use_tenant else settings.smtp_user,
-        "password": (tenant.smtp_password or settings.smtp_password) if use_tenant else settings.smtp_password,
-        "from_email": (tenant.email_from or settings.email_from) if use_tenant else settings.email_from,
-        "from_name": (tenant.email_from_name or settings.email_from_name) if use_tenant else settings.email_from_name,
+        else platform_cfg["use_tls"],
+        "user": (tenant.smtp_user or platform_cfg["user"]) if use_tenant else platform_cfg["user"],
+        "password": (tenant.smtp_password or platform_cfg["password"]) if use_tenant else platform_cfg["password"],
+        "from_email": (tenant.email_from or platform_cfg["from_email"]) if use_tenant else platform_cfg["from_email"],
+        "from_name": (tenant.email_from_name or platform_cfg["from_name"]) if use_tenant else platform_cfg["from_name"],
     }
 
 
@@ -272,6 +288,40 @@ async def send_password_reset_email(
 {disclaimer}
 """
     return await send_email(to_email, subject, html_content, text_content, tenant=tenant)
+
+
+async def send_restaurant_invitation_email(
+    to_email: str,
+    restaurant_name: str,
+    setup_url: str,
+) -> bool:
+    """Send the one-time Scanaki owner account setup link using platform SMTP."""
+    safe_name = html.escape(restaurant_name, quote=False)
+    safe_url = html.escape(setup_url, quote=True)
+    subject = f"Set up your Scanaki account for {restaurant_name}"
+    html_content = f"""
+    <!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#202124">
+      <div style="max-width:600px;margin:auto;padding:24px">
+        <p style="font-weight:700;font-size:20px">Scanaki</p>
+        <h1 style="font-size:24px">Your restaurant account is ready</h1>
+        <p>Scanaki has created the account for <strong>{safe_name}</strong>.</p>
+        <p>Use the secure button below to choose your password and begin the guided setup.</p>
+        <p style="margin:28px 0"><a href="{safe_url}" style="background:#d35233;color:#fff;padding:13px 20px;border-radius:8px;text-decoration:none;font-weight:700">Create my password</a></p>
+        <p>This link is single-use and expires automatically. If you were not expecting it, contact the Scanaki team.</p>
+        <p style="word-break:break-all;color:#666;font-size:12px">{safe_url}</p>
+      </div>
+    </body></html>
+    """
+    text_content = f"""Your Scanaki restaurant account is ready
+
+Scanaki has created the account for {restaurant_name}.
+Choose your password and begin setup here:
+
+{setup_url}
+
+This single-use link expires automatically.
+"""
+    return await send_email(to_email, subject, html_content, text_content)
 
 
 async def send_customer_verification_email(

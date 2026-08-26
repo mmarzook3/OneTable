@@ -48,6 +48,7 @@ export interface User {
   tenant_id?: number | null;
   provider_id?: number | null;
   role: UserRole;
+  must_change_password?: boolean;
 }
 
 export interface UserCreate {
@@ -325,10 +326,25 @@ export interface RegisterResponse {
 /** One catalog tier from GET /saas/config (multi-tier ready; #328) */
 export interface SaasPlanTier {
   id: string;
+  name: string;
+  description?: string | null;
+  version?: number;
   trial_days: number;
   price_cents: number;
+  regular_price_cents?: number;
+  offer_price_cents?: number | null;
+  compare_at_price_cents?: number | null;
+  offer_active?: boolean;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  is_featured?: boolean;
+  is_public?: boolean;
   currency: string;
   interval: string;
+  included_tables: number;
+  extra_table_price_cents: number;
+  ordering_points_unlimited?: boolean;
 }
 
 /** Platform SaaS subscription / hard paywall (issue #296) */
@@ -337,6 +353,7 @@ export interface SaasSubscription {
   trial_days: number;
   price_cents: number;
   currency: string;
+  extra_table_price_cents?: number;
   stripe_checkout_available: boolean;
   /** Forward-compatible plan catalog; omit or empty → use top-level price fields */
   plans?: SaasPlanTier[];
@@ -344,6 +361,11 @@ export interface SaasSubscription {
   has_access?: boolean;
   trial_ends_at?: string | null;
   subscription_ends_at?: string | null;
+  plan_code?: 'lite' | 'pro' | 'ultra' | string;
+  included_tables?: number;
+  extra_tables?: number;
+  table_limit?: number;
+  ordering_points_unlimited?: boolean;
 }
 
 /** Provider portal types */
@@ -416,6 +438,134 @@ export interface PlatformTenantSummary {
   user_count: number;
   order_count: number;
   reservation_count: number;
+  onboarding_status: 'not_started' | 'in_progress' | 'completed' | string;
+  onboarding_step: number;
+  saas_plan_code: 'lite' | 'pro' | 'ultra' | string;
+  saas_extra_tables: number;
+  table_limit: number;
+  ordering_points_unlimited: boolean;
+  invitation_sent_at?: string | null;
+  invitation_last_error?: string | null;
+  subscription_status: string;
+  trial_ends_at?: string | null;
+  renewal_at?: string | null;
+  cancel_at_period_end: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_customer_url?: string | null;
+  last_payment_failed_at?: string | null;
+  monthly_cents: number;
+}
+
+export interface PlatformRestaurantCreate {
+  restaurant_name: string;
+  owner_email: string;
+  owner_name?: string | null;
+  plan_code: 'lite' | 'pro' | 'ultra' | 'pilot';
+}
+
+export interface PlatformRestaurantCredentials {
+  tenant_id: number;
+  restaurant_name: string;
+  username: string;
+  temporary_password: string;
+  password_setup_url?: string | null;
+  plan_code: string;
+  table_limit: number;
+  ordering_points_unlimited: boolean;
+  invitation_email_sent: boolean;
+}
+
+export interface SmartPlaque {
+  id: number;
+  public_code: string;
+  public_url: string;
+  batch_label?: string | null;
+  status: 'available' | 'assigned' | 'disabled' | 'retired' | string;
+  request_id?: number | null;
+  assigned_tenant_id?: number | null;
+  table_id?: number | null;
+  table_name?: string | null;
+  table_token?: string | null;
+  assigned_at?: string | null;
+  nfc_written_at?: string | null;
+  nfc_verified_at?: string | null;
+  nfc_locked_at?: string | null;
+  installed_at?: string | null;
+}
+
+export interface SmartPlaqueRequestEvent {
+  action: string;
+  actor_user_id?: number | null;
+  detail?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface SmartPlaqueRequest {
+  id: number;
+  tenant_id: number;
+  tenant_name: string;
+  requested_by_user_id?: number | null;
+  requester_email?: string | null;
+  quantity: number;
+  status: 'requested' | 'approved' | 'preparing' | 'shipped' | 'delivered' | 'completed' | 'declined' | 'cancelled' | string;
+  delivery_contact_name: string;
+  delivery_address: string;
+  restaurant_notes?: string | null;
+  platform_notes?: string | null;
+  tracking_reference?: string | null;
+  requested_at: string;
+  approved_at?: string | null;
+  preparing_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  completed_at?: string | null;
+  declined_at?: string | null;
+  cancelled_at?: string | null;
+  updated_at: string;
+  allocated_count: number;
+  installed_count: number;
+  plaques: SmartPlaque[];
+  history: SmartPlaqueRequestEvent[];
+}
+
+export interface SmartPlaqueLookup extends SmartPlaque {
+  assignment_state:
+    | 'available'
+    | 'assigned_here'
+    | 'assigned_other_restaurant'
+    | 'awaiting_delivery'
+    | 'disabled'
+    | 'retired'
+    | string;
+}
+
+export interface PublicSmartPlaqueResolution {
+  public_code: string;
+  menu_path: string;
+  tenant_name: string;
+  table_name: string;
+}
+
+export interface RestaurantOnboardingState {
+  status: 'not_started' | 'in_progress' | 'completed' | string;
+  current_step: number;
+  must_change_password: boolean;
+  restaurant_name: string;
+  business_type?: string | null;
+  owner_name?: string | null;
+  owner_email: string;
+  business_email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  currency_code: string;
+  timezone: string;
+  ordering_mode: string;
+  ordering_service_hours?: Record<string, { open?: string; close?: string; closed?: boolean }> | null;
+  floor_count: number;
+  table_count: number;
+  product_count: number;
+  payment_configured: boolean;
 }
 
 export interface PlatformStaffContact {
@@ -430,6 +580,175 @@ export interface PlatformTenantDetail extends PlatformTenantSummary {
   address?: string | null;
   website?: string | null;
   staff_users: PlatformStaffContact[];
+  readiness: {
+    ready: boolean;
+    checks: Record<string, boolean>;
+    missing: string[];
+  };
+}
+
+export interface PlatformSubscriptionRow {
+  tenant_id: number;
+  tenant_name: string;
+  owner_email?: string | null;
+  status: string;
+  plan_code: string;
+  extra_tables: number;
+  table_count: number;
+  table_limit: number;
+  ordering_points_unlimited: boolean;
+  monthly_cents: number;
+  currency: string;
+  trial_ends_at?: string | null;
+  renewal_at?: string | null;
+  cancel_at_period_end: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_customer_url?: string | null;
+  last_payment_at?: string | null;
+  last_payment_failed_at?: string | null;
+  last_invoice_id?: string | null;
+  last_invoice_status?: string | null;
+  last_invoice_amount_cents?: number | null;
+  last_invoice_currency?: string | null;
+  created_at: string;
+}
+
+export interface PlatformSubscriptionList {
+  items: PlatformSubscriptionRow[];
+  page: number;
+  page_size: number;
+  total: number;
+  pages: number;
+}
+
+export interface PlatformSubscriptionMetrics {
+  mrr_cents: number;
+  revenue_total_cents: number;
+  revenue_30d_cents: number;
+  currency: string;
+  active_count: number;
+  trialing_count: number;
+  past_due_count: number;
+  suspended_count: number;
+  canceling_count: number;
+  churned_30d: number;
+  churn_rate_30d: number;
+  status_counts: Record<string, number>;
+}
+
+export interface PlatformBillingHistory {
+  stripe_configured: boolean;
+  stripe_customer_url?: string | null;
+  stripe_error?: string | null;
+  invoices: Array<Record<string, unknown>>;
+  payments: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
+}
+
+export interface PlatformPricingPlan {
+  id?: number;
+  plan_code: string;
+  version: number;
+  name: string;
+  description?: string | null;
+  regular_price_cents: number;
+  offer_price_cents?: number | null;
+  effective_price_cents: number;
+  currency: string;
+  billing_interval: string;
+  included_tables: number;
+  ordering_points_unlimited?: boolean;
+  extra_table_price_cents: number;
+  trial_days: number;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  offer_active: boolean;
+  is_featured: boolean;
+  is_public: boolean;
+  stripe_product_id?: string | null;
+  stripe_regular_price_id?: string | null;
+  stripe_offer_price_id?: string | null;
+  stripe_extra_table_price_id?: string | null;
+}
+
+export interface PlatformPricingConsole {
+  currency: string;
+  stripe_configured: boolean;
+  plans: PlatformPricingPlan[];
+  events: Array<Record<string, unknown>>;
+  publication?: {
+    plan_code: string;
+    version: number;
+    migration_mode: string;
+    migrated_count: number;
+    failed_count: number;
+    failures: Array<Record<string, unknown>>;
+  };
+}
+
+export interface PlatformPricingPublish {
+  name: string;
+  description?: string | null;
+  regular_price_cents: number;
+  offer_price_cents?: number | null;
+  currency: string;
+  included_tables: number;
+  extra_table_price_cents: number;
+  trial_days: number;
+  offer_badge?: string | null;
+  offer_starts_at?: string | null;
+  offer_ends_at?: string | null;
+  is_featured: boolean;
+  is_public: boolean;
+  stripe_product_id?: string | null;
+  stripe_regular_price_id?: string | null;
+  stripe_offer_price_id?: string | null;
+  stripe_extra_table_price_id?: string | null;
+  create_stripe_prices: boolean;
+  migration_mode: 'new_customers_only' | 'next_renewal' | 'immediate';
+}
+
+export interface PlatformPublicSettings {
+  company_legal_name?: string | null;
+  support_email?: string | null;
+  contact_email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  website_url?: string | null;
+  company_number?: string | null;
+  vat_number?: string | null;
+  terms_url?: string | null;
+  privacy_url?: string | null;
+}
+
+export interface PlatformSettings extends PlatformPublicSettings {
+  smtp_host: string;
+  smtp_port: number;
+  smtp_use_tls: boolean;
+  smtp_user: string;
+  smtp_password_masked: string;
+  smtp_password_configured: boolean;
+  smtp_source: 'database' | 'environment' | 'not_configured' | string;
+  email_from: string;
+  email_from_name: string;
+  smtp_status: 'not_configured' | 'configured' | 'verified' | 'failed' | string;
+  smtp_last_tested_at?: string | null;
+  smtp_last_test_success?: boolean | null;
+  smtp_last_test_message?: string | null;
+  updated_at: string;
+}
+
+export interface PlatformSettingsUpdate extends PlatformPublicSettings {
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_use_tls: boolean;
+  smtp_user?: string | null;
+  smtp_password?: string | null;
+  clear_smtp_password: boolean;
+  email_from?: string | null;
+  email_from_name?: string | null;
 }
 
 export interface PlatformLoginSummary {
@@ -640,6 +959,8 @@ export interface PublicTenantMenuResponse {
 export interface TenantSummary {
   id: number;
   name: string;
+  /** True only for a fictional tenant approved for the marketing landing page. */
+  is_demo?: boolean;
   logo_filename: string | null;
   header_background_filename?: string | null;
   description?: string | null;
@@ -678,6 +999,8 @@ export interface TenantSummary {
   guest_birthday_capture_enabled?: boolean;
   guest_birthday_marketing_enabled?: boolean;
   guest_birthday_consent_text?: string | null;
+  /** Whether this restaurant currently accepts new delivery orders. */
+  delivery_enabled?: boolean;
 }
 
 /** Planned opening-hours baselines and date overrides (issue #194). */
@@ -773,21 +1096,6 @@ export interface ReservationBookDaySlotsResponse {
   date: string;
   times: string[];
   cells: Record<string, ReservationBookWeekSlotState>;
-}
-
-/** One restaurant when several share the same printed table name. */
-export interface PublicTableLookupChoice {
-  table_token: string;
-  tenant_id: number;
-  tenant_name: string;
-  table_name: string;
-}
-
-/** GET /public/table-lookup — token or printed name (e.g. T01) → menu token. */
-export interface PublicTableLookupResponse {
-  table_token: string | null;
-  ambiguous: boolean;
-  choices: PublicTableLookupChoice[];
 }
 
 /** Staff list + public submit response context */
@@ -962,6 +1270,11 @@ export interface Product {
   tenant_id?: number;
   image_filename?: string;
   ingredients?: string;
+  is_available?: boolean;
+  allergens?: string[];
+  dietary_tags?: string[];
+  allergen_notes?: string | null;
+  allergen_reviewed?: boolean;
   image_size_bytes?: number | null;
   image_size_formatted?: string | null;
   category?: string; // Main category: "Starters", "Main Course", "Desserts", "Beverages", "Sides"
@@ -993,6 +1306,11 @@ export interface Product {
   list_price_cents?: number | null;
   promo_label?: string | null;
   promo_percent_off?: number | null;
+}
+
+export interface KitchenStockProduct extends Product {
+  kitchen_station_route: 'kitchen' | 'bar';
+  resolved_kitchen_station_id?: number | null;
 }
 
 /** Kitchen / bar prep station (owner-defined; filters KDS by station). */
@@ -1211,6 +1529,100 @@ export interface Table {
   table_group_id?: number | null;
   group_member_ids?: number[] | null;
   group_seat_total?: number | null;
+  menu_url?: string | null;
+  nfc_payload?: string | null;
+  plaque_status?: 'not_created' | 'printed' | 'nfc_written' | 'tested' | 'installed' | 'needs_reprint' | string;
+  plaque_last_tested_at?: string | null;
+  nfc_written_at?: string | null;
+  nfc_locked_at?: string | null;
+  token_rotated_at?: string | null;
+  smart_plaque_id?: number | null;
+  smart_plaque_code?: string | null;
+  smart_plaque_url?: string | null;
+  smart_plaque_status?: string | null;
+  smart_plaque_nfc_written_at?: string | null;
+  smart_plaque_nfc_verified_at?: string | null;
+  smart_plaque_nfc_locked_at?: string | null;
+  smart_plaque_installed_at?: string | null;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room';
+  display_number?: string | null;
+  customer_label?: string | null;
+  service_point_label?: string | null;
+  is_ordering_enabled?: boolean;
+  assignment_version?: number;
+}
+
+export interface TenantLocation {
+  id: number;
+  tenant_id: number;
+  name: string;
+  display_name: string;
+  slug: string;
+  location_type: 'pub' | 'lounge' | 'hotel_building' | 'other';
+  is_active: boolean;
+  sort_order: number;
+  menu_mode: 'inherit' | 'override';
+  hours_mode: 'inherit' | 'override';
+  kitchen_mode: 'inherit' | 'override';
+  payment_mode: 'inherit' | 'override';
+  opening_hours_override?: Record<string, unknown> | null;
+  ordering_hours_override?: Record<string, unknown> | null;
+  default_kitchen_station_id?: number | null;
+  payment_account_reference?: string | null;
+  ordering_paused: boolean;
+  ordering_pause_reason?: string | null;
+  ordering_point_count: number;
+  active_ordering_point_count: number;
+  table_count: number;
+  room_count: number;
+  assigned_plaque_count: number;
+  unassigned_plaque_count: number;
+  ordering_point_usage: number;
+  ordering_point_limit: number;
+  ordering_points_unlimited: boolean;
+  ordering_points_available: number;
+  readiness: Record<string, boolean>;
+}
+
+export interface OperationalLocation {
+  id: number;
+  display_name: string;
+  location_type: string;
+  is_active: boolean;
+}
+
+export interface LocationMenuResponse {
+  location_id: number;
+  menu_mode: 'inherit' | 'override';
+  products: Array<{
+    id: number;
+    source: 'tenant_product' | 'product';
+    name: string;
+    price_cents: number;
+    master_enabled: boolean;
+    override?: Record<string, unknown> | null;
+  }>;
+}
+
+export interface LocationHoursResponse {
+  hours_mode: 'inherit' | 'override';
+  opening_hours_override?: Record<string, unknown> | null;
+  ordering_hours_override?: Record<string, unknown> | null;
+  effective_opening_hours?: Record<string, unknown> | null;
+  effective_ordering_hours?: Record<string, unknown> | null;
+  date_overrides: Array<Record<string, unknown>>;
+}
+
+export interface LocationRoutingResponse {
+  kitchen_mode: 'inherit' | 'override';
+  default_kitchen_station_id?: number | null;
+  resolved_kitchen_station_id?: number | null;
+  payment_mode: 'inherit' | 'override';
+  payment_account_reference?: string | null;
+  resolved_payment_account: string;
+  payment_override_enabled: boolean;
 }
 
 export interface TableActivateResponse {
@@ -1573,9 +1985,18 @@ export interface Order {
   external_order_ref?: string | null;
   hub_fulfillment?: HubFulfillment | null;
   can_request_hub_fulfillment?: boolean;
+  requires_prepayment?: boolean;
+  kitchen_released_at?: string | null;
+  payment_state?: string | null;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room' | null;
+  service_point_label?: string | null;
+  kitchen_station_id_snapshot?: number | null;
+  payment_account_snapshot?: string | null;
 }
 
-/** Staff create first-party Satisfecho Delivery order (no table). */
+/** Staff create first-party Scanaki Delivery order (no table). */
 export interface SatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -1606,7 +2027,7 @@ export interface SatisfechoDeliveryOrderResponse {
   created_at?: string | null;
 }
 
-/** Public guest Satisfecho Delivery create (no auth). */
+/** Public guest Scanaki Delivery create (no auth). */
 export interface PublicSatisfechoDeliveryOrderCreate {
   items: OrderItemCreate[];
   delivery_address: string;
@@ -1637,6 +2058,7 @@ export interface PublicSatisfechoDeliveryOrderResponse {
 }
 
 export interface PublicSatisfechoDeliveryConfig {
+  delivery_enabled: boolean;
   delivery_fee_cents: number;
   delivery_radius_meters: number | null;
   postal_codes_required: boolean;
@@ -1683,6 +2105,7 @@ export interface MenuResponse {
   tenant_currency?: string | null;
   tenant_currency_code?: string | null;
   tenant_stripe_publishable_key?: string | null;
+  tenant_stripe_connected_account_id?: string | null;
   tenant_revolut_configured?: boolean;
   tenant_immediate_payment_required?: boolean;
   tenant_public_background_color?: string | null;
@@ -1691,7 +2114,61 @@ export interface MenuResponse {
   table_is_active?: boolean;
   table_requires_pin?: boolean;
   active_order_id?: number | null;
+  /** When true, draft cart is shared across devices on this table token (#349). */
+  table_shared_cart?: boolean;
+  ordering_mode?: 'activation_pin' | 'automatic' | 'menu_only';
+  ordering_availability?: OrderingAvailability;
   products: Product[];
+  location_id?: number | null;
+  location_name?: string | null;
+  location_type?: string | null;
+  service_point_type?: 'table' | 'room';
+  service_point_number?: string | null;
+  service_point_label?: string | null;
+  ordering_context_label?: string | null;
+  ordering_point_assignment_version?: number;
+}
+
+export interface OrderingAvailability {
+  allowed: boolean;
+  code: 'OPEN' | 'PAUSED' | 'MENU_ONLY' | 'OUTSIDE_SERVICE_HOURS' | 'KDS_OFFLINE' | string;
+  customer_message: string;
+  staff_message?: string | null;
+  ordering_mode: 'activation_pin' | 'automatic' | 'menu_only';
+  strict_fifo_kds?: boolean;
+  checked_at: string;
+  kds_online?: boolean | null;
+}
+
+export interface KitchenDevice {
+  id: number;
+  device_key: string;
+  name: string;
+  display_route: 'kitchen' | 'bar';
+  station_id?: number | null;
+  last_seen_at: string;
+  revoked_at?: string | null;
+  online: boolean;
+}
+
+export interface TableCartLine {
+  line_id: string;
+  session_id: string;
+  customer_name?: string | null;
+  product_id: number;
+  product_name: string;
+  price_cents: number;
+  quantity: number;
+  notes?: string | null;
+  source?: string | null;
+  customization_answers?: Record<string, string | number | string[]> | null;
+}
+
+export interface TableCartResponse {
+  shared: boolean;
+  items: TableCartLine[];
+  updated_at?: string;
+  reason?: string;
 }
 
 /** Tax (IVA) rate with validity period */
@@ -1724,6 +2201,13 @@ export interface TenantSettings {
   header_background_filename?: string | null;
   opening_hours?: string | null;
   immediate_payment_required?: boolean;
+  ordering_mode?: 'activation_pin' | 'automatic' | 'menu_only';
+  ordering_paused?: boolean;
+  ordering_pause_reason?: string | null;
+  ordering_service_hours?: Record<string, unknown> | null;
+  require_kds_online?: boolean;
+  kds_heartbeat_timeout_seconds?: number;
+  strict_fifo_kds?: boolean;
   currency?: string | null;
   currency_code?: string | null;
   default_language?: string | null;
@@ -1732,6 +2216,9 @@ export interface TenantSettings {
   country_code?: string | null;
   stripe_secret_key?: string | null;
   stripe_publishable_key?: string | null;
+  stripe_webhook_secret?: string | null;
+  stripe_payment_mode?: 'tenant_keys' | 'connect';
+  stripe_connected_account_id?: string | null;
   revolut_merchant_secret?: string | null;
   logo_size_bytes?: number | null;
   logo_size_formatted?: string | null;
@@ -1746,6 +2233,7 @@ export interface TenantSettings {
   longitude?: number | null;
   location_radius_meters?: number | null;
   location_check_enabled?: boolean;
+  delivery_enabled?: boolean;
   delivery_fee_cents?: number | null;
   /** Max delivery distance from restaurant lat/lng; null/0 = no radius check */
   delivery_radius_meters?: number | null;
@@ -1831,6 +2319,9 @@ export interface OrderCreate {
   staff_access?: string;  // Staff link token: when valid, PIN is not required
   latitude?: number | null;  // Optional GPS latitude for location verification
   longitude?: number | null;  // Optional GPS longitude for location verification
+  idempotency_key?: string;
+  ordering_point_assignment_version?: number | null;
+  location_confirmed?: boolean | null;
 }
 
 export interface OrderHistoryItem {
@@ -1840,6 +2331,10 @@ export interface OrderHistoryItem {
   paid_at: string | null;
   items: { id: number; product_name: string; quantity: number; price_cents: number }[];
   total_cents: number;
+  location_id?: number | null;
+  location_name?: string | null;
+  service_point_type?: 'table' | 'room' | null;
+  service_point_label?: string | null;
 }
 
 /** Sales report payload from GET /reports/sales */
@@ -1865,6 +2360,7 @@ export interface SalesReport {
   by_product: { product_id: number; product_name: string; category?: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_category: { category: string; quantity: number; revenue_cents: number; cost_cents?: number; profit_cents?: number }[];
   by_table: { table_name: string; revenue_cents: number; cost_cents?: number; profit_cents?: number; order_count: number }[];
+  by_location?: { location_id: number | null; location_name: string; revenue_cents: number; order_count: number; quantity: number; average_order_value_cents: number }[];
   by_waiter: {
     waiter_name: string;
     revenue_cents: number;
@@ -2082,14 +2578,17 @@ export class ApiService {
     return this.http.get<SaasSubscription>(`${this.apiUrl}/saas/subscription`);
   }
 
-  startSaasTrial(): Observable<SaasSubscription> {
-    return this.http.post<SaasSubscription>(`${this.apiUrl}/saas/start-trial`, {});
+  startSaasTrial(planCode?: string): Observable<SaasSubscription> {
+    return this.http.post<SaasSubscription>(`${this.apiUrl}/saas/start-trial`, {
+      plan_code: planCode || null,
+    });
   }
 
-  createSaasCheckoutSession(successUrl: string, cancelUrl: string): Observable<{ url: string }> {
+  createSaasCheckoutSession(successUrl: string, cancelUrl: string, planCode?: string): Observable<{ url: string }> {
     return this.http.post<{ url: string }>(`${this.apiUrl}/saas/checkout-session`, {
       success_url: successUrl,
       cancel_url: cancelUrl,
+      plan_code: planCode || null,
     });
   }
 
@@ -2134,9 +2633,16 @@ export class ApiService {
   requestPasswordReset(
     email: string,
     tenantId?: number,
-    scope?: 'provider',
+    scope?: 'provider' | 'courier' | 'platform' | 'customer',
   ): Observable<{ status: string; message: string }> {
     const params = new HttpParams().set('lang', this.language.getLanguage());
+    if (scope === 'customer') {
+      return this.http.post<{ status: string; message: string }>(
+        `${this.apiUrl}/customer/password-reset/request`,
+        { email },
+        { params },
+      );
+    }
     return this.http.post<{ status: string; message: string }>(
       `${this.apiUrl}/password-reset/request`,
       {
@@ -2148,10 +2654,12 @@ export class ApiService {
     );
   }
 
-  confirmPasswordReset(token: string, newPassword: string): Observable<{ status: string }> {
+  confirmPasswordReset(token: string, newPassword: string, scope?: 'customer'): Observable<{ status: string }> {
     const params = new HttpParams().set('lang', this.language.getLanguage());
     return this.http.post<{ status: string }>(
-      `${this.apiUrl}/password-reset/confirm`,
+      scope === 'customer'
+        ? `${this.apiUrl}/customer/password-reset/confirm`
+        : `${this.apiUrl}/password-reset/confirm`,
       {
         token,
         new_password: newPassword,
@@ -2296,8 +2804,139 @@ export class ApiService {
     return this.http.get<PlatformTenantSummary[]>(`${this.apiUrl}/platform/tenants`);
   }
 
+  createPlatformRestaurant(
+    body: PlatformRestaurantCreate,
+  ): Observable<PlatformRestaurantCredentials> {
+    return this.http.post<PlatformRestaurantCredentials>(`${this.apiUrl}/platform/tenants`, body);
+  }
+
   getPlatformTenant(tenantId: number): Observable<PlatformTenantDetail> {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
+  }
+
+  getPlatformTenantLocations(tenantId: number): Observable<TenantLocation[]> {
+    return this.http.get<TenantLocation[]>(`${this.apiUrl}/platform/tenants/${tenantId}/locations`);
+  }
+
+  createPlatformTenantLocation(tenantId: number, body: Record<string, unknown>): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations`, body);
+  }
+
+  updatePlatformTenantLocation(tenantId: number, locationId: number, body: Partial<TenantLocation>): Observable<TenantLocation> {
+    return this.http.patch<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations/${locationId}`, body);
+  }
+
+  archivePlatformTenantLocation(tenantId: number, locationId: number): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/platform/tenants/${tenantId}/locations/${locationId}/archive`, {});
+  }
+
+  updatePlatformTenantPlan(tenantId: number, planCode: string, extraTables: number, prorationBehavior = 'create_prorations'): Observable<PlatformTenantDetail> {
+    return this.http.put<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/plan`, {
+      plan_code: planCode,
+      extra_tables: extraTables,
+      proration_behavior: prorationBehavior,
+    });
+  }
+
+  getPlatformSubscriptions(filters: {
+    search?: string; status?: string; plan?: string; health?: string; page?: number; pageSize?: number;
+  } = {}): Observable<PlatformSubscriptionList> {
+    let params = new HttpParams()
+      .set('page', String(filters.page || 1))
+      .set('page_size', String(filters.pageSize || 25));
+    if (filters.search?.trim()) params = params.set('search', filters.search.trim());
+    if (filters.status) params = params.set('status', filters.status);
+    if (filters.plan) params = params.set('plan', filters.plan);
+    if (filters.health) params = params.set('health', filters.health);
+    return this.http.get<PlatformSubscriptionList>(`${this.apiUrl}/platform/subscriptions`, { params });
+  }
+
+  getPlatformSubscriptionMetrics(): Observable<PlatformSubscriptionMetrics> {
+    return this.http.get<PlatformSubscriptionMetrics>(`${this.apiUrl}/platform/subscriptions/metrics`);
+  }
+
+  getPlatformPricing(): Observable<PlatformPricingConsole> {
+    return this.http.get<PlatformPricingConsole>(`${this.apiUrl}/platform/pricing`);
+  }
+
+  publishPlatformPricing(planCode: string, body: PlatformPricingPublish): Observable<PlatformPricingConsole> {
+    return this.http.post<PlatformPricingConsole>(`${this.apiUrl}/platform/pricing/${planCode}/publish`, body);
+  }
+
+  getPlatformPublicSettings(): Observable<PlatformPublicSettings> {
+    return this.http.get<PlatformPublicSettings>(`${this.apiUrl}/platform/public-settings`);
+  }
+
+  getPlatformSettings(): Observable<PlatformSettings> {
+    return this.http.get<PlatformSettings>(`${this.apiUrl}/platform/settings`);
+  }
+
+  updatePlatformSettings(body: PlatformSettingsUpdate): Observable<PlatformSettings> {
+    return this.http.put<PlatformSettings>(`${this.apiUrl}/platform/settings`, body);
+  }
+
+  testPlatformSmtp(recipientEmail?: string): Observable<{success: boolean; message: string; tested_at: string; status: string}> {
+    return this.http.post<{success: boolean; message: string; tested_at: string; status: string}>(
+      `${this.apiUrl}/platform/settings/test-smtp`,
+      { recipient_email: recipientEmail?.trim() || null },
+    );
+  }
+
+  changePlatformPassword(currentPassword: string, newPassword: string): Observable<{status: string; message: string}> {
+    return this.http.post<{status: string; message: string}>(`${this.apiUrl}/platform/settings/change-password`, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+  }
+
+  runPlatformSubscriptionAction(tenantId: number, action: string, immediate = false): Observable<PlatformTenantDetail> {
+    return this.http.post<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}/subscription/action`, {
+      action,
+      immediate,
+    });
+  }
+
+  getPlatformBillingHistory(tenantId: number, limit = 50): Observable<PlatformBillingHistory> {
+    return this.http.get<PlatformBillingHistory>(`${this.apiUrl}/platform/tenants/${tenantId}/billing-history`, {
+      params: new HttpParams().set('limit', String(limit)),
+    });
+  }
+
+  createPlatformSmartPlaques(count: number, batchLabel?: string): Observable<SmartPlaque[]> {
+    return this.http.post<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques/batch`, {
+      count,
+      batch_label: batchLabel?.trim() || null,
+    });
+  }
+
+  getPlatformSmartPlaques(batchLabel?: string, requestId?: number): Observable<SmartPlaque[]> {
+    let params = new HttpParams();
+    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    if (requestId != null) params = params.set('request_id', String(requestId));
+    return this.http.get<SmartPlaque[]>(`${this.apiUrl}/platform/smart-plaques`, { params });
+  }
+
+  downloadPlatformSmartPlaqueSheet(batchLabel?: string, requestId?: number): Observable<Blob> {
+    let params = new HttpParams();
+    if (batchLabel?.trim()) params = params.set('batch_label', batchLabel.trim());
+    if (requestId != null) params = params.set('request_id', String(requestId));
+    return this.http.get(`${this.apiUrl}/platform/smart-plaques/contact-sheet.pdf`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
+  releasePlatformSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
+    return this.http.post<SmartPlaque>(
+      `${this.apiUrl}/platform/smart-plaques/${plaqueId}/release`,
+      {},
+    );
+  }
+
+  deletePlatformSmartPlaque(plaqueId: number): Observable<{ status: string; id: number }> {
+    return this.http.delete<{ status: string; id: number }>(
+      `${this.apiUrl}/platform/smart-plaques/${plaqueId}`,
+    );
   }
 
   getCourierOrders(): Observable<CourierOrderSummary[]> {
@@ -2356,6 +2995,38 @@ export class ApiService {
 
   updateProduct(id: number, product: Partial<Product>): Observable<Product> {
     return this.http.put<Product>(`${this.apiUrl}/products/${id}`, product);
+  }
+
+  getPlatformSmartPlaqueRequests(status?: string): Observable<SmartPlaqueRequest[]> {
+    let params = new HttpParams();
+    if (status) params = params.set('request_status', status);
+    return this.http.get<SmartPlaqueRequest[]>(`${this.apiUrl}/platform/smart-plaque-requests`, { params });
+  }
+
+  runPlatformSmartPlaqueRequestAction(
+    requestId: number,
+    action: string,
+    trackingReference?: string,
+    platformNotes?: string,
+  ): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/platform/smart-plaque-requests/${requestId}/action`,
+      {
+        action,
+        tracking_reference: trackingReference?.trim() || null,
+        platform_notes: platformNotes?.trim() || null,
+      },
+    );
+  }
+
+  getKitchenStock(): Observable<KitchenStockProduct[]> {
+    return this.http.get<KitchenStockProduct[]>(`${this.apiUrl}/products/availability`);
+  }
+
+  updateProductAvailability(
+    items: Array<{ product_id: number; is_available: boolean }>,
+  ): Observable<Product[]> {
+    return this.http.put<Product[]>(`${this.apiUrl}/products/availability`, { items });
   }
 
   deleteProduct(id: number): Observable<void> {
@@ -2475,6 +3146,110 @@ export class ApiService {
   // Tables
   getTables(): Observable<Table[]> {
     return this.http.get<Table[]>(`${this.apiUrl}/tables`);
+  }
+
+  getLocations(): Observable<TenantLocation[]> {
+    return this.http.get<TenantLocation[]>(`${this.apiUrl}/locations`);
+  }
+
+  getOperationalLocations(): Observable<OperationalLocation[]> {
+    return this.http.get<OperationalLocation[]>(`${this.apiUrl}/operational-locations`);
+  }
+
+  createLocation(body: {
+    name: string;
+    display_name: string;
+    slug?: string | null;
+    location_type: string;
+    sort_order?: number;
+  }): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/locations`, body);
+  }
+
+  updateLocation(id: number, body: Partial<TenantLocation>): Observable<TenantLocation> {
+    return this.http.patch<TenantLocation>(`${this.apiUrl}/locations/${id}`, body);
+  }
+
+  archiveLocation(id: number): Observable<TenantLocation> {
+    return this.http.post<TenantLocation>(`${this.apiUrl}/locations/${id}/archive`, {});
+  }
+
+  getLocationOrderingPoints(id: number): Observable<Table[]> {
+    return this.http.get<Table[]>(`${this.apiUrl}/locations/${id}/ordering-points`);
+  }
+
+  createLocationOrderingPoint(id: number, body: Record<string, unknown>): Observable<Table> {
+    return this.http.post<Table>(`${this.apiUrl}/locations/${id}/ordering-points`, body);
+  }
+
+  previewLocationOrderingPoints(id: number, body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/ordering-points/bulk/preview`, body);
+  }
+
+  bulkCreateLocationOrderingPoints(id: number, body: Record<string, unknown>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/ordering-points/bulk`, body);
+  }
+
+  updateLocationOrderingPoint(locationId: number, pointId: number, body: Partial<Table>): Observable<Table> {
+    return this.http.patch<Table>(
+      `${this.apiUrl}/locations/${locationId}/ordering-points/${pointId}`,
+      body,
+    );
+  }
+
+  getLocationMenu(id: number): Observable<LocationMenuResponse> {
+    return this.http.get<LocationMenuResponse>(`${this.apiUrl}/locations/${id}/menu`);
+  }
+
+  updateLocationMenuMode(id: number, mode: 'inherit' | 'override'): Observable<any> {
+    return this.http.put(`${this.apiUrl}/locations/${id}/menu-mode`, { mode });
+  }
+
+  updateLocationMenuProduct(
+    locationId: number,
+    itemId: number,
+    body: Record<string, unknown>,
+  ): Observable<any> {
+    return this.http.put(`${this.apiUrl}/locations/${locationId}/menu/${itemId}`, body);
+  }
+
+  getLocationHours(id: number): Observable<LocationHoursResponse> {
+    return this.http.get<LocationHoursResponse>(`${this.apiUrl}/locations/${id}/hours`);
+  }
+
+  updateLocationHours(id: number, body: Record<string, unknown>): Observable<LocationHoursResponse> {
+    return this.http.put<LocationHoursResponse>(`${this.apiUrl}/locations/${id}/hours`, body);
+  }
+
+  pauseLocation(id: number, reason?: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/pause`, { reason: reason || null });
+  }
+
+  resumeLocation(id: number): Observable<any> {
+    return this.http.post(`${this.apiUrl}/locations/${id}/resume`, {});
+  }
+
+  getLocationRouting(id: number): Observable<LocationRoutingResponse> {
+    return this.http.get<LocationRoutingResponse>(`${this.apiUrl}/locations/${id}/routing`);
+  }
+
+  updateLocationKitchenRouting(
+    id: number,
+    mode: 'inherit' | 'override',
+    stationId?: number | null,
+  ): Observable<LocationRoutingResponse> {
+    return this.http.put<LocationRoutingResponse>(`${this.apiUrl}/locations/${id}/kitchen-routing`, {
+      mode,
+      default_kitchen_station_id: stationId ?? null,
+    });
+  }
+
+  getLocationAnalytics(fromDate?: string, toDate?: string, locationId?: number | null): Observable<any> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('from_date', fromDate);
+    if (toDate) params = params.set('to_date', toDate);
+    if (locationId != null) params = params.set('location_id', String(locationId));
+    return this.http.get(`${this.apiUrl}/location-analytics/summary`, { params });
   }
 
   getTablesWithStatus(): Observable<CanvasTable[]> {
@@ -2723,6 +3498,96 @@ export class ApiService {
     return this.http.post<Table>(`${this.apiUrl}/tables`, body);
   }
 
+  bulkCreateTables(body: {
+    prefix: string;
+    start_number: number;
+    count: number;
+    floor_id?: number | null;
+    seat_count: number;
+  }): Observable<Table[]> {
+    return this.http.post<Table[]>(`${this.apiUrl}/tables/bulk`, body);
+  }
+
+  rotateTableToken(tableId: number): Observable<Table> {
+    return this.http.post<Table>(`${this.apiUrl}/tables/${tableId}/rotate-token`, {});
+  }
+
+  updateTablePlaqueStatus(
+    tableId: number,
+    body: { status: string; nfc_written?: boolean; nfc_locked?: boolean; tested?: boolean }
+  ): Observable<Table> {
+    return this.http.put<Table>(`${this.apiUrl}/tables/${tableId}/plaque-status`, body);
+  }
+
+  lookupSmartPlaque(value: string): Observable<SmartPlaqueLookup> {
+    return this.http.get<SmartPlaqueLookup>(`${this.apiUrl}/smart-plaques/lookup`, {
+      params: { value },
+    });
+  }
+
+  getSmartPlaqueRequests(): Observable<SmartPlaqueRequest[]> {
+    return this.http.get<SmartPlaqueRequest[]>(`${this.apiUrl}/smart-plaque-requests`);
+  }
+
+  createSmartPlaqueRequest(body: {
+    quantity: number;
+    delivery_contact_name: string;
+    delivery_address: string;
+    restaurant_notes?: string | null;
+  }): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(`${this.apiUrl}/smart-plaque-requests`, body);
+  }
+
+  cancelSmartPlaqueRequest(requestId: number): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/smart-plaque-requests/${requestId}/cancel`,
+      {},
+    );
+  }
+
+  confirmSmartPlaqueDelivery(requestId: number): Observable<SmartPlaqueRequest> {
+    return this.http.post<SmartPlaqueRequest>(
+      `${this.apiUrl}/smart-plaque-requests/${requestId}/confirm-delivery`,
+      {},
+    );
+  }
+
+  assignSmartPlaque(body: {
+    table_id: number;
+    plaque_code: string;
+    confirm_reassignment?: boolean;
+    replace_existing?: boolean;
+  }): Observable<SmartPlaque> {
+    return this.http.post<SmartPlaque>(`${this.apiUrl}/smart-plaques/assign`, body);
+  }
+
+  updateSmartPlaqueNfc(
+    plaqueId: number,
+    body: { written?: boolean; verified?: boolean; locked?: boolean; installed?: boolean },
+  ): Observable<SmartPlaque> {
+    return this.http.put<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/nfc`, body);
+  }
+
+  releaseSmartPlaque(plaqueId: number): Observable<SmartPlaque> {
+    return this.http.delete<SmartPlaque>(`${this.apiUrl}/smart-plaques/${plaqueId}/assignment`);
+  }
+
+  resolvePublicSmartPlaque(publicCode: string): Observable<PublicSmartPlaqueResolution> {
+    return this.http.get<PublicSmartPlaqueResolution>(
+      `${this.apiUrl}/public/smart-plaques/${encodeURIComponent(publicCode)}`,
+    );
+  }
+
+  getTablePlaqueContactSheetUrl(): string {
+    return `${this.apiUrl}/tables/plaque-contact-sheet.pdf`;
+  }
+
+  downloadTablePlaqueContactSheet(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/tables/plaque-contact-sheet.pdf`, {
+      responseType: 'blob',
+    });
+  }
+
   updateTable(id: number, data: Partial<Table>): Observable<Table> {
     return this.http.put<Table>(`${this.apiUrl}/tables/${id}`, data);
   }
@@ -2775,7 +3640,7 @@ export class ApiService {
     );
   }
 
-  /** Tenant users with courier role (for Satisfecho Delivery assign). Uses ORDER_READ-scoped endpoint. */
+  /** Tenant users with courier role (for Scanaki Delivery assign). Uses ORDER_READ-scoped endpoint. */
   getCouriers(): Observable<User[]> {
     return this.http.get<User[]>(`${this.apiUrl}/users/couriers`).pipe(
       catchError(() => of([]))
@@ -2783,16 +3648,18 @@ export class ApiService {
   }
 
   // Orders
-  getOrders(includeRemoved: boolean = false): Observable<Order[]> {
-    const params = includeRemoved ? { params: { include_removed: 'true' } } : {};
-    return this.http.get<Order[]>(`${this.apiUrl}/orders`, params);
+  getOrders(includeRemoved: boolean = false, kitchenReleasedOnly: boolean = false): Observable<Order[]> {
+    let params = new HttpParams();
+    if (includeRemoved) params = params.set('include_removed', 'true');
+    if (kitchenReleasedOnly) params = params.set('kitchen_released_only', 'true');
+    return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params });
   }
 
   createSatisfechoDeliveryOrder(body: SatisfechoDeliveryOrderCreate): Observable<SatisfechoDeliveryOrderResponse> {
     return this.http.post<SatisfechoDeliveryOrderResponse>(`${this.apiUrl}/orders/satisfecho-delivery`, body);
   }
 
-  /** Public guest: create Satisfecho Delivery order (address + phone required). */
+  /** Public guest: create Scanaki Delivery order (address + phone required). */
   createPublicSatisfechoDeliveryOrder(
     tenantId: number,
     body: PublicSatisfechoDeliveryOrderCreate,
@@ -3205,8 +4072,9 @@ export class ApiService {
   }
 
   // Reports (sales / revenue analysis)
-  getSalesReports(fromDate: string, toDate: string): Observable<SalesReport> {
-    const params = { from_date: fromDate, to_date: toDate };
+  getSalesReports(fromDate: string, toDate: string, locationId?: number | null): Observable<SalesReport> {
+    const params: Record<string, string> = { from_date: fromDate, to_date: toDate };
+    if (locationId != null) params['location_id'] = String(locationId);
     return this.http.get<SalesReport>(`${this.apiUrl}/reports/sales`, { params });
   }
 
@@ -3216,11 +4084,13 @@ export class ApiService {
     format: 'csv' | 'xlsx',
     report: string,
     lang?: string | null,
+    locationId?: number | null,
   ): Observable<Blob> {
     const params: Record<string, string> = { from_date: fromDate, to_date: toDate, format, report };
     if (lang && lang.trim()) {
       params['lang'] = lang.trim();
     }
+    if (locationId != null) params['location_id'] = String(locationId);
     return this.http.get(`${this.apiUrl}/reports/export`, {
       params,
       responseType: 'blob',
@@ -3273,7 +4143,9 @@ export class ApiService {
   }
 
   submitOrder(tableToken: string, order: OrderCreate): Observable<any> {
-    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order);
+    return this.http.post(`${this.apiUrl}/menu/${tableToken}/order`, order, {
+      withCredentials: true,
+    });
   }
 
   getCurrentOrder(tableToken: string, sessionId?: string): Observable<any> {
@@ -3284,9 +4156,57 @@ export class ApiService {
     return this.http.get(`${this.apiUrl}/menu/${tableToken}/order`, { params });
   }
 
-  getOrderHistory(tableToken: string, limit = 10): Observable<OrderHistoryItem[]> {
+  getTableCart(tableToken: string): Observable<TableCartResponse> {
+    return this.http.get<TableCartResponse>(`${this.apiUrl}/menu/${tableToken}/cart`);
+  }
+
+  addTableCartItem(
+    tableToken: string,
+    body: {
+      session_id: string;
+      customer_name?: string;
+      product_id: number;
+      quantity?: number;
+      notes?: string;
+      source?: string;
+      customization_answers?: Record<string, string | number | string[]>;
+    }
+  ): Observable<TableCartResponse> {
+    return this.http.post<TableCartResponse>(`${this.apiUrl}/menu/${tableToken}/cart/items`, body);
+  }
+
+  updateTableCartItem(
+    tableToken: string,
+    lineId: string,
+    body: { session_id: string; quantity?: number; notes?: string }
+  ): Observable<TableCartResponse> {
+    return this.http.put<TableCartResponse>(
+      `${this.apiUrl}/menu/${tableToken}/cart/items/${encodeURIComponent(lineId)}`,
+      body
+    );
+  }
+
+  deleteTableCartItem(
+    tableToken: string,
+    lineId: string,
+    sessionId: string
+  ): Observable<TableCartResponse> {
+    const params = new HttpParams().set('session_id', sessionId);
+    return this.http.delete<TableCartResponse>(
+      `${this.apiUrl}/menu/${tableToken}/cart/items/${encodeURIComponent(lineId)}`,
+      { params }
+    );
+  }
+
+  getOrderHistory(
+    tableToken: string,
+    sessionId: string,
+    limit = 10,
+  ): Observable<OrderHistoryItem[]> {
+    const params = new HttpParams().set('limit', String(limit)).set('session_id', sessionId);
     return this.http.get<OrderHistoryItem[]>(`${this.apiUrl}/menu/${tableToken}/order-history`, {
-      params: { limit }
+      params,
+      withCredentials: true,
     });
   }
 
@@ -3295,6 +4215,7 @@ export class ApiService {
     orderId: number,
     tableToken: string | null,
     publicOrderToken?: string | null,
+    sessionId?: string | null,
   ): Observable<any> {
     const params = new URLSearchParams();
     if (publicOrderToken) {
@@ -3302,6 +4223,7 @@ export class ApiService {
     } else if (tableToken) {
       params.set('table_token', tableToken);
     }
+    if (sessionId) params.set('session_id', sessionId);
     return this.http.post(`${this.apiUrl}/orders/${orderId}/create-payment-intent?${params.toString()}`, {});
   }
 
@@ -3310,6 +4232,7 @@ export class ApiService {
     tableToken: string | null,
     paymentIntentId: string,
     publicOrderToken?: string | null,
+    sessionId?: string | null,
   ): Observable<any> {
     const params = new URLSearchParams();
     params.set('payment_intent_id', paymentIntentId);
@@ -3318,6 +4241,7 @@ export class ApiService {
     } else if (tableToken) {
       params.set('table_token', tableToken);
     }
+    if (sessionId) params.set('session_id', sessionId);
     return this.http.post(
       `${this.apiUrl}/orders/${orderId}/confirm-payment?${params.toString()}`,
       {},
@@ -3439,6 +4363,88 @@ export class ApiService {
         const n = typeof s?.name === 'string' ? s.name.trim() : '';
         this.tenantDisplayName.set(n || null);
       })
+    );
+  }
+
+  getRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
+    return this.http.get<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/status`);
+  }
+
+  setRestaurantOnboardingPassword(newPassword: string): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/password`, {
+      new_password: newPassword,
+    });
+  }
+
+  saveRestaurantOnboardingBusiness(body: {
+    restaurant_name: string;
+    business_type: string;
+    owner_name?: string | null;
+    business_email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/business`, body);
+  }
+
+  saveRestaurantOnboardingOperations(body: {
+    days_open: string[];
+    opening_time: string;
+    closing_time: string;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/operations`, body);
+  }
+
+  createRestaurantOnboardingTables(body: {
+    floor_name: string;
+    table_prefix: string;
+    table_count: number;
+    seats_per_table: number;
+  }): Observable<RestaurantOnboardingState> {
+    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/tables`, body);
+  }
+
+  saveRestaurantOnboardingProgress(currentStep: number): Observable<RestaurantOnboardingState> {
+    return this.http.put<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/progress`, {
+      current_step: currentStep,
+    });
+  }
+
+  completeRestaurantOnboarding(): Observable<RestaurantOnboardingState> {
+    return this.http.post<RestaurantOnboardingState>(`${this.apiUrl}/onboarding/complete`, {});
+  }
+
+  getOrderingStatus(): Observable<OrderingAvailability> {
+    return this.http.get<OrderingAvailability>(`${this.apiUrl}/tenant/ordering-status`);
+  }
+
+  pauseOrdering(reason?: string | null): Observable<OrderingAvailability> {
+    return this.http.post<OrderingAvailability>(`${this.apiUrl}/tenant/ordering/pause`, { reason });
+  }
+
+  resumeOrdering(): Observable<OrderingAvailability> {
+    return this.http.post<OrderingAvailability>(`${this.apiUrl}/tenant/ordering/resume`, {});
+  }
+
+  heartbeatKitchenDevice(body: {
+    device_key: string;
+    name: string;
+    display_route: 'kitchen' | 'bar';
+    station_id?: number | null;
+  }): Observable<{ id: number; online: boolean; last_seen_at: string }> {
+    return this.http.post<{ id: number; online: boolean; last_seen_at: string }>(
+      `${this.apiUrl}/tenant/kitchen-devices/heartbeat`,
+      body
+    );
+  }
+
+  getKitchenDevices(): Observable<KitchenDevice[]> {
+    return this.http.get<KitchenDevice[]>(`${this.apiUrl}/tenant/kitchen-devices`);
+  }
+
+  revokeKitchenDevice(deviceId: number): Observable<{ status: string; id: number }> {
+    return this.http.delete<{ status: string; id: number }>(
+      `${this.apiUrl}/tenant/kitchen-devices/${deviceId}`
     );
   }
 
@@ -3668,13 +4674,6 @@ export class ApiService {
   /** Product-wide legal URLs from server config (landing, auth). Public, no auth. */
   getPublicLegalUrls(): Observable<PublicLegalUrls> {
     return this.http.get<PublicLegalUrls>(`${this.apiUrl}/public/legal-urls`);
-  }
-
-  /** Resolve QR/menu token or printed table name (e.g. T01) to menu token. Public, no auth. */
-  lookupPublicTable(q: string): Observable<PublicTableLookupResponse> {
-    return this.http.get<PublicTableLookupResponse>(`${this.apiUrl}/public/table-lookup`, {
-      params: { q },
-    });
   }
 
   /** Get one tenant's public info (for book/menu branding). Public, no auth. */

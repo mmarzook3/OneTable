@@ -7,7 +7,7 @@
  *
  * Usage (repo root, app up):
  *   BASE_URL=http://127.0.0.1:4202 node front/scripts/record-promo-video.mjs
- *   BASE_URL=https://www.satisfecho.de node front/scripts/record-promo-video.mjs
+ *   BASE_URL=https://scanaki.uk node front/scripts/record-promo-video.mjs
  *
  * Env:
  *   BASE_URL        App origin (default: auto-detect 4202/4203/4200)
@@ -370,7 +370,7 @@ async function main() {
   writeFileSync(
     join(outDir, 'README.txt'),
     [
-      'Satisfecho promo draft (inspect)',
+      'Scanaki promo draft (inspect)',
       `BASE_URL: ${baseUrl}`,
       `Recorded: ${new Date().toISOString()}`,
       `Raw: ${webmPath}`,

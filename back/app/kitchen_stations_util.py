@@ -9,6 +9,7 @@ def resolve_order_item_kds(
     product: models.Product | None,
     tenant: models.Tenant,
     station_by_id: dict[int, models.KitchenStation],
+    location_default_station_id: int | None = None,
 ) -> tuple[int | None, str | None, str]:
     """
     Returns (kitchen_station_id, kitchen_station_name, kitchen_station_route).
@@ -18,6 +19,9 @@ def resolve_order_item_kds(
         st = station_by_id.get(product.kitchen_station_id)
         if st:
             return st.id, st.name, st.display_route or "kitchen"
+    if location_default_station_id and location_default_station_id in station_by_id:
+        st = station_by_id[location_default_station_id]
+        return st.id, st.name, st.display_route or "kitchen"
     is_beverages = bool(product and (product.category or "") == "Beverages")
     if is_beverages:
         did = tenant.default_bar_station_id

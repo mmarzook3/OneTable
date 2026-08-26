@@ -36,7 +36,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       <header class="about-hero">
         <p class="about-hero__badge">{{ 'ABOUT_PAGE.BADGE' | translate }}</p>
         <h1 class="about-hero__title" data-testid="about-title">{{ 'ABOUT_PAGE.TITLE' | translate }}</h1>
-        <p class="about-hero__subtitle">{{ 'ABOUT_PAGE.SUBTITLE' | translate }}</p>
+        <p class="about-hero__subtitle">{{ 'ABOUT_PAGE.PLATFORM_SUBTITLE' | translate }}</p>
       </header>
 
       <main class="about-main">
@@ -50,18 +50,16 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
           <p class="about-section__body">{{ 'ABOUT_PAGE.COMPANY_BODY' | translate }}</p>
         </section>
 
-        <section class="about-section" aria-labelledby="about-open-source-heading">
-          <h2 id="about-open-source-heading" class="about-section__title">{{ 'ABOUT_PAGE.OPEN_SOURCE_TITLE' | translate }}</h2>
-          <p class="about-section__body">{{ 'ABOUT_PAGE.OPEN_SOURCE_BODY' | translate }}</p>
-        </section>
-
-        <section class="about-section" aria-labelledby="about-contact-heading">
-          <h2 id="about-contact-heading" class="about-section__title">{{ 'ABOUT_PAGE.CONTACT_TITLE' | translate }}</h2>
+        <section class="about-section" aria-labelledby="about-manual-heading" data-testid="about-user-manual">
+          <h2 id="about-manual-heading" class="about-section__title">{{ 'ABOUT_PAGE.MANUAL_TITLE' | translate }}</h2>
           <p class="about-section__body">
-            {{ 'ABOUT_PAGE.CONTACT_BODY' | translate }}
-            <a href="mailto:hello@satisfecho.de" class="about-section__link">hello@satisfecho.de</a>
+            {{ 'ABOUT_PAGE.MANUAL_BODY' | translate }}
+            <a routerLink="/manual-usuario" class="about-section__link" data-testid="about-manual-link">{{
+              'LANDING.USER_MANUAL' | translate
+            }}</a>
           </p>
         </section>
+
       </main>
 
       <app-landing-site-footer></app-landing-site-footer>

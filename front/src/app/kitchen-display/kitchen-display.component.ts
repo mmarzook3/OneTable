@@ -12,7 +12,15 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { ApiService, KitchenStation, Order, OrderItem, OrderLineModifiers } from '../services/api.service';
+import {
+  ApiService,
+  KitchenStockProduct,
+  KitchenStation,
+  OperationalLocation,
+  Order,
+  OrderItem,
+  OrderLineModifiers,
+} from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
 import { Subscription } from 'rxjs';
@@ -20,7 +28,10 @@ import { FocusFirstInputDirective } from '../shared/focus-first-input.directive'
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
+const HEARTBEAT_INTERVAL_MS = 30000;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
+const DEVICE_KEY_STORAGE_KEY = 'one-table-kds-device-key';
+const STATION_STORAGE_PREFIX = 'one-table-kds-station';
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -102,6 +113,17 @@ const VIEW_CATEGORY: Record<string, string> = {
         </a>
         <h1 class="kitchen-title">{{ pageTitle() }}</h1>
         <div class="header-actions">
+          @if (operationalLocations().length > 1) {
+            <label class="station-filter">
+              <span class="station-filter-label">Location</span>
+              <select class="station-filter-select" [ngModel]="locationSelection()" (ngModelChange)="locationSelection.set($event)">
+                <option [ngValue]="'all'">All locations</option>
+                @for (location of operationalLocations(); track location.id) {
+                  <option [ngValue]="location.id">{{ location.display_name }}</option>
+                }
+              </select>
+            </label>
+          }
           @if (stationsForCurrentView().length > 0) {
             <label class="station-filter">
               <span class="station-filter-label">{{ 'KITCHEN_DISPLAY.STATION' | translate }}</span>
@@ -116,6 +138,11 @@ const VIEW_CATEGORY: Record<string, string> = {
                 }
               </select>
             </label>
+          }
+          @if (canManageStock()) {
+            <button type="button" class="stock-btn" data-testid="kitchen-stock-button" (click)="openStockModal()">
+              Stock
+            </button>
           }
           <button
             type="button"
@@ -148,6 +175,15 @@ const VIEW_CATEGORY: Record<string, string> = {
         </div>
       </header>
 
+      @if (!kdsOnline()) {
+        <div class="kds-connection-banner" role="status">
+          Kitchen connection lost - retrying automatically. Customer ordering may be paused.
+        </div>
+      }
+      @if (stockNotice()) {
+        <div class="stock-notice" role="status">{{ stockNotice() }}</div>
+      }
+
       <main class="kitchen-main">
         @if (loading()) {
           <div class="empty-state">
@@ -166,20 +202,22 @@ const VIEW_CATEGORY: Record<string, string> = {
           </div>
         } @else {
           <div class="order-grid">
-            @for (order of activeOrders(); track order.id) {
+            @for (order of activeOrders(); track order.id; let position = $index) {
               <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
                 <div class="order-header">
                   <div class="order-meta">
+                    <span class="fifo-position">FIFO {{ position + 1 }}</span>
                     <span class="order-id">#{{ order.id }}</span>
-                    <span class="order-table">{{ order.table_name }}</span>
+                    @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
+                    <span class="order-table">{{ order.service_point_label || order.table_name }}</span>
                     @if (order.staff_urgent) {
                       <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
                     }
                     @if (order.customer_name) {
                       <span class="order-customer">{{ 'ORDERS.CUSTOMER' | translate }}: {{ order.customer_name }}</span>
                     }
-                    <span class="order-time" [title]="formatExactTime(order.created_at)">{{ formatOrderTime(order.created_at) }}</span>
-                    <span class="order-waiting" [title]="formatExactTime(order.created_at)">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(order.created_at) }}</span>
+                    <span class="order-time" [title]="formatExactTime(getKitchenStart(order))">{{ formatOrderTime(getKitchenStart(order)) }}</span>
+                    <span class="order-waiting" [title]="formatExactTime(getKitchenStart(order))">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(getKitchenStart(order)) }}</span>
                   </div>
                   <span class="status-badge status-{{ order.status }}">{{ getStatusLabel(order.status) }}</span>
                 </div>
@@ -202,42 +240,19 @@ const VIEW_CATEGORY: Record<string, string> = {
                         }
                         @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
                           <div class="item-status-control">
-                            <button
-                              type="button"
-                              class="item-status-badge clickable"
-                              [class]="'status-' + (item.status || 'pending')"
-                              (click)="toggleItemStatusDropdown(order.id, item.id!)"
-                              [title]="'ORDERS.CLICK_TO_CHANGE_STATUS' | translate">
+                            <span class="item-status-badge" [class]="'status-' + (item.status || 'pending')">
                               {{ getItemStatusLabel(item.status || 'pending') }}
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6,9 12,15 18,9"/>
-                              </svg>
-                            </button>
-                            @if (itemStatusDropdownOpen() === order.id + '-' + item.id) {
-                              <div class="status-dropdown item-status-dropdown" data-testid="kitchen-item-status-dropdown" (click)="$event.stopPropagation()">
-                                @if (getItemStatusTransitions(item.status || 'pending').backward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.GO_BACK' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').backward; track status) {
-                                      <button type="button" class="dropdown-item backward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15,18 9,12 15,6"/></svg>
-                                        {{ getItemStatusLabel(status) }}
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                                @if (getItemStatusTransitions(item.status || 'pending').forward.length > 0) {
-                                  <div class="dropdown-section">
-                                    <div class="dropdown-label">{{ 'ORDERS.MOVE_FORWARD' | translate }}</div>
-                                    @for (status of getItemStatusTransitions(item.status || 'pending').forward; track status) {
-                                      <button type="button" class="dropdown-item forward" (click)="updateItemStatus(order.id, item.id!, status); itemStatusDropdownOpen.set(null)">
-                                        {{ getItemStatusLabel(status) }}
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
-                                      </button>
-                                    }
-                                  </div>
-                                }
-                              </div>
+                            </span>
+                            @if (getPreviousItemStatus(item.status || 'pending'); as previousStatus) {
+                              <button type="button" class="item-action item-action-back"
+                                (click)="updateItemStatus(order.id, item.id!, previousStatus)"
+                                [attr.aria-label]="'ORDERS.GO_BACK' | translate">↶</button>
+                            }
+                            @if (getNextItemStatus(item.status || 'pending'); as nextStatus) {
+                              <button type="button" class="item-action item-action-forward"
+                                (click)="updateItemStatus(order.id, item.id!, nextStatus)">
+                                {{ getKitchenActionLabel(nextStatus) | translate }}
+                              </button>
                             }
                           </div>
                         } @else {
@@ -255,6 +270,73 @@ const VIEW_CATEGORY: Record<string, string> = {
           </div>
         }
       </main>
+      @if (stockModalOpen()) {
+        <div class="modal-backdrop stock-backdrop" (click)="closeStockModal()"></div>
+        <section class="stock-modal" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title" appFocusFirstInput data-testid="kitchen-stock-modal">
+          <header class="stock-modal-header">
+            <div>
+              <h2 id="stock-modal-title">Stock</h2>
+              <p>{{ stockScopeLabel() }}. Uncheck an item to stop customers ordering it.</p>
+            </div>
+            <button type="button" class="stock-close" (click)="closeStockModal()" aria-label="Close stock">Close</button>
+          </header>
+
+          <div class="stock-toolbar">
+            <label>Search menu
+              <input
+                [ngModel]="stockSearch()"
+                (ngModelChange)="stockSearch.set($event)"
+                placeholder="Search by item or category"
+                data-testid="kitchen-stock-search"
+              >
+            </label>
+            <div class="stock-summary">
+              <strong>{{ availableStockCount() }}/{{ filteredStockProducts().length }}</strong>
+              <span>available in this view</span>
+            </div>
+          </div>
+
+          @if (stockError()) { <p class="stock-error" role="alert">{{ stockError() }}</p> }
+          @if (stockLoading()) {
+            <div class="stock-loading" aria-label="Loading stock">
+              @for (item of [1,2,3,4,5,6]; track item) { <span></span> }
+            </div>
+          } @else if (filteredStockProducts().length === 0) {
+            <div class="stock-empty"><h3>No menu items found</h3><p>Try another search or station.</p></div>
+          } @else {
+            <div class="stock-grid">
+              @for (product of filteredStockProducts(); track product.id) {
+                <label class="stock-card" [class.stock-card--unavailable]="!stockDraft()[product.id!]" [attr.data-product-id]="product.id">
+                  <span class="stock-image">
+                    <span class="stock-image-placeholder">No image</span>
+                    @if (stockImageUrl(product); as imageUrl) {
+                      <img [src]="imageUrl" [alt]="product.name" (error)="hideBrokenStockImage($event)">
+                    }
+                  </span>
+                  <span class="stock-copy"><strong>{{ product.name }}</strong><small>{{ product.category || 'Uncategorised' }}</small></span>
+                  <input
+                    type="checkbox"
+                    [checked]="stockDraft()[product.id!]"
+                    (change)="setStockAvailability(product.id!, $event)"
+                    [attr.aria-label]="product.name + ' available'"
+                  >
+                  <span class="stock-state">{{ stockDraft()[product.id!] ? 'Available' : 'Sold out' }}</span>
+                </label>
+              }
+            </div>
+          }
+
+          <footer class="stock-actions">
+            <span>{{ stockChangedCount() }} unsaved change{{ stockChangedCount() === 1 ? '' : 's' }}</span>
+            <div>
+              <button type="button" class="btn-secondary" (click)="closeStockModal()">Cancel</button>
+              <button type="button" class="btn-primary" data-testid="kitchen-stock-save" (click)="saveStock()" [disabled]="stockSaving() || stockChangedCount() === 0">
+                {{ stockSaving() ? 'Saving...' : 'Save stock' }}
+              </button>
+            </div>
+          </footer>
+        </section>
+      }
       @if (timerSettingsModalOpen()) {
         <div class="modal-backdrop" (click)="closeTimerSettingsModal()"></div>
         <div class="modal timer-settings-modal" role="dialog" aria-labelledby="timer-settings-title" appFocusFirstInput>
@@ -300,6 +382,13 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-bottom: 2px solid var(--color-border);
       box-shadow: var(--shadow-sm);
     }
+    .kds-connection-banner {
+      padding: 12px 24px;
+      background: #7f1d1d;
+      color: #fff;
+      font-weight: 700;
+      text-align: center;
+    }
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -322,6 +411,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       gap: var(--space-5);
       flex-wrap: wrap;
     }
+    .stock-btn,
     .timer-settings-btn,
     .fullscreen-btn {
       display: inline-flex;
@@ -336,8 +426,18 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: var(--radius-md);
       cursor: pointer;
     }
+    .stock-btn:hover,
     .timer-settings-btn:hover,
     .fullscreen-btn:hover { background: var(--color-bg); }
+    .stock-btn {
+      min-height: 42px;
+      padding-inline: var(--space-4);
+      color: #fff;
+      background: #1f2937;
+      border-color: #1f2937;
+      font-weight: 750;
+    }
+    .stock-btn:hover { background: #111827; }
     .sound-toggle {
       display: flex;
       align-items: center;
@@ -374,6 +474,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       flex: 1;
       padding: var(--space-5) var(--space-6);
       overflow: auto;
+      background: #090b10;
     }
     .empty-state {
       text-align: center;
@@ -392,8 +493,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       align-items: start;
     }
     .order-card {
-      background: var(--color-surface);
-      border: 2px solid var(--color-border);
+      background: #292e39;
+      border: 2px solid #414959;
       border-left: 6px solid var(--color-warning);
       border-radius: var(--radius-lg);
       overflow: visible;
@@ -413,6 +514,16 @@ const VIEW_CATEGORY: Record<string, string> = {
       border-radius: var(--radius-sm);
       background: rgba(220, 38, 38, 0.15);
       color: #b91c1c;
+    }
+    .fifo-position {
+      align-self: flex-start;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #111827;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
     }
     .order-timer-bar-wrap {
       padding: 0 var(--space-5) var(--space-3);
@@ -442,8 +553,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       justify-content: space-between;
       align-items: flex-start;
       padding: var(--space-4) var(--space-5);
-      border-bottom: 2px solid var(--color-border);
-      background: var(--color-bg);
+      border-bottom: 2px solid #414959;
+      background: #20242d;
     }
     .order-meta {
       display: flex;
@@ -453,26 +564,37 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-id {
       font-size: 1.5rem;
       font-weight: 700;
-      color: var(--color-text);
+      color: #f8fafc;
     }
     .order-table {
       font-size: 1.25rem;
       font-weight: 600;
-      color: var(--color-primary);
+      color: #fbbf24;
     }
-    .order-customer { font-size: 1rem; color: var(--color-text-muted); }
-    .order-time { font-size: 1rem; color: var(--color-text-muted); }
-    .order-waiting { font-size: 1.125rem; font-weight: 700; color: var(--color-text); }
+    .order-location {
+      width: 100%;
+      color: #bfdbfe;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .045em;
+      text-transform: uppercase;
+    }
+    .order-customer { font-size: 1rem; color: #cbd5e1; }
+    .order-time { font-size: 1rem; color: #cbd5e1; }
+    .order-waiting { font-size: 1.125rem; font-weight: 700; color: #f8fafc; }
     .status-badge {
       padding: var(--space-2) var(--space-4);
       border-radius: 20px;
       font-size: 0.9375rem;
       font-weight: 700;
+      color: #f8fafc;
+      background: #374151;
     }
-    .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--color-warning); }
-    .status-badge.preparing { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
-    .status-badge.ready { background: var(--color-success-light); color: var(--color-success); }
-    .status-badge.partially_delivered { background: var(--color-success-light); color: var(--color-success); }
+    .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .status-badge.status-paid { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+    .status-badge.status-preparing { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .status-badge.status-ready,
+    .status-badge.status-partially_delivered { background: rgba(34, 197, 94, 0.22); color: #86efac; }
     .order-items {
       list-style: none;
       margin: 0;
@@ -486,7 +608,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       padding: var(--space-3) 0;
       font-size: 1.125rem;
       line-height: 1.4;
-      border-bottom: 1px solid var(--color-border);
+      border-bottom: 1px solid #414959;
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
@@ -494,7 +616,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: var(--color-primary);
       font-size: 1.25rem;
     }
-    .item-name { font-weight: 600; color: var(--color-text); }
+    .item-name { font-weight: 650; color: #f8fafc; }
     .item-notes {
       grid-column: 1 / -1;
       font-size: 1rem;
@@ -511,7 +633,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     .item-customization {
       grid-column: 2 / 4;
       font-size: 0.8125rem;
-      color: var(--color-text-muted);
+      color: #cbd5e1;
     }
     .item-status {
       font-size: 0.8125rem;
@@ -524,102 +646,175 @@ const VIEW_CATEGORY: Record<string, string> = {
     .item-status.status-ready { background: var(--color-success-light); color: var(--color-success); }
     .item-status.status-delivered { background: var(--color-bg); color: var(--color-text-muted); }
     .item-status-control {
-      position: relative;
-      display: inline-flex;
-      z-index: 10;
-    }
-    .order-item:hover .item-status-control {
-      z-index: 50;
-    }
-    .item-status-badge.clickable {
       display: inline-flex;
       align-items: center;
-      gap: var(--space-2);
-      min-height: 44px;
-      padding: var(--space-2) var(--space-3);
-      font-size: 0.875rem;
-      font-weight: 600;
-      border-radius: 14px;
-      border: 1px solid var(--color-border);
-      cursor: pointer;
-      background: inherit;
-      transition: all 0.15s;
+      justify-content: flex-end;
+      gap: 8px;
+      grid-column: 3 / -1;
     }
-    .item-status-badge.clickable:hover {
-      filter: brightness(0.95);
-      transform: scale(1.05);
-    }
-    .item-status-badge.status-pending.clickable { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
-    .item-status-badge.status-preparing.clickable { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
-    .item-status-badge.status-ready.clickable { background: var(--color-success-light); color: var(--color-success); }
-    .status-dropdown {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      left: auto;
-      margin-top: 6px;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 100;
-      min-width: 160px;
-      overflow: hidden;
-    }
-    .dropdown-section {
-      padding: 8px 0;
-    }
-    .dropdown-section:not(:last-child) {
-      border-bottom: 1px solid var(--color-border);
-    }
-    .dropdown-label {
-      padding: 6px 12px;
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--color-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .dropdown-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-2);
-      width: 100%;
-      min-height: 48px;
-      padding: var(--space-3) var(--space-4);
-      background: none;
-      border: none;
-      text-align: left;
+    .item-action {
+      min-height: 52px;
+      border-radius: 8px;
+      border: 1px solid #64748b;
       font-size: 1rem;
-      font-weight: 500;
-      color: var(--color-text);
+      font-weight: 800;
       cursor: pointer;
-      transition: background 0.15s;
+      touch-action: manipulation;
     }
-    .dropdown-item:hover {
-      background: var(--color-bg);
+    .item-action-forward {
+      min-width: 116px;
+      padding: 0 18px;
+      color: #07120b;
+      background: #4ade80;
+      border-color: #4ade80;
     }
-    .dropdown-item.forward {
-      color: var(--color-primary);
-    }
-    .dropdown-item.backward {
-      color: var(--color-text-muted);
-    }
-    .dropdown-item svg {
-      flex-shrink: 0;
+    .item-action-back {
+      width: 52px;
+      color: #e2e8f0;
+      background: #343b49;
     }
     .order-notes {
       padding: var(--space-3) var(--space-5);
       background: rgba(245, 158, 11, 0.12);
       font-size: 1rem;
       font-weight: 600;
-      color: var(--color-text);
+      color: #f8fafc;
       border-top: 1px solid var(--color-border);
       border-left: 4px solid var(--color-warning);
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .stock-notice {
+      padding: 10px 24px;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: 700;
+      text-align: center;
+    }
+    .modal-backdrop.stock-backdrop { background: rgba(3, 7, 18, .72); }
+    .stock-modal {
+      position: fixed;
+      inset: 3vh 3vw;
+      z-index: 1001;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      overflow: hidden;
+      border: 1px solid #d8dde5;
+      border-radius: 16px;
+      background: #f6f7f9;
+      color: #1f2937;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+    }
+    .stock-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-modal-header h2 { margin: 0; font-size: 1.4rem; }
+    .stock-modal-header p { margin: 4px 0 0; color: #6b7280; font-size: .88rem; }
+    .stock-close {
+      min-height: 40px;
+      padding: 0 13px;
+      border: 1px solid #d8dde5;
+      border-radius: 9px;
+      background: #fff;
+      color: #374151;
+      font-weight: 700;
+    }
+    .stock-toolbar {
+      display: flex;
+      align-items: end;
+      gap: 16px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-toolbar label { display: grid; flex: 1; gap: 4px; color: #6b7280; font-size: .72rem; font-weight: 700; }
+    .stock-toolbar input {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid #ccd2da;
+      border-radius: 9px;
+      background: #fff;
+      color: #111827;
+      font: inherit;
+    }
+    .stock-toolbar input:focus { border-color: #d35233; outline: 3px solid rgba(211, 82, 51, .15); }
+    .stock-summary { display: grid; min-width: 150px; text-align: right; }
+    .stock-summary strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+    .stock-summary span { color: #6b7280; font-size: .7rem; }
+    .stock-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      align-content: start;
+      overflow: auto;
+      padding: 16px 20px;
+    }
+    .stock-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr) auto;
+      grid-template-rows: 1fr auto;
+      gap: 7px 11px;
+      min-height: 96px;
+      padding: 10px;
+      border: 2px solid #86b89a;
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color .15s ease, opacity .15s ease;
+    }
+    .stock-card--unavailable { border-color: #d8dde5; opacity: .66; }
+    .stock-image { position: relative; grid-row: 1 / 3; overflow: hidden; width: 74px; height: 74px; border-radius: 9px; background: #e9ecf0; }
+    .stock-image-placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: #7b8490; font-size: .65rem; }
+    .stock-image img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; }
+    .stock-copy { display: grid; align-content: center; min-width: 0; }
+    .stock-copy strong {
+      display: -webkit-box;
+      overflow: hidden;
+      color: #111827;
+      font-size: .9rem;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .stock-copy small { margin-top: 4px; color: #6b7280; font-size: .7rem; }
+    .stock-card>input { width: 26px; height: 26px; margin: 2px; accent-color: #16834f; cursor: pointer; }
+    .stock-state { grid-column: 2 / 4; color: #167248; font-size: .7rem; font-weight: 800; }
+    .stock-card--unavailable .stock-state { color: #9f312b; }
+    .stock-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow: hidden; padding: 16px 20px; }
+    .stock-loading span { height: 96px; border-radius: 12px; background: #e8ebef; }
+    .stock-empty { display: grid; place-items: center; align-content: center; min-height: 220px; color: #6b7280; text-align: center; }
+    .stock-empty h3 { margin: 0; color: #374151; }
+    .stock-empty p { margin: 5px 0 0; }
+    .stock-error { margin: 12px 20px 0; padding: 10px; border-radius: 8px; background: #fee2e2; color: #991b1b; }
+    .stock-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 20px;
+      border-top: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .stock-actions>span { color: #6b7280; font-size: .8rem; }
+    .stock-actions>div { display: flex; gap: 9px; }
+    .stock-actions button { min-height: 44px; padding: 0 16px; border-radius: 9px; font-weight: 750; }
+    @media (max-width: 700px) {
+      .stock-modal { inset: 0; border: 0; border-radius: 0; }
+      .stock-grid { grid-template-columns: 1fr; padding: 12px; }
+      .stock-toolbar { align-items: stretch; flex-direction: column; padding: 10px 12px; }
+      .stock-summary { min-width: 0; text-align: left; }
+      .stock-modal-header,.stock-actions { padding-inline: 12px; }
+      .stock-actions { align-items: stretch; flex-direction: column; }
+      .stock-actions>div,.stock-actions button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .stock-card { transition: none; } }
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -700,6 +895,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private queryParamSub: Subscription | null = null;
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
+  private stockNoticeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -710,8 +906,19 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   viewMode = signal<'kitchen' | 'bar'>('kitchen');
   /** Loaded prep stations; filtered per view by display_route */
   kitchenStations = signal<KitchenStation[]>([]);
+  operationalLocations = signal<OperationalLocation[]>([]);
+  locationSelection = signal<number | 'all'>('all');
   /** KDS station filter when tenant has stations for this view */
   stationSelection = signal<number | 'all'>('all');
+  stockModalOpen = signal(false);
+  stockLoading = signal(false);
+  stockSaving = signal(false);
+  stockError = signal('');
+  stockNotice = signal('');
+  stockSearch = signal('');
+  stockProducts = signal<KitchenStockProduct[]>([]);
+  stockOriginal = signal<Record<number, boolean>>({});
+  stockDraft = signal<Record<number, boolean>>({});
   /** Current time for live timer (updates every second). */
   now = signal(Date.now());
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
@@ -727,12 +934,21 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     red_minutes: 15,
   });
   private tickIntervalId: ReturnType<typeof setInterval> | null = null;
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+  private deviceKey = '';
+  private wakeLock: { release: () => Promise<void> } | null = null;
+  kdsOnline = signal(true);
+  strictFifo = signal(true);
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
 
   canUpdateItemStatus = computed(() =>
     this.permissions.hasPermission(this.permissions.getCurrentUser(), 'order:item_status')
+  );
+
+  canManageStock = computed(() =>
+    this.permissions.hasPermission(this.permissions.getCurrentUser(), 'product:availability')
   );
 
   pageTitle = computed(() =>
@@ -746,6 +962,37 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return [...this.kitchenStations()]
       .filter((s) => s.display_route === route)
       .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+  });
+
+  stockProductsForView = computed(() => {
+    const route = this.viewMode();
+    const selection = this.stationSelection();
+    return this.stockProducts().filter((product) => {
+      if (product.kitchen_station_route !== route) return false;
+      if (selection === 'all') return true;
+      return product.resolved_kitchen_station_id === selection;
+    });
+  });
+
+  filteredStockProducts = computed(() => {
+    const query = this.stockSearch().trim().toLowerCase();
+    const products = this.stockProductsForView();
+    if (!query) return products;
+    return products.filter((product) =>
+      `${product.name} ${product.category || ''} ${product.subcategory || ''}`.toLowerCase().includes(query)
+    );
+  });
+
+  availableStockCount = computed(() =>
+    this.filteredStockProducts().filter((product) => !!this.stockDraft()[product.id!]).length
+  );
+
+  stockChangedCount = computed(() => {
+    const original = this.stockOriginal();
+    const draft = this.stockDraft();
+    return this.stockProducts().filter(
+      (product) => product.id != null && original[product.id] !== draft[product.id]
+    ).length;
   });
 
   /** Orders that are active (including paid but not yet delivered); category or station filter. */
@@ -771,6 +1018,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     };
 
     const list = this.orders().filter((o) => {
+      if (this.locationSelection() !== 'all' && o.location_id !== this.locationSelection()) return false;
       if (!['pending', 'preparing', 'ready', 'partially_delivered', 'paid'].includes(o.status)) return false;
       const items = (o.items ?? []).filter(itemVisible);
       return items.length > 0;
@@ -781,11 +1029,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       items: (o.items ?? []).filter(itemVisible),
     }));
     return mapped.sort((a, b) => {
-      if (!!a.staff_urgent !== !!b.staff_urgent) {
+      if (!this.strictFifo() && !!a.staff_urgent !== !!b.staff_urgent) {
         return a.staff_urgent ? -1 : 1;
       }
-      const ta = new Date(a.created_at).getTime();
-      const tb = new Date(b.created_at).getTime();
+      const ta = new Date(a.kitchen_released_at || a.created_at).getTime();
+      const tb = new Date(b.kitchen_released_at || b.created_at).getTime();
       return ta - tb;
     });
   });
@@ -806,6 +1054,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   });
 
   ngOnInit(): void {
+    this.deviceKey = this.getOrCreateDeviceKey();
     const stored = localStorage.getItem(SOUND_STORAGE_KEY);
     this.soundEnabled.set(stored !== 'false');
     this.audio.setEnabled(this.soundEnabled());
@@ -820,7 +1069,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.queryParamSub = this.route.queryParamMap.subscribe((qm) => {
       const s = qm.get('station');
       if (s == null || s === '' || s === 'all') {
-        this.stationSelection.set('all');
+        const stored = localStorage.getItem(`${STATION_STORAGE_PREFIX}-${this.viewMode()}`);
+        const storedNumber = stored ? Number.parseInt(stored, 10) : Number.NaN;
+        this.stationSelection.set(Number.isFinite(storedNumber) ? storedNumber : 'all');
       } else {
         const n = Number.parseInt(s, 10);
         if (Number.isFinite(n)) {
@@ -833,8 +1084,14 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       next: (list) => this.kitchenStations.set(list),
       error: () => this.kitchenStations.set([]),
     });
+    this.api.getOperationalLocations().subscribe({
+      next: (list) => this.operationalLocations.set(list.filter((row) => row.is_active)),
+      error: () => this.operationalLocations.set([]),
+    });
 
     this.loadTimerSettings();
+    this.sendHeartbeat();
+    this.heartbeatIntervalId = setInterval(() => this.sendHeartbeat(), HEARTBEAT_INTERVAL_MS);
     this.loadOrders({ initial: true });
     this.refreshIntervalId = setInterval(
       () => this.loadOrders({ background: true }),
@@ -863,10 +1120,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.addEventListener('webkitfullscreenchange', this.onFullscreenChange);
     document.addEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.addEventListener('MSFullscreenChange', this.onFullscreenChange);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
   ngAfterViewInit(): void {
     this.syncFullscreenState();
+    void this.requestScreenWakeLock();
   }
 
   ngOnDestroy(): void {
@@ -878,6 +1137,14 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearInterval(this.tickIntervalId);
       this.tickIntervalId = null;
     }
+    if (this.heartbeatIntervalId) {
+      clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = null;
+    }
+    if (this.stockNoticeTimeoutId) {
+      clearTimeout(this.stockNoticeTimeoutId);
+      this.stockNoticeTimeoutId = null;
+    }
     this.wsSub?.unsubscribe();
     this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
@@ -886,16 +1153,146 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('webkitfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('MSFullscreenChange', this.onFullscreenChange);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    void this.releaseScreenWakeLock();
     void this.exitFullscreenIfActive();
   }
 
   onStationSelectChange(value: number | 'all'): void {
     this.stationSelection.set(value);
+    const storageKey = `${STATION_STORAGE_PREFIX}-${this.viewMode()}`;
+    if (value === 'all') localStorage.removeItem(storageKey);
+    else localStorage.setItem(storageKey, String(value));
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { station: value === 'all' ? undefined : value },
       queryParamsHandling: 'merge',
       replaceUrl: true,
+    });
+    this.sendHeartbeat();
+  }
+
+  stockScopeLabel(): string {
+    const selection = this.stationSelection();
+    if (selection !== 'all') {
+      const station = this.kitchenStations().find((item) => item.id === selection);
+      if (station) return station.name;
+    }
+    return this.viewMode() === 'bar' ? 'Bar menu' : 'Kitchen menu';
+  }
+
+  openStockModal(): void {
+    if (!this.canManageStock()) return;
+    this.stockModalOpen.set(true);
+    this.stockLoading.set(true);
+    this.stockError.set('');
+    this.stockSearch.set('');
+    this.api.getKitchenStock().subscribe({
+      next: (products) => {
+        const availability: Record<number, boolean> = {};
+        for (const product of products) {
+          if (product.id != null) availability[product.id] = product.is_available !== false;
+        }
+        this.stockProducts.set(products.filter((product) => product.id != null));
+        this.stockOriginal.set({ ...availability });
+        this.stockDraft.set({ ...availability });
+        this.stockLoading.set(false);
+      },
+      error: (err) => {
+        this.stockError.set(err?.error?.detail || 'Could not load menu stock.');
+        this.stockLoading.set(false);
+      },
+    });
+  }
+
+  closeStockModal(): void {
+    if (this.stockSaving()) return;
+    this.stockModalOpen.set(false);
+    this.stockError.set('');
+    this.stockSearch.set('');
+  }
+
+  setStockAvailability(productId: number, event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.stockDraft.update((current) => ({ ...current, [productId]: checked }));
+  }
+
+  saveStock(): void {
+    if (this.stockSaving()) return;
+    const original = this.stockOriginal();
+    const draft = this.stockDraft();
+    const changes = this.stockProducts()
+      .filter((product) => product.id != null && original[product.id] !== draft[product.id])
+      .map((product) => ({ product_id: product.id!, is_available: !!draft[product.id!] }));
+    if (changes.length === 0) {
+      this.closeStockModal();
+      return;
+    }
+    this.stockSaving.set(true);
+    this.stockError.set('');
+    this.api.updateProductAvailability(changes).subscribe({
+      next: (updated) => {
+        const updatedById = new Map(updated.filter((item) => item.id != null).map((item) => [item.id!, item]));
+        this.stockProducts.update((products) => products.map((product) => {
+          const next = updatedById.get(product.id!);
+          return next ? { ...product, ...next } : product;
+        }));
+        this.stockOriginal.set({ ...draft });
+        this.stockSaving.set(false);
+        this.stockModalOpen.set(false);
+        this.showStockNotice(`${changes.length} item${changes.length === 1 ? '' : 's'} updated.`);
+      },
+      error: (err) => {
+        this.stockError.set(err?.error?.detail || 'Could not save menu stock.');
+        this.stockSaving.set(false);
+      },
+    });
+  }
+
+  stockImageUrl(product: KitchenStockProduct): string | null {
+    return this.api.getProductImageUrl(product);
+  }
+
+  hideBrokenStockImage(event: Event): void {
+    (event.target as HTMLImageElement).style.display = 'none';
+  }
+
+  private showStockNotice(message: string): void {
+    this.stockNotice.set(message);
+    if (this.stockNoticeTimeoutId) clearTimeout(this.stockNoticeTimeoutId);
+    this.stockNoticeTimeoutId = setTimeout(() => {
+      this.stockNotice.set('');
+      this.stockNoticeTimeoutId = null;
+    }, 4500);
+  }
+
+  private getOrCreateDeviceKey(): string {
+    const existing = localStorage.getItem(DEVICE_KEY_STORAGE_KEY)?.trim();
+    if (existing && existing.length >= 16) return existing;
+    const generated =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replaceAll('-', '')
+        : `${Date.now()}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(DEVICE_KEY_STORAGE_KEY, generated);
+    return generated;
+  }
+
+  private sendHeartbeat(): void {
+    const selection = this.stationSelection();
+    this.api.heartbeatKitchenDevice({
+      device_key: this.deviceKey,
+      name: this.viewMode() === 'bar' ? 'Bar tablet' : 'Kitchen tablet',
+      display_route: this.viewMode(),
+      station_id: selection === 'all' ? null : selection,
+    }).subscribe({
+      next: () => {
+        this.kdsOnline.set(true);
+        this.api.getOrderingStatus().subscribe({
+          next: (status) => this.strictFifo.set(status.strict_fifo_kds !== false),
+          error: () => {},
+        });
+      },
+      error: () => this.kdsOnline.set(false),
     });
   }
 
@@ -906,7 +1303,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
-  /** Elapsed minutes since order created_at (uses live now() for updates). */
+  /** Kitchen time starts only when a paid order is released to production. */
+  getKitchenStart(order: Order): string {
+    return order.kitchen_released_at || order.created_at;
+  }
+
+  /** Elapsed minutes since the supplied queue timestamp (uses live now() for updates). */
   getElapsedMinutes(createdAt: string): number {
     const created = this.parseOrderDate(createdAt);
     if (!created) return 0;
@@ -915,7 +1317,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   /** CSS class for timer-based card color: timer-green, timer-yellow, timer-orange, timer-red. */
   getTimerColorClass(order: Order): string {
-    const min = this.getElapsedMinutes(order.created_at);
+    const min = this.getElapsedMinutes(this.getKitchenStart(order));
     const s = this.timerSettings();
     if (min >= (s.red_minutes ?? 15)) return 'timer-red';
     if (min >= (s.orange_minutes ?? 10)) return 'timer-orange';
@@ -925,7 +1327,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   /** Fill width 0–100% toward red threshold (visual progress of wait time). */
   getTimerBarPercent(order: Order): number {
-    const min = this.getElapsedMinutes(order.created_at);
+    const min = this.getElapsedMinutes(this.getKitchenStart(order));
     const cap = this.timerSettings().red_minutes ?? 15;
     if (cap <= 0) return 0;
     return Math.min(100, (min / cap) * 100);
@@ -1001,7 +1403,36 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   private onFullscreenChange = (): void => {
     this.syncFullscreenState();
+    if (this.isFullscreen()) void this.requestScreenWakeLock();
   };
+
+  private onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') void this.requestScreenWakeLock();
+  };
+
+  private async requestScreenWakeLock(): Promise<void> {
+    if (this.wakeLock || document.visibilityState !== 'visible') return;
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> };
+    };
+    if (!nav.wakeLock) return;
+    try {
+      this.wakeLock = await nav.wakeLock.request('screen');
+    } catch {
+      this.wakeLock = null;
+    }
+  }
+
+  private async releaseScreenWakeLock(): Promise<void> {
+    const lock = this.wakeLock;
+    this.wakeLock = null;
+    if (!lock) return;
+    try {
+      await lock.release();
+    } catch {
+      // Browser already released it while the page was hidden.
+    }
+  }
 
   private syncFullscreenState(): void {
     const root = this.kitchenRootRef?.nativeElement;
@@ -1017,6 +1448,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const root = this.kitchenRootRef?.nativeElement;
     const target = root ?? document.documentElement;
     const p = requestFullscreenOnElement(target);
+    void this.requestScreenWakeLock();
     if (p && typeof (p as Promise<void>).catch === 'function') {
       (p as Promise<void>).catch(() => {});
     }
@@ -1045,7 +1477,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.loading.set(true);
     }
 
-    this.api.getOrders(false).subscribe({
+    this.api.getOrders(false, true).subscribe({
       next: (list) => {
         this.orders.set(list);
         this.lastRefreshAt.set(new Date());
@@ -1185,6 +1617,23 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     };
     const key = (currentStatus ?? '').toString().toLowerCase();
     return transitions[key] ?? { forward: [], backward: [] };
+  }
+
+  getNextItemStatus(currentStatus: string): string | null {
+    return this.getItemStatusTransitions(currentStatus).forward[0] ?? null;
+  }
+
+  getPreviousItemStatus(currentStatus: string): string | null {
+    return this.getItemStatusTransitions(currentStatus).backward[0] ?? null;
+  }
+
+  getKitchenActionLabel(nextStatus: string): string {
+    const labels: Record<string, string> = {
+      preparing: 'KITCHEN_DISPLAY.ACTION_START',
+      ready: 'KITCHEN_DISPLAY.ACTION_READY',
+      delivered: 'KITCHEN_DISPLAY.ACTION_COMPLETE',
+    };
+    return labels[nextStatus] ?? `ITEM_STATUS.${nextStatus}`;
   }
 
   toggleItemStatusDropdown(orderId: number, itemId: number): void {

@@ -105,6 +105,11 @@ def export_tenant_bundle(session: Session, tenant_id: int) -> dict[str, Any]:
 
     floors = list(session.exec(select(models.Floor).where(models.Floor.tenant_id == tenant_id)).all())
     tables = list(session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all())
+    smart_plaques = list(
+        session.exec(
+            select(models.SmartPlaque).where(models.SmartPlaque.assigned_tenant_id == tenant_id)
+        ).all()
+    )
     reservations = list(
         session.exec(select(models.Reservation).where(models.Reservation.tenant_id == tenant_id)).all()
     )
@@ -211,6 +216,7 @@ def export_tenant_bundle(session: Session, tenant_id: int) -> dict[str, Any]:
         "product_questions": [_model_dump_safe(q) for q in questions],
         "floors": [_model_dump_safe(f) for f in floors],
         "tables": [_model_dump_safe(t) for t in tables],
+        "smart_plaques": [_model_dump_safe(p) for p in smart_plaques],
         "reservations": [_model_dump_safe(r) for r in reservations],
         "guest_feedback": [_model_dump_safe(g) for g in guest_feedback],
         "billing_customers": [_model_dump_safe(b) for b in billing_customers],
@@ -250,6 +256,24 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
         raise ValueError("Tenant not found")
 
     provider_tokens = collect_personal_provider_tokens(session, tenant_id)
+
+    # Multi-location configuration references products, points and users. Remove
+    # its audit/override rows first, while retaining the normal tenant purge order.
+    session.exec(
+        delete(models.LocationAuditEvent).where(
+            models.LocationAuditEvent.tenant_id == tenant_id
+        )
+    )
+    session.exec(
+        delete(models.LocationDateOverride).where(
+            models.LocationDateOverride.tenant_id == tenant_id
+        )
+    )
+    session.exec(
+        delete(models.LocationMenuProduct).where(
+            models.LocationMenuProduct.tenant_id == tenant_id
+        )
+    )
 
     # Clear table -> order pointer before deleting orders
     for tbl in session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all():
@@ -342,17 +366,31 @@ def delete_tenant_cascade(session: Session, tenant_id: int) -> list[str]:
 
     user_ids_subq = select(models.User.id).where(models.User.tenant_id == tenant_id)
     session.exec(delete(models.PasswordResetToken).where(models.PasswordResetToken.user_id.in_(user_ids_subq)))
+    # Login events retain the tenant/user identity for platform metrics. They
+    # must be removed before tenant users or the user_id foreign key blocks purge.
+    session.exec(delete(models.LoginEvent).where(models.LoginEvent.tenant_id == tenant_id))
 
     for fl in session.exec(select(models.Floor).where(models.Floor.tenant_id == tenant_id)).all():
         fl.default_waiter_id = None
         session.add(fl)
+    from .smart_plaque_routes import release_smart_plaque_for_deleted_table
+
     for tbl in session.exec(select(models.Table).where(models.Table.tenant_id == tenant_id)).all():
         tbl.assigned_waiter_id = None
+        release_smart_plaque_for_deleted_table(
+            session,
+            tbl,
+            actor_user_id=None,
+            action="tenant_purged",
+        )
         session.add(tbl)
     session.flush()
 
     session.exec(delete(models.Table).where(models.Table.tenant_id == tenant_id))
     session.exec(delete(models.Floor).where(models.Floor.tenant_id == tenant_id))
+    session.exec(
+        delete(models.TenantLocation).where(models.TenantLocation.tenant_id == tenant_id)
+    )
 
     session.exec(delete(models.User).where(models.User.tenant_id == tenant_id))
 

@@ -8,6 +8,18 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Need to… | See |
 |----------|-----|
+| Respond safely to payment, KDS, plaque, tablet and VPS incidents | [0090-scanaki-live-incident-runbook.md](0090-scanaki-live-incident-runbook.md) |
+| Track every Scanaki and Yew Trees MVP task by a permanent numbered ID | [0089-scanaki-mvp-master-checklist.md](0089-scanaki-mvp-master-checklist.md) |
+| Request, manufacture, ship and install reusable QR/NFC plaques | [0088-smart-plaque-request-fulfilment.md](0088-smart-plaque-request-fulfilment.md) |
+| Train a restaurant owner to add locations, rooms/tables, QR/NFC plaques and kitchen routes | [Scanaki-Multi-Location-Restaurant-Owner-Manual.docx](Scanaki-Multi-Location-Restaurant-Owner-Manual.docx) |
+| Understand the Scanaki MVP baseline, gaps and live-pilot blockers | [0077-onetable-mvp-gap-analysis.md](0077-onetable-mvp-gap-analysis.md) |
+| Operate tenant subscriptions, Stripe billing history and SaaS reporting | [0081-subscription-management-console.md](0081-subscription-management-console.md) |
+| Publish tier prices, scheduled offers and Stripe price migrations | [0082-platform-managed-pricing-and-offers.md](0082-platform-managed-pricing-and-offers.md) |
+| Configure Scanaki company details, legal links and platform SMTP | [0083-platform-settings-and-smtp.md](0083-platform-settings-and-smtp.md) |
+| Navigate and operate the platform CRM workspace | [0084-platform-crm-workspace.md](0084-platform-crm-workspace.md) |
+| Implement multi-location hotel room and table ordering | [0085-multi-location-hotel-ordering-requirements.md](0085-multi-location-hotel-ordering-requirements.md) |
+| Operate Scanaki locations, hotel rooms, menus, hours and routing | [0087-multi-location-operations-guide.md](0087-multi-location-operations-guide.md) |
+| Mark menu items available or sold out from the Kitchen Display | [0086-kitchen-stock-control.md](0086-kitchen-stock-control.md) |
 | Set up Revolut (sandbox, redirects, certificates) | [REVOLUT.md](REVOLUT.md) |
 | Run Puppeteer/UI tests | [testing.md](testing.md) |
 | Multi-agent task loop + GitHub Issues handoff | [agent-loop.md](agent-loop.md) |
@@ -16,7 +28,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Configure Gmail for email | [0056-gmail-setup.md](0056-gmail-setup.md) |
 | Troubleshoot missing reservation confirmation email | [0030-reservation-confirmation-email-troubleshooting.md](0030-reservation-confirmation-email-troubleshooting.md) |
 | Understand reservations / waiting list (staff + public) | [0011-table-reservation-user-guide.md](0011-table-reservation-user-guide.md) |
-| Guest / staff Satisfecho Delivery (checkout, courier, track) | [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md) |
+| Guest / staff Scanaki Delivery (checkout, courier, track) | [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md) |
 | Enable or understand SaaS signup paywall (keep off until runbook) | [0052-saas-signup-paywall.md](0052-saas-signup-paywall.md) |
 | Platform operator oversight (`/platform`) | [0059-platform-operator-portal.md](0059-platform-operator-portal.md) |
 | Manage multi-location restaurant groups | [0054-restaurant-groups.md](0054-restaurant-groups.md) |
@@ -33,7 +45,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Doc | Description |
 |-----|-------------|
-| [0001-ci-cd-amvara9.md](0001-ci-cd-amvara9.md) | CI/CD: deploy to amvara9 on push to master (GitHub Actions, SSH key, secrets); daily demo data reset cron for tenant 1; hourly unpaid public Satisfecho Delivery cleanup cron (all tenants). |
+| [0001-ci-cd-amvara9.md](0001-ci-cd-amvara9.md) | CI/CD: deploy to amvara9 on push to master (GitHub Actions, SSH key, secrets); daily demo data reset cron for tenant 1; hourly unpaid public Scanaki Delivery cleanup cron (all tenants). |
 | [0073-google-analytics.md](0073-google-analytics.md) | GA4 gtag: measurement ID via gitignored `.secrets`, injected at front container start (never commit the ID). |
 | [0004-deployment.md](0004-deployment.md) | Deployment guide: configuration (API_URL, WS_URL, CORS), deploy steps (git pull, compose, migrations, seeds, optional demo reset). See also [0027](0027-amvara9-menu-images-troubleshooting.md) for uploads 404. |
 | [0057-deploy-css-fix-amvara9.md](0057-deploy-css-fix-amvara9.md) | **Shipped:** stale front build on deploy — `deploy-amvara9.sh` `--no-cache` front + `index.html` no-cache headers; historical incident notes. |
@@ -59,7 +71,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 |-----|-------------|
 | [0011-table-reservation-user-guide.md](0011-table-reservation-user-guide.md) | Table reservations: staff flows, public booking at `/book/:tenantId`, view/cancel at `/reservation?token=...`; public waiting list at `/waitlist/:tenantId` and staff Waiting list tab. Guest feedback trends/CSV: [0064](0064-guest-feedback-analytics.md). |
 | [0014-provider-portal.md](0014-provider-portal.md) | Provider (supplier) portal at `/provider` — not the courier portal (`/courier`; see [0053](0053-satisfecho-delivery-order-channel.md)). |
-| [0015-kitchen-display.md](0015-kitchen-display.md) | Kitchen display: full-screen at `/kitchen` (and `/bar`), auto-refresh, WebSocket, optional sound; Satisfecho Delivery cards use table label “Satisfecho Delivery” (not shown once `out_for_delivery`); highlighted order/item comments (#284). |
+| [0015-kitchen-display.md](0015-kitchen-display.md) | Kitchen display: full-screen at `/kitchen` (and `/bar`), auto-refresh, WebSocket, optional sound; Scanaki Delivery cards use table label “Scanaki Delivery” (not shown once `out_for_delivery`); highlighted order/item comments (#284). |
 | [0016-reports.md](0016-reports.md) | Reports (Sales & Revenue): date range, summary (incl. overbooking slots when &gt; 0), by product/category/table/waiter, CSV/Excel export. |
 | [0017-billing-customers-factura.md](0017-billing-customers-factura.md) | Billing customers (Factura): register company details, search, print invoice with “Bill to”. See also VeriFactu [0018](0018-verifactu-fiscal-invoicing.md). Club loyalty builds on customer identity: [0066](0066-club-loyalty.md). |
 | [0018-verifactu-fiscal-invoicing.md](0018-verifactu-fiscal-invoicing.md) | VeriFactu-oriented fiscal invoicing: tenant `fiscal_mode` (off/test/live), hash chain, ValidarQR URL, sandbox submit, immutability + anulación; **no invented production AEAT SOAP**. See also [0065](0065-verifactu-production.md). |
@@ -67,11 +79,11 @@ This folder contains deployment guides, feature documentation, implementation pl
 | [0059-platform-operator-portal.md](0059-platform-operator-portal.md) | Platform operator portal: SaaS metrics and tenant oversight. |
 | [0051-table-groups-mvp.md](0051-table-groups-mvp.md) | Floor-plan table join/unjoin (**shipped** reference): combined seats and reservation pool for joined tables — not restaurant multi-location groups ([0054](0054-restaurant-groups.md)). |
 | [0052-saas-signup-paywall.md](0052-saas-signup-paywall.md) | Hard paywall for restaurant signups: trial/subscribe before staff app (issue #296). Includes guided `/register`/`/signup` wizard steps and 402-exempt priming paths. Keep off until ready; production enablement checklist in the doc (see also amvara9 § SaaS paywall in 0001). |
-| [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md) | Satisfecho Delivery: staff Delivery tab / courier API, public checkout `/delivery/{tenantId}`, fee/postal/radius coverage, guest track `/delivery/{tenantId}/track`, unpaid public TTL cleanup (issue #297 / #306). |
+| [0053-satisfecho-delivery-order-channel.md](0053-satisfecho-delivery-order-channel.md) | Scanaki Delivery: staff Delivery tab / courier API, public checkout `/delivery/{tenantId}`, fee/postal/radius coverage, guest track `/delivery/{tenantId}/track`, unpaid public TTL cleanup (issue #297 / #306). |
 | [0054-restaurant-groups.md](0054-restaurant-groups.md) | Restaurant groups: multi-location join codes; optional shared billing customers/products (issue #283). |
 | [0055-public-seo.md](0055-public-seo.md) | Public SEO for satisfecho.de: titles/meta/OG, robots.txt, sitemap.xml, noindex for staff shells (issue #307). |
 | Public `/features` page | Marketing capabilities grid for prospects (no login). Each card links to a detail page at `/features/{slug}`. Linked from landing nav; shares `app-landing-site-footer`. Indexed in root [README.md](../README.md) Features / Access Points; smoke: `npm run test:features --prefix front` ([testing.md](testing.md)). |
-| Public `/about` page | About us for Satisfecho / Amvara Consulting S.L. (no login). Linked from landing/features/pricing nav and footer Support; shares `app-landing-site-footer`. Smoke: `npm run test:about --prefix front` ([testing.md](testing.md)). |
+| Public `/about` page | About us for Scanaki / Amvara Consulting S.L. (no login). Linked from landing/features/pricing nav and footer Support; shares `app-landing-site-footer`. Smoke: `npm run test:about --prefix front` ([testing.md](testing.md)). |
 | [REVOLUT.md](REVOLUT.md) | Revolut Merchant API: checkout extension, sandbox CSR, redirect URLs, tenant payment setup. |
 
 ---
@@ -80,6 +92,9 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Doc | Description |
 |-----|-------------|
+| [0077-onetable-mvp-gap-analysis.md](0077-onetable-mvp-gap-analysis.md) | Scanaki/Fixaki MVP assessment: verified Scanaki baseline, required QR/NFC, automatic ordering, payment-before-kitchen, Android PWA and Yue Tree pilot work. |
+| [0079-reusable-smart-plaques.md](0079-reusable-smart-plaques.md) | Permanent Scanaki QR/NFC inventory, camera assignment, Web NFC verification, safe table reassignment and public `/p/{code}` resolution. |
+| [0080-scanaki-brand-and-domain.md](0080-scanaki-brand-and-domain.md) | Scanaki product identity, `scanaki.uk` production configuration, launch checklist and intentionally retained compatibility identifiers. |
 | [0002-customer-features-plan.md](0002-customer-features-plan.md) | Customer features plan: **partial** — staff billing customers + fiscal invoices shipped; end-user accounts / MFA / self-serve history not shipped (design notes). |
 | [0008-order-management-logic.md](0008-order-management-logic.md) | Order management: **shipped** session rules / design reference (lifecycle, status reset, edge cases) — not an open backlog. |
 | [0009-table-pin-security.md](0009-table-pin-security.md) | Table PIN security: **shipped** (activate / PIN / regenerate / close; public-menu gates); optional GPS flagging off by default — operator/reference. |

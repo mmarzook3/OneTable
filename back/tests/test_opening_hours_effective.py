@@ -1,11 +1,12 @@
 """Effective opening hours: baseline schedules and date overrides (Postgres)."""
 import json
 import unittest
-from datetime import date
+from datetime import date, time
 
 from pg_client_mixin import PgClientTestCase
 
 from app import models
+from app.main import _grid_slot_times_for_windows
 from app.opening_hours_effective import opening_service_windows_for_date
 
 BASE_WEEK = {
@@ -37,6 +38,12 @@ class TestOpeningHoursEffective(PgClientTestCase):
         self.assertIsNotNone(windows)
         self.assertEqual(len(windows), 1)
         self.assertEqual(windows[0][0].hour, 9)
+
+    def test_midnight_close_generates_same_day_reservation_slots(self):
+        slots = _grid_slot_times_for_windows([(time(14, 0), time(0, 0))], 30)
+        self.assertEqual(slots[0], time(14, 0))
+        self.assertEqual(slots[-1], time(23, 0))
+        self.assertNotIn(time(23, 30), slots)
 
     def test_baseline_schedule_supersedes_tenant(self):
         future = dict(BASE_WEEK)

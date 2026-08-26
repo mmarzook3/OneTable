@@ -1,5 +1,6 @@
 import {
   Component,
+  computed,
   inject,
   signal,
   OnInit,
@@ -46,8 +47,29 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
   loading = signal(true);
   menuLoading = signal(false);
   errorKind = signal<'invalid_tenant' | 'tenant_not_found' | 'menu_load_failed' | null>(null);
-  /** Category ids collapsed by user toggle (default: all expanded). */
-  private collapsedCategoryIds = signal<Set<string>>(new Set());
+  searchQuery = signal('');
+  selectedCategoryId = signal('all');
+
+  filteredCategories = computed<PublicTenantMenuCategory[]>(() => {
+    const query = this.searchQuery().trim().toLocaleLowerCase();
+    const selected = this.selectedCategoryId();
+    return (this.menu()?.categories ?? [])
+      .filter((category) => selected === 'all' || category.id === selected)
+      .map((category) => ({
+        ...category,
+        products: category.products.filter((product) => {
+          if (!query) return true;
+          return [product.name, product.description, product.category, product.subcategory]
+            .filter(Boolean)
+            .some((value) => String(value).toLocaleLowerCase().includes(query));
+        }),
+      }))
+      .filter((category) => category.products.length > 0);
+  });
+
+  visibleProductCount = computed(() =>
+    this.filteredCategories().reduce((total, category) => total + category.products.length, 0),
+  );
 
   constructor() {
     afterNextRender(() => this.updateDocumentTitle());
@@ -138,20 +160,21 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
     return this.menu()?.categories ?? [];
   }
 
-  isCategoryExpanded(categoryId: string): boolean {
-    return !this.collapsedCategoryIds().has(categoryId);
+  selectCategory(categoryId: string): void {
+    this.selectedCategoryId.set(categoryId);
   }
 
-  toggleCategory(categoryId: string): void {
-    this.collapsedCategoryIds.update((ids) => {
-      const next = new Set(ids);
-      if (next.has(categoryId)) {
-        next.delete(categoryId);
-      } else {
-        next.add(categoryId);
-      }
-      return next;
-    });
+  updateSearch(event: Event): void {
+    this.searchQuery.set((event.target as HTMLInputElement).value);
+  }
+
+  clearSearch(): void {
+    this.searchQuery.set('');
+  }
+
+  clearFilters(): void {
+    this.searchQuery.set('');
+    this.selectedCategoryId.set('all');
   }
 
   /** Translation key for known API category names; falls back to raw value. */
@@ -167,18 +190,6 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
     const key = keyMap[category];
     if (key) return this.translate.instant(key);
     return category;
-  }
-
-  categoryPanelId(categoryId: string): string {
-    return `public-menu-cat-panel-${categoryId}`;
-  }
-
-  categoryToggleAriaLabel(category: PublicTenantMenuCategory): string {
-    const name = this.getCategoryLabel(category.name);
-    const key = this.isCategoryExpanded(category.id)
-      ? 'PUBLIC_MENU.COLLAPSE_CATEGORY'
-      : 'PUBLIC_MENU.EXPAND_CATEGORY';
-    return this.translate.instant(key, { category: name });
   }
 
   displayName(): string {
@@ -209,11 +220,28 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
     return url.startsWith('/') ? base + url : `${base}/${url}`;
   }
 
-  formatPrice(product: { price_formatted: string }): string {
-    const amount = product.price_formatted;
-    const code = this.currencyLabel();
-    if (!code) return amount;
-    return `${amount} ${code}`;
+  formatPrice(product: { price_cents: number; price_formatted: string }): string {
+    const code = this.currencyLabel() || 'GBP';
+    try {
+      return new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: code,
+      }).format(product.price_cents / 100);
+    } catch {
+      return `£${product.price_formatted}`;
+    }
+  }
+
+  handleProductImageError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+    const media = image?.closest('.public-menu-product__media') as HTMLElement | null;
+    const card = image?.closest('.public-menu-product');
+    if (media) media.hidden = true;
+    card?.classList.add('public-menu-product--no-image');
+  }
+
+  formatPriceCents(cents: number): string {
+    return this.formatPrice({ price_cents: cents, price_formatted: (cents / 100).toFixed(2) });
   }
 
   private updateDocumentTitle(): void {
@@ -229,7 +257,7 @@ export class PublicMenuComponent implements OnInit, OnDestroy {
     } else if (err === 'menu_load_failed') {
       key = 'PUBLIC_MENU.LOAD_FAILED';
     } else if (name) {
-      this.title.setTitle(`${name} — ${this.translate.instant('PUBLIC_MENU.PAGE_TITLE')}`);
+      this.title.setTitle(`${name} - ${this.translate.instant('PUBLIC_MENU.PAGE_TITLE')}`);
       return;
     } else {
       key = 'PUBLIC_MENU.PAGE_TITLE';

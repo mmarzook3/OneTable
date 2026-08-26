@@ -59,6 +59,8 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
         </form>
 
         <div class="auth-actions-foot">
+          <a routerLink="/courier/forgot-password">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/login">{{ 'COURIER_AUTH.BACK_STAFF_LOGIN' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
             <span class="auth-foot-sep" aria-hidden="true">·</span>

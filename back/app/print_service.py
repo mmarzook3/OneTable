@@ -171,7 +171,7 @@ def _default_role(job_type: str) -> str:
 def _order_table_name(session: Session, order: models.Order) -> str | None:
     if order.table_id is None:
         if getattr(order, "order_channel", None) == models.OrderChannel.satisfecho_delivery:
-            return "Satisfecho Delivery"
+            return "Scanaki Delivery"
         return None
     table = session.get(models.Table, order.table_id)
     return table.name if table else None

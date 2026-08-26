@@ -6,6 +6,13 @@ import { ApiService, type SaasPlanTier, type SaasSubscription } from '../service
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 
+interface PriceParts {
+  formatted: string;
+  symbol: string;
+  whole: string;
+  decimal: string;
+}
+
 @Component({
   selector: 'app-pricing-page',
   standalone: true,
@@ -37,8 +44,8 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
 
       <header class="pricing-hero">
         <p class="pricing-hero__badge">{{ 'PRICING_PAGE.BADGE' | translate }}</p>
-        <h1 class="pricing-hero__title">{{ 'PRICING_PAGE.TITLE' | translate }}</h1>
-        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.SUBTITLE' | translate }}</p>
+        <h1 class="pricing-hero__title">{{ 'PRICING_PAGE.TIERS_TITLE' | translate }}</h1>
+        <p class="pricing-hero__subtitle">{{ 'PRICING_PAGE.TIERS_SUBTITLE' | translate }}</p>
       </header>
 
       <main class="pricing-main">
@@ -49,12 +56,40 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         } @else {
           <div class="pricing-tiers" data-testid="pricing-tiers">
             @for (plan of plans(); track plan.id) {
-              <article class="pricing-card" [attr.data-plan-id]="plan.id" data-testid="pricing-plan-card">
-                <h2 class="pricing-card__name">{{ 'PRICING_PAGE.HOSTED_NAME' | translate }}</h2>
-                <p class="pricing-card__lede">{{ 'PRICING_PAGE.HOSTED_LEDE' | translate }}</p>
+              <article
+                class="pricing-card"
+                [class.pricing-card--featured]="plan.is_featured"
+                [attr.data-plan-id]="plan.id"
+                data-testid="pricing-plan-card"
+              >
+                @if (plan.is_featured) {
+                  <span class="pricing-card__popular">{{ 'PRICING_PAGE.MOST_POPULAR' | translate }}</span>
+                }
+                <h2 class="pricing-card__name">{{ plan.name }}</h2>
+                <p class="pricing-card__lede">
+                  {{ 'PRICING_PAGE.TABLES_INCLUDED' | translate: { count: plan.included_tables } }}
+                </p>
 
+                @if (plan.offer_active && plan.compare_at_price_cents) {
+                  @let standardPrice = priceParts(plan.compare_at_price_cents, plan.currency);
+                  <div class="pricing-card__offer" data-testid="pricing-offer">
+                    <span class="pricing-card__deal">{{ plan.offer_badge || ('PRICING_PAGE.LAUNCH_DEAL' | translate) }}</span>
+                    <span class="pricing-card__standard">
+                      {{ 'PRICING_PAGE.PLANNED_STANDARD_PRICE' | translate }}
+                      <strong data-testid="pricing-standard-price">{{ standardPrice.formatted }}</strong>
+                    </span>
+                  </div>
+                }
+
+                @let price = priceParts(plan.price_cents, plan.currency);
                 <div class="pricing-card__price" data-testid="pricing-price">
-                  <span class="pricing-card__amount">{{ formatPrice(plan.price_cents, plan.currency) }}</span>
+                  <span class="pricing-card__amount" [attr.aria-label]="price.formatted">
+                    <span class="pricing-card__amount-visual" aria-hidden="true">
+                      <span class="pricing-card__symbol">{{ price.symbol }}</span>
+                      <span class="pricing-card__whole">{{ price.whole }}</span>
+                      <small class="pricing-card__decimal">{{ price.decimal }}</small>
+                    </span>
+                  </span>
                   <span class="pricing-card__period">{{ 'PRICING_PAGE.PER_MONTH' | translate }}</span>
                 </div>
 
@@ -62,15 +97,15 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
                   {{ 'PRICING_PAGE.TRIAL_LINE' | translate: { days: plan.trial_days } }}
                 </p>
 
-                @if (billingActive()) {
-                  <p class="pricing-card__billing-note" data-testid="pricing-billing-active">
-                    {{ 'PRICING_PAGE.BILLING_ACTIVE_NOTE' | translate }}
-                  </p>
-                } @else {
-                  <p class="pricing-card__billing-note" data-testid="pricing-billing-inactive">
-                    {{ 'PRICING_PAGE.BILLING_INACTIVE_NOTE' | translate }}
-                  </p>
-                }
+                <p class="pricing-card__extra" data-testid="pricing-extra-table">
+                  {{
+                    'PRICING_PAGE.EXTRA_TABLE'
+                      | translate
+                        : {
+                            price: formatPrice(plan.extra_table_price_cents, plan.currency),
+                          }
+                  }}
+                </p>
 
                 <ul class="pricing-card__includes">
                   <li>{{ 'PRICING_PAGE.INCLUDE_QR' | translate }}</li>
@@ -86,23 +121,6 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
               </article>
             }
 
-            <article class="pricing-card pricing-card--alt" data-plan-id="self_host" data-testid="pricing-self-host">
-              <h2 class="pricing-card__name">{{ 'PRICING_PAGE.SELFHOST_NAME' | translate }}</h2>
-              <p class="pricing-card__lede">{{ 'PRICING_PAGE.SELFHOST_LEDE' | translate }}</p>
-              <div class="pricing-card__price">
-                <span class="pricing-card__amount">{{ 'PRICING_PAGE.SELFHOST_PRICE' | translate }}</span>
-              </div>
-              <p class="pricing-card__trial">{{ 'PRICING_PAGE.SELFHOST_LICENSE' | translate }}</p>
-              <a
-                href="https://github.com/satisfecho/pos/"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="pricing-btn pricing-btn--ghost"
-                data-testid="pricing-cta-github"
-              >
-                {{ 'PRICING_PAGE.CTA_GITHUB' | translate }}
-              </a>
-            </article>
           </div>
         }
       </main>
@@ -258,7 +276,7 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
       .pricing-main {
         position: relative;
         z-index: 1;
-        max-width: 56rem;
+        max-width: 72rem;
         margin: 0 auto;
         padding: 0 var(--space-5) var(--space-8);
       }
@@ -277,18 +295,21 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         display: grid;
         grid-template-columns: 1fr;
         gap: var(--space-5);
+        align-items: stretch;
       }
 
       @media (min-width: 768px) {
         .pricing-tiers {
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
         }
       }
 
       .pricing-card {
+        position: relative;
         display: flex;
         flex-direction: column;
         gap: var(--space-3);
+        height: 100%;
         padding: var(--space-6);
         border-radius: 16px;
         background: var(--pp-surface);
@@ -299,50 +320,129 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         background: transparent;
       }
 
+      .pricing-card--featured {
+        border-color: rgba(255, 107, 71, 0.65);
+        box-shadow: 0 18px 60px rgba(255, 107, 71, 0.12);
+      }
+
+      .pricing-card__popular {
+        position: absolute;
+        top: var(--space-5);
+        right: var(--space-5);
+        padding: 0.3rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(255, 107, 71, 0.16);
+        color: #ff9a7f;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
       .pricing-card__name {
         margin: 0;
+        min-height: 1.5rem;
+        padding-right: 7.5rem;
         font-size: 1.25rem;
         font-weight: 600;
       }
 
       .pricing-card__lede {
         margin: 0;
+        min-height: 1.5rem;
         font-size: 0.9375rem;
         line-height: 1.5;
         color: var(--pp-muted);
+      }
+
+      .pricing-card__offer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-2);
+        min-height: 1.75rem;
+        margin-top: var(--space-1);
+      }
+
+      .pricing-card__deal {
+        flex: 0 0 auto;
+        padding: 0.28rem 0.58rem;
+        border-radius: 999px;
+        background: rgba(255, 107, 71, 0.16);
+        color: #ff9a7f;
+        font-size: 0.6875rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .pricing-card__standard {
+        min-width: 0;
+        color: var(--pp-muted);
+        font-size: 0.75rem;
+        line-height: 1.35;
+        text-align: right;
+      }
+
+      .pricing-card__standard strong {
+        display: inline-block;
+        margin-left: 0.2rem;
+        color: rgba(250, 250, 250, 0.84);
+        font-weight: 650;
       }
 
       .pricing-card__price {
         display: flex;
         align-items: baseline;
         gap: var(--space-2);
+        min-height: 3rem;
         margin-top: var(--space-2);
+        white-space: nowrap;
       }
 
       .pricing-card__amount {
+        display: inline-flex;
         font-size: 2.25rem;
         font-weight: 700;
         letter-spacing: -0.03em;
       }
 
+      .pricing-card__amount-visual {
+        display: inline-flex;
+        align-items: flex-start;
+      }
+
+      .pricing-card__symbol,
+      .pricing-card__whole {
+        line-height: 1;
+      }
+
+      .pricing-card__decimal {
+        margin-top: 0.08em;
+        font-size: 0.52em;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.01em;
+      }
+
       .pricing-card__period {
+        align-self: flex-end;
+        margin-bottom: 0.28rem;
         color: var(--pp-muted);
         font-size: 0.9375rem;
       }
 
       .pricing-card__trial,
-      .pricing-card__billing-note {
+      .pricing-card__extra {
         margin: 0;
         font-size: 0.875rem;
         line-height: 1.45;
         color: var(--pp-muted);
       }
 
-      .pricing-card__billing-note {
-        padding: var(--space-3);
-        border-radius: 10px;
-        border: 1px solid var(--pp-border);
-        background: rgba(255, 255, 255, 0.03);
+      .pricing-card__extra {
+        color: rgba(250, 250, 250, 0.82);
+        font-weight: 600;
       }
 
       .pricing-card__includes {
@@ -376,6 +476,18 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         border: 1px solid var(--pp-border);
         color: var(--pp-text);
       }
+
+      @media (max-width: 420px) {
+        .pricing-card__offer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .pricing-card__standard {
+          text-align: left;
+        }
+      }
+
     `,
   ],
 })
@@ -384,13 +496,11 @@ export class PricingPageComponent implements OnInit {
 
   loading = signal(true);
   error = signal('');
-  billingActive = signal(false);
   plans = signal<SaasPlanTier[]>([]);
 
   ngOnInit(): void {
     this.api.getSaasConfig().subscribe({
       next: (cfg: SaasSubscription) => {
-        this.billingActive.set(!!cfg.enabled);
         this.plans.set(this.resolvePlans(cfg));
         this.loading.set(false);
       },
@@ -405,20 +515,37 @@ export class PricingPageComponent implements OnInit {
   private resolvePlans(cfg: SaasSubscription): SaasPlanTier[] {
     if (cfg.plans?.length) {
       return cfg.plans.map((p) => ({
-        id: p.id || 'hosted_standard',
+        id: p.id || 'lite',
+        name: p.name || 'Lite',
         trial_days: p.trial_days,
         price_cents: p.price_cents,
-        currency: p.currency || 'eur',
+        regular_price_cents: p.regular_price_cents,
+        offer_price_cents: p.offer_price_cents,
+        compare_at_price_cents: p.compare_at_price_cents,
+        offer_active: p.offer_active,
+        offer_badge: p.offer_badge,
+        offer_starts_at: p.offer_starts_at,
+        offer_ends_at: p.offer_ends_at,
+        is_featured: p.is_featured ?? p.id === 'pro',
+        is_public: p.is_public ?? true,
+        description: p.description,
+        version: p.version,
+        currency: p.currency || 'gbp',
         interval: p.interval || 'month',
+        included_tables: p.included_tables ?? 2,
+        extra_table_price_cents: p.extra_table_price_cents ?? 399,
       }));
     }
     return [
       {
-        id: 'hosted_standard',
+        id: 'lite',
+        name: 'Lite',
         trial_days: cfg.trial_days,
         price_cents: cfg.price_cents,
-        currency: cfg.currency || 'eur',
+        currency: cfg.currency || 'gbp',
         interval: 'month',
+        included_tables: 2,
+        extra_table_price_cents: cfg.extra_table_price_cents ?? 399,
       },
     ];
   }
@@ -427,11 +554,47 @@ export class PricingPageComponent implements OnInit {
     try {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
-        currency: (currency || 'EUR').toUpperCase(),
-        maximumFractionDigits: 0,
+        currency: (currency || 'GBP').toUpperCase(),
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(cents / 100);
     } catch {
-      return `${(cents / 100).toFixed(0)} ${(currency || 'eur').toUpperCase()}`;
+      return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
+    }
+  }
+
+  priceParts(cents: number, currency: string): PriceParts {
+    const currencyCode = (currency || 'GBP').toUpperCase();
+    try {
+      const formatter = new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      const parts = formatter.formatToParts(cents / 100);
+      const symbol = parts.find((part) => part.type === 'currency')?.value || currencyCode;
+      const whole = parts
+        .filter((part) => part.type === 'integer' || part.type === 'group')
+        .map((part) => part.value)
+        .join('');
+      const decimalSeparator = parts.find((part) => part.type === 'decimal')?.value || '.';
+      const fraction = parts.find((part) => part.type === 'fraction')?.value || '00';
+      return {
+        formatted: formatter.format(cents / 100),
+        symbol,
+        whole,
+        decimal: `${decimalSeparator}${fraction}`,
+      };
+    } catch {
+      const fixed = (cents / 100).toFixed(2);
+      const [whole, fraction] = fixed.split('.');
+      return {
+        formatted: `${currencyCode} ${fixed}`,
+        symbol: currencyCode === 'GBP' ? '£' : currencyCode,
+        whole,
+        decimal: `.${fraction}`,
+      };
     }
   }
 }

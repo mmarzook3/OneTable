@@ -8,7 +8,7 @@
  *   BASE_URL=http://127.0.0.1:4202 HEADLESS=1 node front/scripts/test-register-page.mjs
  *
  * Env:
- *   BASE_URL   App URL (default: auto-detect 4203, 4202, 4200 or http://satisfecho.de)
+ *   BASE_URL   App URL (default: auto-detect 4203, 4202, 4200 or https://scanaki.uk)
  *   HEADLESS       Default headless; set 0, false, or no for a visible browser.
  */
 
@@ -36,7 +36,7 @@ async function main() {
         }
       } catch (_) {}
     }
-    baseUrl = baseUrl || 'http://satisfecho.de';
+    baseUrl = baseUrl || 'https://scanaki.uk';
   }
 
   const headless = isHeadless();

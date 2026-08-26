@@ -7,6 +7,13 @@
     </div>
     <div class="header-actions">
       <div class="date-range">
+        <label>Location</label>
+        <select [ngModel]="selectedLocationId()" (ngModelChange)="selectedLocationId.set($event); loadReport()">
+          <option [ngValue]="null">All locations</option>
+          @for (location of locations(); track location.id) { <option [ngValue]="location.id">{{ location.display_name }}</option> }
+        </select>
+      </div>
+      <div class="date-range">
         <label>{{ 'REPORTS.FROM' | translate }}</label>
         <input type="date" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event)" />
       </div>
@@ -181,6 +188,21 @@
       </section>
 
       @if (r.summary.total_orders > 0) {
+      @if ((r.by_location?.length ?? 0) > 0) {
+      <section class="report-section">
+        <h2>By location</h2>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Location</th><th class="num">Orders</th><th class="num">Average order</th><th class="num">Revenue</th></tr></thead>
+            <tbody>
+              @for (location of r.by_location || []; track location.location_id) {
+                <tr><td>{{ location.location_name }}</td><td class="num">{{ location.order_count }}</td><td class="num">{{ formatCurrency(location.average_order_value_cents) }}</td><td class="num">{{ formatCurrency(location.revenue_cents) }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      }
       <!-- By product -->
       <section class="report-section" data-testid="reports-by-product">
         <h2>{{ 'REPORTS.BY_PRODUCT' | translate }}</h2>

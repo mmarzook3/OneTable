@@ -28,6 +28,7 @@ class Permission(str, Enum):
     # Products
     PRODUCT_READ = "product:read"
     PRODUCT_WRITE = "product:write"
+    PRODUCT_AVAILABILITY = "product:availability"
     
     # Catalog
     CATALOG_READ = "catalog:read"
@@ -103,6 +104,7 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
         # Products
         Permission.PRODUCT_READ,
         Permission.PRODUCT_WRITE,
+        Permission.PRODUCT_AVAILABILITY,
         # Catalog
         Permission.CATALOG_READ,
         Permission.CATALOG_WRITE,
@@ -150,8 +152,9 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
     },
     
     UserRole.kitchen: {
-        # Products (read-only for viewing menu items)
+        # Products (menu content is read-only; availability can be updated)
         Permission.PRODUCT_READ,
+        Permission.PRODUCT_AVAILABILITY,
         Permission.CATALOG_READ,
         # Orders (view and update item status)
         Permission.ORDER_READ,
@@ -163,8 +166,9 @@ ROLE_PERMISSIONS: dict[UserRole, set[Permission]] = {
     },
     
     UserRole.bartender: {
-        # Products (read-only for viewing menu / drinks)
+        # Products (menu content is read-only; availability can be updated)
         Permission.PRODUCT_READ,
+        Permission.PRODUCT_AVAILABILITY,
         Permission.CATALOG_READ,
         # Orders (view and update item status for drinks/beverages)
         Permission.ORDER_READ,

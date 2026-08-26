@@ -15,7 +15,7 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
       <div class="paywall-card">
         <div class="paywall-header">
           <div>
-            <p class="brand">Satisfecho</p>
+            <p class="brand">Scanaki</p>
             <h1>{{ 'PAYWALL.TITLE' | translate }}</h1>
             <p class="lead">{{ 'PAYWALL.LEAD' | translate }}</p>
           </div>
@@ -25,8 +25,18 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
         @if (loading()) {
           <p class="muted">{{ 'COMMON.LOADING' | translate }}</p>
         } @else if (sub(); as s) {
+          @if (s.plans?.length) {
+            <label class="plan-picker">
+              <span>Choose your plan</span>
+              <select [value]="selectedPlan()" (change)="selectPlan($event)" data-testid="paywall-plan">
+                @for (plan of s.plans || []; track plan.id) {
+                  <option [value]="plan.id">{{ plan.name }} · {{ plan.included_tables }} tables · {{ formatPrice(plan.price_cents, plan.currency) }}/month</option>
+                }
+              </select>
+            </label>
+          }
           <div class="price-block" data-testid="paywall-price">
-            <span class="price">{{ formatPrice(s.price_cents, s.currency) }}</span>
+            <span class="price">{{ formatPrice(selectedTierPrice(s), s.currency) }}</span>
             <span class="period">{{ 'PAYWALL.PER_MONTH' | translate }}</span>
           </div>
           <ul class="features">
@@ -127,6 +137,8 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
         gap: var(--space-2);
         margin-bottom: var(--space-5);
       }
+      .plan-picker { display: grid; gap: var(--space-2); margin-bottom: var(--space-5); font-weight: 600; }
+      .plan-picker select { width: 100%; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); font: inherit; }
       .price {
         font-size: 2.25rem;
         font-weight: 700;
@@ -217,6 +229,7 @@ export class PaywallComponent implements OnInit {
   busy = signal(false);
   error = signal('');
   sub = signal<SaasSubscription | null>(null);
+  selectedPlan = signal('lite');
 
   ngOnInit(): void {
     const sessionId = this.route.snapshot.queryParamMap.get('session_id');
@@ -247,6 +260,7 @@ export class PaywallComponent implements OnInit {
     this.api.getSaasSubscription().subscribe({
       next: (s: SaasSubscription) => {
         this.sub.set(s);
+        this.selectedPlan.set(s.plan_code || s.plans?.[0]?.id || 'lite');
         this.loading.set(false);
         if (!s.enabled) {
           void this.router.navigate(['/dashboard']);
@@ -267,18 +281,27 @@ export class PaywallComponent implements OnInit {
     try {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
-        currency: (currency || 'EUR').toUpperCase(),
+        currency: (currency || 'GBP').toUpperCase(),
         maximumFractionDigits: 0,
       }).format(cents / 100);
     } catch {
-      return `${(cents / 100).toFixed(0)} ${(currency || 'eur').toUpperCase()}`;
+      return `${(cents / 100).toFixed(0)} ${(currency || 'gbp').toUpperCase()}`;
     }
+  }
+
+  selectPlan(event: Event): void {
+    this.selectedPlan.set((event.target as HTMLSelectElement).value);
+  }
+
+  selectedTierPrice(subscription: SaasSubscription): number {
+    return subscription.plans?.find((plan) => plan.id === this.selectedPlan())?.price_cents
+      ?? subscription.price_cents;
   }
 
   startTrial(): void {
     this.error.set('');
     this.busy.set(true);
-    this.api.startSaasTrial().subscribe({
+    this.api.startSaasTrial(this.selectedPlan()).subscribe({
       next: (s: SaasSubscription) => {
         this.sub.set(s);
         this.busy.set(false);
@@ -299,7 +322,7 @@ export class PaywallComponent implements OnInit {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const successUrl = `${origin}/paywall?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}/paywall`;
-    this.api.createSaasCheckoutSession(successUrl, cancelUrl).subscribe({
+    this.api.createSaasCheckoutSession(successUrl, cancelUrl, this.selectedPlan()).subscribe({
       next: (res: { url: string }) => {
         this.busy.set(false);
         if (res.url) {

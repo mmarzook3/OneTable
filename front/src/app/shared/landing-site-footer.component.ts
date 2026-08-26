@@ -1,7 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { environment } from '../../environments/environment';
+import { ApiService, PlatformPublicSettings } from '../services/api.service';
 
 /** Dark marketing footer shared by landing and features pages. */
 @Component({
@@ -38,9 +39,15 @@ import { environment } from '../../environments/environment';
           <div class="landing-footer__group">
             <span class="landing-footer__group-label">{{ 'LANDING.FOOTER_SUPPORT' | translate }}</span>
             <a routerLink="/about" data-testid="landing-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
-            <a href="mailto:hello@satisfecho.de" data-testid="landing-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
-            <a routerLink="/terms" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
-            <a routerLink="/privacy" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
+            <a routerLink="/manual-usuario" data-testid="landing-user-manual">{{ 'LANDING.USER_MANUAL' | translate }}</a>
+            <a [href]="platform()?.terms_url || '/terms'" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
+            <a [href]="platform()?.privacy_url || '/privacy'" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
+            @if (platform()?.support_email) {
+              <a [href]="'mailto:' + platform()!.support_email" data-testid="landing-support-email">{{ platform()!.support_email }}</a>
+            }
+            @if (platform()?.phone) {
+              <a [href]="'tel:' + platform()!.phone" data-testid="landing-support-phone">{{ platform()!.phone }}</a>
+            }
           </div>
         </nav>
       </div>
@@ -50,33 +57,17 @@ import { environment } from '../../environments/environment';
           <span class="landing-version-meta"
             >{{ version || '0.0.0' }} <span class="landing-commit">{{ commitHash || '' }}</span></span
           >
-          <a
-            href="https://github.com/satisfecho/pos/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="landing-version-github"
-            data-testid="landing-github"
-            [attr.aria-label]="'LANDING.GITHUB_REPO' | translate"
-          >
-            <svg
-              class="landing-github-icon"
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path
-                fill="currentColor"
-                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.694.825.576C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"
-              />
-            </svg>
-          </a>
         </div>
         <p class="landing-version-company" data-testid="landing-company">
-          {{ 'LANDING.COMPANY_OPERATOR' | translate }}
+          {{ platform()?.company_legal_name || ('LANDING.COMPANY_OPERATOR' | translate) }}
         </p>
-        <p class="landing-version-tagline">{{ 'LANDING.OPEN_SOURCE_TAGLINE' | translate }}</p>
+        @if (platform()?.company_number || platform()?.vat_number) {
+          <p class="landing-version-company">
+            @if (platform()?.company_number) { <span>Company {{ platform()!.company_number }}</span> }
+            @if (platform()?.vat_number) { <span>VAT {{ platform()!.vat_number }}</span> }
+          </p>
+        }
+        <p class="landing-version-tagline">{{ 'LANDING.PRODUCT_TAGLINE' | translate }}</p>
       </div>
     </footer>
   `,
@@ -227,26 +218,6 @@ import { environment } from '../../environments/environment';
       font-size: 0.625rem;
     }
 
-    .landing-version-github {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--landing-muted);
-      line-height: 1;
-      flex-shrink: 0;
-      border-radius: var(--radius-sm);
-      transition: color 0.15s ease, background 0.15s ease;
-    }
-
-    .landing-version-github:hover {
-      color: var(--landing-text);
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    .landing-github-icon {
-      display: block;
-    }
-
     .landing-version-company {
       margin: 0;
       max-width: 36rem;
@@ -264,7 +235,16 @@ import { environment } from '../../environments/environment';
     }
   `],
 })
-export class LandingSiteFooterComponent {
+export class LandingSiteFooterComponent implements OnInit {
+  private api = inject(ApiService);
   readonly version = environment.version;
   readonly commitHash = environment.commitHash;
+  readonly platform = signal<PlatformPublicSettings | null>(null);
+
+  ngOnInit(): void {
+    this.api.getPlatformPublicSettings().subscribe({
+      next: (settings) => this.platform.set(settings),
+      error: () => this.platform.set(null),
+    });
+  }
 }

@@ -17,6 +17,10 @@ export const routes: Routes = [
   { path: 'features', loadComponent: () => import('./features/features.component').then(m => m.FeaturesComponent) },
   { path: 'pricing', loadComponent: () => import('./pricing/pricing-page.component').then(m => m.PricingPageComponent) },
   { path: 'about', loadComponent: () => import('./about/about-page.component').then(m => m.AboutPageComponent) },
+  {
+    path: 'manual-usuario',
+    loadComponent: () => import('./user-manual/user-manual-page.component').then((m) => m.UserManualPageComponent),
+  },
   { path: 'login', loadComponent: () => import('./auth/login.component').then(m => m.LoginComponent) },
   { path: 'register', loadComponent: () => import('./auth/register.component').then(m => m.RegisterComponent) },
   { path: 'signup', loadComponent: () => import('./auth/register.component').then(m => m.RegisterComponent) },
@@ -37,6 +41,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./auth/paywall.component').then(m => m.PaywallComponent),
   },
+  {
+    path: 'onboarding',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./onboarding/restaurant-onboarding.component').then(
+        (m) => m.RestaurantOnboardingComponent,
+      ),
+  },
   // Provider portal (public auth pages)
   { path: 'provider/login', loadComponent: () => import('./provider/provider-login.component').then(m => m.ProviderLoginComponent) },
   { path: 'provider/register', loadComponent: () => import('./provider/provider-register.component').then(m => m.ProviderRegisterComponent) },
@@ -49,18 +61,36 @@ export const routes: Routes = [
   { path: 'provider', canActivate: [providerGuard], loadComponent: () => import('./provider/provider-dashboard.component').then(m => m.ProviderDashboardComponent) },
   // Courier portal (public auth + protected home)
   { path: 'courier/login', loadComponent: () => import('./courier/courier-login.component').then(m => m.CourierLoginComponent) },
+  { path: 'courier/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'courier' } },
   { path: 'courier/orders/:id', canActivate: [courierGuard], loadComponent: () => import('./courier/courier-order-detail.component').then(m => m.CourierOrderDetailComponent) },
   { path: 'courier', canActivate: [courierGuard], loadComponent: () => import('./courier/courier-home.component').then(m => m.CourierHomeComponent) },
   // End-user customer portal (separate from staff User and Factura /customers)
   { path: 'customer/login', loadComponent: () => import('./customer/customer-login.component').then(m => m.CustomerLoginComponent) },
   { path: 'customer/register', loadComponent: () => import('./customer/customer-register.component').then(m => m.CustomerRegisterComponent) },
+  { path: 'customer/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'customer' } },
+  { path: 'customer/reset-password', loadComponent: () => import('./auth/reset-password.component').then(m => m.ResetPasswordComponent), data: { passwordResetScope: 'customer' } },
   { path: 'customer/verify-email', loadComponent: () => import('./customer/customer-verify-email.component').then(m => m.CustomerVerifyEmailComponent) },
   { path: 'customer', canActivate: [customerGuard], loadComponent: () => import('./customer/customer-home.component').then(m => m.CustomerHomeComponent) },
   // Platform operator portal (public auth + protected dashboard)
   { path: 'platform/login', loadComponent: () => import('./platform/platform-login.component').then(m => m.PlatformLoginComponent) },
-  { path: 'platform/tenants/:tenantId', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
-  { path: 'platform', canActivate: [platformGuard], loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
+  { path: 'platform/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'platform' } },
+  {
+    path: 'platform',
+    canActivate: [platformGuard],
+    loadComponent: () => import('./platform/platform-shell.component').then(m => m.PlatformShellComponent),
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./platform/platform-dashboard.component').then(m => m.PlatformDashboardComponent) },
+      { path: 'restaurants', loadComponent: () => import('./platform/platform-restaurants.component').then(m => m.PlatformRestaurantsComponent) },
+      { path: 'restaurants/new', loadComponent: () => import('./platform/platform-create-restaurant.component').then(m => m.PlatformCreateRestaurantComponent) },
+      { path: 'smart-plaques', loadComponent: () => import('./platform/platform-smart-plaques.component').then(m => m.PlatformSmartPlaquesComponent) },
+      { path: 'subscriptions', loadComponent: () => import('./platform/platform-subscriptions.component').then(m => m.PlatformSubscriptionsComponent) },
+      { path: 'pricing', loadComponent: () => import('./platform/platform-pricing.component').then(m => m.PlatformPricingComponent) },
+      { path: 'settings', loadComponent: () => import('./platform/platform-settings.component').then(m => m.PlatformSettingsComponent) },
+      { path: 'tenants/:tenantId', loadComponent: () => import('./platform/platform-tenant-detail.component').then(m => m.PlatformTenantDetailComponent) },
+    ],
+  },
   { path: 'menu/:token', loadComponent: () => import('./menu/menu.component').then(m => m.MenuComponent) },
+  { path: 'p/:code', loadComponent: () => import('./smart-plaque/public-smart-plaque.component').then(m => m.PublicSmartPlaqueComponent) },
   { path: 'menu/:token/payment-success', loadComponent: () => import('./menu/payment-success.component').then(m => m.PaymentSuccessComponent) },
   { path: 'public-menu/:tenantId', loadComponent: () => import('./public-menu/public-menu.component').then(m => m.PublicMenuComponent) },
   {
@@ -108,6 +138,8 @@ export const routes: Routes = [
     loadComponent: () => import('./tables/tables-canvas.component').then(m => m.TablesCanvasComponent),
   },
   { path: 'tables', canActivate: [authGuard, uiModuleGuard('tables'), tableAccessGuard], loadComponent: () => import('./tables/tables.component').then(m => m.TablesComponent) },
+  { path: 'locations', canActivate: [authGuard, adminGuard], loadComponent: () => import('./locations/locations.component').then(m => m.LocationsComponent) },
+  { path: 'plaque-requests', canActivate: [authGuard, adminGuard], loadComponent: () => import('./smart-plaque-requests/smart-plaque-requests.component').then(m => m.SmartPlaqueRequestsComponent) },
 
   // Staff orders (list and manage orders)
   { path: 'staff/orders', canActivate: [authGuard, orderAccessGuard], loadComponent: () => import('./orders/orders.component').then(m => m.OrdersComponent) },

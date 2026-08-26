@@ -25,6 +25,11 @@ router = APIRouter()
 class CheckoutBody(BaseModel):
     success_url: str = Field(min_length=8, max_length=2048)
     cancel_url: str = Field(min_length=8, max_length=2048)
+    plan_code: str | None = Field(default=None, max_length=16)
+
+
+class TrialBody(BaseModel):
+    plan_code: str | None = Field(default=None, max_length=16)
 
 
 class ConfirmCheckoutBody(BaseModel):
@@ -48,9 +53,9 @@ def _require_tenant_owner(
 
 
 @router.get("/config")
-def saas_config() -> dict:
+def saas_config(session: Session = Depends(get_session)) -> dict:
     """Public plan defaults (used by signup / paywall UI)."""
-    return plan_config()
+    return plan_config(session)
 
 
 @router.get("/subscription")
@@ -66,19 +71,20 @@ def get_subscription(
     tenant = session.get(models.Tenant, current_user.tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return subscription_payload(tenant)
+    return subscription_payload(tenant, session)
 
 
 @router.post("/start-trial")
 def post_start_trial(
+    body: TrialBody,
     current_user: Annotated[models.User, Depends(_require_tenant_owner)],
     session: Session = Depends(get_session),
 ) -> dict:
     tenant = session.get(models.Tenant, current_user.tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    tenant = start_trial(session, tenant)
-    return subscription_payload(tenant)
+    tenant = start_trial(session, tenant, body.plan_code)
+    return subscription_payload(tenant, session)
 
 
 @router.post("/checkout-session")
@@ -96,6 +102,7 @@ def post_checkout_session(
         current_user,
         success_url=body.success_url.strip(),
         cancel_url=body.cancel_url.strip(),
+        plan_code=body.plan_code,
     )
     return {"url": url}
 
@@ -110,7 +117,7 @@ def post_confirm_checkout(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     tenant = confirm_checkout_session(session, tenant, body.session_id.strip())
-    return subscription_payload(tenant)
+    return subscription_payload(tenant, session)
 
 
 @router.post("/webhook")

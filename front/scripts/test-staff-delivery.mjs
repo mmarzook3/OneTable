@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Puppeteer smoke: staff Satisfecho Delivery create + edit on /staff/orders.
+ * Puppeteer smoke: staff Scanaki Delivery create + edit on /staff/orders.
  *
  * Path: login → /staff/orders → New delivery order → address/phone + item →
  * create → Delivery tab channel badge → Edit delivery → save phone change.
@@ -328,7 +328,7 @@ async function main() {
     if (!listOk) {
       hardFails.push('Delivery tab missing channel badge or created address');
     } else {
-      console.log('   Delivery list shows Satisfecho Delivery / address');
+      console.log('   Delivery list shows Scanaki Delivery / address');
     }
 
     // 4. Edit delivery metadata
@@ -403,10 +403,10 @@ async function main() {
     console.log('\n---');
     if (hardFails.length) {
       for (const f of hardFails) console.error('FAIL:', f);
-      console.log('\n>>> RESULT: Staff Satisfecho Delivery smoke FAILED');
+      console.log('\n>>> RESULT: Staff Scanaki Delivery smoke FAILED');
       process.exit(1);
     }
-    console.log('>>> RESULT: Staff Satisfecho Delivery smoke OK (create + edit)');
+    console.log('>>> RESULT: Staff Scanaki Delivery smoke OK (create + edit)');
     process.exit(0);
   } catch (err) {
     console.error('Error:', err.message);

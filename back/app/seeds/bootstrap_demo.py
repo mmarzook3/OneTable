@@ -22,7 +22,7 @@ from sqlmodel import Session, select
 from app.db import engine
 from app.models import Tenant
 
-DEMO_TENANT_NAME = "Demo Restaurant"
+DEMO_TENANT_NAME = "Scanaki Demo Restaurant"
 
 
 def run() -> None:
@@ -31,7 +31,7 @@ def run() -> None:
         if existing:
             print("Tenants already exist. Skipping bootstrap.")
             return
-        tenant = Tenant(name=DEMO_TENANT_NAME)
+        tenant = Tenant(name=DEMO_TENANT_NAME, is_demo=True)
         session.add(tenant)
         session.commit()
         session.refresh(tenant)

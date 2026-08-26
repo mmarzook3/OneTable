@@ -30,7 +30,7 @@ This prints: global SMTP status, **per-tenant SMTP** (confirmations use tenant S
 
 ```bash
 # From repo root (or front/)
-BASE_URL=https://www.satisfecho.de HEADLESS=1 node front/scripts/test-reservation-create.mjs
+BASE_URL=https://scanaki.uk HEADLESS=1 node front/scripts/test-reservation-create.mjs
 # Override email: TEST_EMAIL=you@your-domain.com node front/scripts/test-reservation-create.mjs
 # Or: npm run test:reservation-create --prefix front
 ```

@@ -61,7 +61,17 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = Field(
         default="", validation_alias="STRIPE_PUBLISHABLE_KEY"
     )
-    stripe_currency: str = Field(default="eur", validation_alias="STRIPE_CURRENCY")
+    stripe_currency: str = Field(default="gbp", validation_alias="STRIPE_CURRENCY")
+    stripe_guest_webhook_secret: str = Field(
+        default="",
+        validation_alias="STRIPE_GUEST_WEBHOOK_SECRET",
+        description="Signing secret for guest-order Stripe or Connect webhook events",
+    )
+    location_payment_override_enabled: bool = Field(
+        default=False,
+        validation_alias="LOCATION_PAYMENT_OVERRIDE_ENABLED",
+        description="Allows location-specific payment account references; disabled for the pilot",
+    )
 
     # Platform SaaS paywall (restaurant signup monetization — not guest order Stripe keys)
     saas_paywall_enabled: bool = Field(
@@ -71,16 +81,27 @@ class Settings(BaseSettings):
     )
     saas_trial_days: int = Field(default=14, validation_alias="SAAS_TRIAL_DAYS")
     saas_plan_price_cents: int = Field(
-        default=4900,
+        default=999,
         validation_alias="SAAS_PLAN_PRICE_CENTS",
-        description="Displayed monthly plan price in cents (e.g. 4900 = €49)",
+        description="Legacy flat plan amount; Lite is the default managed plan",
     )
-    saas_plan_currency: str = Field(default="eur", validation_alias="SAAS_PLAN_CURRENCY")
+    saas_plan_currency: str = Field(default="gbp", validation_alias="SAAS_PLAN_CURRENCY")
+    saas_lite_price_cents: int = Field(default=999, validation_alias="SAAS_LITE_PRICE_CENTS")
+    saas_pro_price_cents: int = Field(default=3999, validation_alias="SAAS_PRO_PRICE_CENTS")
+    saas_ultra_price_cents: int = Field(default=8499, validation_alias="SAAS_ULTRA_PRICE_CENTS")
+    saas_extra_table_price_cents: int = Field(
+        default=399,
+        validation_alias="SAAS_EXTRA_TABLE_PRICE_CENTS",
+    )
     saas_stripe_price_id: str = Field(
         default="",
         validation_alias="SAAS_STRIPE_PRICE_ID",
         description="Stripe Price ID for platform subscription Checkout (optional; trial works without it)",
     )
+    saas_lite_stripe_price_id: str = Field(default="", validation_alias="SAAS_LITE_STRIPE_PRICE_ID")
+    saas_pro_stripe_price_id: str = Field(default="", validation_alias="SAAS_PRO_STRIPE_PRICE_ID")
+    saas_ultra_stripe_price_id: str = Field(default="", validation_alias="SAAS_ULTRA_STRIPE_PRICE_ID")
+    saas_extra_table_stripe_price_id: str = Field(default="", validation_alias="SAAS_EXTRA_TABLE_STRIPE_PRICE_ID")
     saas_stripe_webhook_secret: str = Field(
         default="",
         validation_alias="SAAS_STRIPE_WEBHOOK_SECRET",
@@ -104,11 +125,11 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", validation_alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, validation_alias="SMTP_USE_TLS")
     email_from: str = Field(
-        default="noreply@satisfecho.de",
+        default="noreply@scanaki.uk",
         validation_alias="EMAIL_FROM",
         description="From address when tenant has none; use a domain you control (not example.com).",
     )
-    email_from_name: str = Field(default="POS2 System", validation_alias="EMAIL_FROM_NAME")
+    email_from_name: str = Field(default="Scanaki", validation_alias="EMAIL_FROM_NAME")
 
     # WhatsApp (Twilio) – optional; when set, reminders can be sent via WhatsApp when customer_phone is present
     twilio_account_sid: str = Field(default="", validation_alias="TWILIO_ACCOUNT_SID")
@@ -128,7 +149,7 @@ class Settings(BaseSettings):
     public_app_base_url: str = Field(
         default="",
         validation_alias="PUBLIC_APP_BASE_URL",
-        description="e.g. https://satisfecho.de or http://127.0.0.1:4202 — required for password-reset and reservation email links; if empty, POST /password-reset/request returns 503",
+        description="e.g. https://scanaki.uk or http://127.0.0.1:4202 - required for password-reset and reservation email links; if empty, POST /password-reset/request returns 503",
     )
 
     # Product-wide legal URLs when a tenant has not set its own (landing, auth pages).

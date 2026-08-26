@@ -11,6 +11,7 @@ from typing import Any
 
 import stripe
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from . import models
@@ -22,6 +23,7 @@ SAAS_STATUS_ACTIVE = "active"
 SAAS_STATUS_CANCELED = "canceled"
 SAAS_STATUS_PAST_DUE = "past_due"
 SAAS_STATUS_GRANDFATHERED = "grandfathered"
+SAAS_STATUS_SUSPENDED = "suspended"
 
 ACTIVE_STATUSES = frozenset(
     {
@@ -30,6 +32,284 @@ ACTIVE_STATUSES = frozenset(
         SAAS_STATUS_GRANDFATHERED,
     }
 )
+
+SAAS_PLAN_TABLES = {"lite": 2, "pro": 20, "ultra": 45, "pilot": 10_000}
+UNLIMITED_ORDERING_POINT_LIMIT = 2_147_483_647
+
+
+def plan_has_unlimited_ordering_points(plan_code: str | None) -> bool:
+    return normalize_plan_code(plan_code) == "pilot"
+
+
+def record_subscription_event(
+    session: Session,
+    tenant: models.Tenant,
+    event_type: str,
+    *,
+    source: str = "system",
+    old_status: str | None = None,
+    new_status: str | None = None,
+    amount_cents: int | None = None,
+    currency: str | None = None,
+    stripe_event_id: str | None = None,
+    detail: dict[str, Any] | None = None,
+) -> models.SaasSubscriptionEvent | None:
+    if stripe_event_id:
+        existing = session.exec(
+            select(models.SaasSubscriptionEvent).where(
+                models.SaasSubscriptionEvent.stripe_event_id == stripe_event_id
+            )
+        ).first()
+        if existing:
+            return None
+    row = models.SaasSubscriptionEvent(
+        tenant_id=int(tenant.id),
+        event_type=event_type[:64],
+        source=source[:32],
+        old_status=old_status,
+        new_status=new_status,
+        plan_code=normalize_plan_code(tenant.saas_plan_code),
+        amount_cents=amount_cents,
+        currency=(currency or "").lower()[:8] or None,
+        stripe_event_id=stripe_event_id,
+        detail=detail,
+    )
+    session.add(row)
+    return row
+
+
+def normalize_plan_code(value: str | None) -> str:
+    code = (value or "lite").strip().lower()
+    if code not in SAAS_PLAN_TABLES:
+        raise HTTPException(status_code=400, detail="Invalid Scanaki plan")
+    return code
+
+
+def _offer_active(
+    offer_price_cents: int | None,
+    starts_at: datetime | None,
+    ends_at: datetime | None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    if offer_price_cents is None:
+        return False
+    current = now or datetime.now(timezone.utc)
+    start = _aware(starts_at)
+    end = _aware(ends_at)
+    return (start is None or start <= current) and (end is None or current < end)
+
+
+def active_plan_pricing(
+    session: Session | None,
+    plan_code: str,
+) -> models.SaasPlanPricing | None:
+    if session is None:
+        return None
+    return session.exec(
+        select(models.SaasPlanPricing)
+        .where(
+            models.SaasPlanPricing.plan_code == normalize_plan_code(plan_code),
+            models.SaasPlanPricing.is_active == True,
+        )
+        .order_by(models.SaasPlanPricing.version.desc())
+        .limit(1)
+    ).first()
+
+
+def _fallback_plan(plan_code: str) -> dict[str, Any]:
+    code = normalize_plan_code(plan_code)
+    offer_prices = {
+        "lite": int(getattr(settings, "saas_lite_price_cents", 999) or 999),
+        "pro": int(getattr(settings, "saas_pro_price_cents", 3999) or 3999),
+        "ultra": int(getattr(settings, "saas_ultra_price_cents", 8499) or 8499),
+        "pilot": 0,
+    }
+    names = {"lite": "Lite", "pro": "Pro", "ultra": "Ultra", "pilot": "Pilot"}
+    descriptions = {
+        "lite": "A simple start for small venues.",
+        "pro": "Built for busy restaurants and pubs.",
+        "ultra": "More capacity for larger hospitality teams.",
+        "pilot": "Internal full-feature tier for approved pilot customers.",
+    }
+    offer = offer_prices[code]
+    return {
+        "id": code,
+        "name": names[code],
+        "description": descriptions[code],
+        "version": 0,
+        "regular_price_cents": round(offer * 3.5),
+        "offer_price_cents": offer if code != "pilot" else None,
+        "price_cents": offer,
+        "offer_active": code != "pilot",
+        "offer_badge": "Launch deal" if code != "pilot" else "Internal pilot",
+        "offer_starts_at": None,
+        "offer_ends_at": None,
+        "currency": (getattr(settings, "saas_plan_currency", None) or "gbp").lower(),
+        "interval": "month",
+        "included_tables": SAAS_PLAN_TABLES[code],
+        "extra_table_price_cents": int(
+            getattr(settings, "saas_extra_table_price_cents", 399) or 399
+        ),
+        "trial_days": int(getattr(settings, "saas_trial_days", 14) or 14) if code != "pilot" else 0,
+        "is_featured": code == "pro",
+        "is_public": code != "pilot",
+        "ordering_points_unlimited": code == "pilot",
+        "stripe_product_id": None,
+        "stripe_regular_price_id": stripe_price_id_for_plan(code, use_database=False),
+        "stripe_offer_price_id": stripe_price_id_for_plan(code, use_database=False),
+        "stripe_extra_table_price_id": (
+            getattr(settings, "saas_extra_table_stripe_price_id", None) or ""
+        ).strip(),
+    }
+
+
+def plan_details(
+    plan_code: str,
+    session: Session | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    row = active_plan_pricing(session, plan_code)
+    if row is None:
+        return _fallback_plan(plan_code)
+    active_offer = _offer_active(
+        row.offer_price_cents,
+        row.offer_starts_at,
+        row.offer_ends_at,
+        now=now,
+    )
+    return {
+        "id": row.plan_code,
+        "name": row.name,
+        "description": row.description,
+        "version": row.version,
+        "regular_price_cents": row.regular_price_cents,
+        "offer_price_cents": row.offer_price_cents,
+        "price_cents": row.offer_price_cents if active_offer else row.regular_price_cents,
+        "offer_active": active_offer,
+        "offer_badge": row.offer_badge,
+        "offer_starts_at": row.offer_starts_at.isoformat() if row.offer_starts_at else None,
+        "offer_ends_at": row.offer_ends_at.isoformat() if row.offer_ends_at else None,
+        "currency": row.currency.lower(),
+        "interval": row.billing_interval,
+        "included_tables": row.included_tables,
+        "extra_table_price_cents": row.extra_table_price_cents,
+        "trial_days": row.trial_days,
+        "is_featured": row.is_featured,
+        "is_public": row.is_public,
+        "ordering_points_unlimited": row.plan_code == "pilot",
+        "stripe_product_id": row.stripe_product_id,
+        "stripe_regular_price_id": row.stripe_regular_price_id,
+        "stripe_offer_price_id": row.stripe_offer_price_id,
+        "stripe_extra_table_price_id": row.stripe_extra_table_price_id,
+    }
+
+
+def tenant_table_limit(tenant: models.Tenant) -> int:
+    if plan_has_unlimited_ordering_points(tenant.saas_plan_code):
+        return UNLIMITED_ORDERING_POINT_LIMIT
+    included = tenant.saas_included_tables
+    if included is None:
+        included = SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)]
+    return max(0, int(included)) + max(
+        0, int(tenant.saas_extra_tables or 0)
+    )
+
+
+def plan_monthly_cents(
+    plan_code: str,
+    extra_tables: int = 0,
+    session: Session | None = None,
+) -> int:
+    plan = plan_details(plan_code, session)
+    return int(plan["price_cents"]) + max(0, int(extra_tables or 0)) * int(
+        plan["extra_table_price_cents"]
+    )
+
+
+def tenant_monthly_cents(tenant: models.Tenant, session: Session | None = None) -> int:
+    base = tenant.saas_monthly_price_cents
+    extra = tenant.saas_extra_table_unit_price_cents
+    if base is None or extra is None:
+        plan = plan_details(tenant.saas_plan_code, session)
+        base = int(plan["price_cents"]) if base is None else base
+        extra = int(plan["extra_table_price_cents"]) if extra is None else extra
+    return max(0, int(base)) + max(0, int(tenant.saas_extra_tables or 0)) * max(0, int(extra))
+
+
+def stripe_price_id_for_plan(
+    plan_code: str,
+    session: Session | None = None,
+    *,
+    use_database: bool = True,
+) -> str:
+    code = normalize_plan_code(plan_code)
+    if use_database:
+        plan = plan_details(code, session)
+        selected = (
+            plan.get("stripe_offer_price_id")
+            if plan.get("offer_active")
+            else plan.get("stripe_regular_price_id")
+        )
+        if selected:
+            return str(selected).strip()
+    return {
+        "lite": settings.saas_lite_stripe_price_id.strip() or settings.saas_stripe_price_id.strip(),
+        "pro": settings.saas_pro_stripe_price_id.strip(),
+        "ultra": settings.saas_ultra_stripe_price_id.strip(),
+        "pilot": "",
+    }[code]
+
+
+def stripe_extra_table_price_id_for_plan(
+    plan_code: str,
+    session: Session | None = None,
+) -> str:
+    plan = plan_details(plan_code, session)
+    return str(
+        plan.get("stripe_extra_table_price_id")
+        or getattr(settings, "saas_extra_table_stripe_price_id", "")
+        or ""
+    ).strip()
+
+
+def stripe_customer_dashboard_url(customer_id: str | None) -> str | None:
+    if not customer_id:
+        return None
+    prefix = "test/" if (settings.stripe_secret_key or "").startswith("sk_test_") else ""
+    return f"https://dashboard.stripe.com/{prefix}customers/{customer_id}"
+
+
+def ensure_table_capacity(
+    session: Session, tenant_id: int, *, additional_tables: int = 1
+) -> tuple[int, int]:
+    tenant = session.get(models.Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    current = int(
+        session.exec(
+            select(func.count()).select_from(models.Table).where(
+                models.Table.tenant_id == tenant_id,
+                models.Table.is_ordering_enabled == True,  # noqa: E712
+            )
+        ).one()
+        or 0
+    )
+    limit = tenant_table_limit(tenant)
+    if current + additional_tables > limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "code": "table_plan_limit",
+                "message": f"Your {normalize_plan_code(tenant.saas_plan_code).title()} plan allows {limit} active ordering points.",
+                "current_tables": current,
+                "table_limit": limit,
+                "current_ordering_points": current,
+                "ordering_point_limit": limit,
+            },
+        )
+    return current, limit
 
 # API path prefixes that remain usable without a SaaS subscription
 # (signup priming, auth, paywall itself, public guest flows).
@@ -133,38 +413,59 @@ def ensure_tenant_saas_access(session: Session, tenant_id: int | None) -> None:
     )
 
 
-def plan_config() -> dict[str, Any]:
-    price_cents = int(getattr(settings, "saas_plan_price_cents", 4900) or 4900)
-    trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
-    currency = (getattr(settings, "saas_plan_currency", None) or "eur").lower()
-    price_id = (getattr(settings, "saas_stripe_price_id", None) or "").strip()
+def plan_config(session: Session | None = None, *, include_hidden: bool = False) -> dict[str, Any]:
     secret = (settings.stripe_secret_key or "").strip()
-    # Flat top-level fields stay for paywall/signup; `plans` is the forward-compatible catalog.
-    hosted_standard = {
-        "id": "hosted_standard",
-        "trial_days": trial_days,
-        "price_cents": price_cents,
-        "currency": currency,
-        "interval": "month",
-    }
+    plans = [plan_details(code, session) for code in SAAS_PLAN_TABLES]
+    for plan in plans:
+        selected_price_id = stripe_price_id_for_plan(str(plan["id"]), session)
+        plan["stripe_checkout_available"] = bool(secret and selected_price_id)
+        plan["compare_at_price_cents"] = (
+            plan["regular_price_cents"] if plan.get("offer_active") else None
+        )
+        # Stripe identifiers are operator-only; public clients need availability, not IDs.
+        plan.pop("stripe_product_id", None)
+        plan.pop("stripe_regular_price_id", None)
+        plan.pop("stripe_offer_price_id", None)
+        plan.pop("stripe_extra_table_price_id", None)
+    if not include_hidden:
+        plans = [plan for plan in plans if plan.get("is_public", True)]
+    lite = next((plan for plan in plans if plan["id"] == "lite"), plans[0] if plans else _fallback_plan("lite"))
     return {
         "enabled": paywall_enabled(),
-        "trial_days": trial_days,
-        "price_cents": price_cents,
-        "currency": currency,
-        "stripe_checkout_available": bool(secret and price_id),
-        "plans": [hosted_standard],
+        "trial_days": int(lite["trial_days"]),
+        # Flat fields remain for the existing paywall flow and represent Lite.
+        "price_cents": int(lite["price_cents"]),
+        "currency": str(lite["currency"]),
+        "extra_table_price_cents": int(lite["extra_table_price_cents"]),
+        "stripe_checkout_available": any(bool(plan["stripe_checkout_available"]) for plan in plans),
+        "extra_table_checkout_available": bool(
+            secret
+            and any(
+                stripe_extra_table_price_id_for_plan(str(plan["id"]), session)
+                for plan in plans
+            )
+        ),
+        "plans": plans,
     }
 
 
-def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
-    cfg = plan_config()
+def subscription_payload(tenant: models.Tenant, session: Session | None = None) -> dict[str, Any]:
+    cfg = plan_config(session)
     status_val = (tenant.saas_subscription_status or SAAS_STATUS_NONE).strip().lower()
     has_access = tenant_has_saas_access(tenant)
     return {
         **cfg,
         "status": status_val,
         "has_access": has_access,
+        "plan_code": normalize_plan_code(tenant.saas_plan_code),
+        "included_tables": tenant.saas_included_tables
+        if tenant.saas_included_tables is not None
+        else SAAS_PLAN_TABLES[normalize_plan_code(tenant.saas_plan_code)],
+        "extra_tables": max(0, int(tenant.saas_extra_tables or 0)),
+        "table_limit": tenant_table_limit(tenant),
+        "ordering_points_unlimited": plan_has_unlimited_ordering_points(
+            tenant.saas_plan_code
+        ),
         "trial_ends_at": tenant.saas_trial_ends_at.isoformat()
         if tenant.saas_trial_ends_at
         else None,
@@ -174,7 +475,7 @@ def subscription_payload(tenant: models.Tenant) -> dict[str, Any]:
     }
 
 
-def start_trial(session: Session, tenant: models.Tenant) -> models.Tenant:
+def start_trial(session: Session, tenant: models.Tenant, plan_code: str | None = None) -> models.Tenant:
     if not paywall_enabled():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -201,11 +502,28 @@ def start_trial(session: Session, tenant: models.Tenant) -> models.Tenant:
             },
         )
 
-    trial_days = int(getattr(settings, "saas_trial_days", 14) or 14)
     now = datetime.now(timezone.utc)
+    previous_status = tenant.saas_subscription_status
+    selected_plan = normalize_plan_code(plan_code or tenant.saas_plan_code)
+    selected = plan_details(selected_plan, session)
+    if not selected.get("is_public", True):
+        raise HTTPException(status_code=400, detail="That Scanaki plan is not currently available")
+    tenant.saas_plan_code = selected_plan
+    trial_days = int(selected["trial_days"])
+    tenant.saas_monthly_price_cents = int(selected["price_cents"])
+    tenant.saas_extra_table_unit_price_cents = int(selected["extra_table_price_cents"])
+    tenant.saas_included_tables = int(selected["included_tables"])
     tenant.saas_subscription_status = SAAS_STATUS_TRIALING
     tenant.saas_trial_ends_at = now + timedelta(days=trial_days)
     session.add(tenant)
+    record_subscription_event(
+        session,
+        tenant,
+        "trial_started",
+        source="tenant",
+        old_status=previous_status,
+        new_status=SAAS_STATUS_TRIALING,
+    )
     session.commit()
     session.refresh(tenant)
     return tenant
@@ -217,9 +535,14 @@ def create_checkout_session(
     user: models.User,
     success_url: str,
     cancel_url: str,
+    plan_code: str | None = None,
 ) -> str:
-    cfg = plan_config()
-    if not cfg["stripe_checkout_available"]:
+    cfg = plan_config(session)
+    selected_plan = normalize_plan_code(plan_code or tenant.saas_plan_code)
+    selected = next((plan for plan in cfg["plans"] if plan["id"] == selected_plan), None)
+    if selected is None:
+        raise HTTPException(status_code=400, detail="That Scanaki plan is not currently available")
+    if not selected["stripe_checkout_available"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -227,9 +550,13 @@ def create_checkout_session(
                 "message": "Platform Stripe is not configured for SaaS checkout.",
             },
         )
-    price_id = settings.saas_stripe_price_id.strip()
+    price_id = stripe_price_id_for_plan(selected_plan, session)
     secret = settings.stripe_secret_key.strip()
-    trial_days = int(cfg["trial_days"])
+    trial_days = int(selected["trial_days"])
+    tenant.saas_plan_code = selected_plan
+    tenant.saas_monthly_price_cents = int(selected["price_cents"])
+    tenant.saas_extra_table_unit_price_cents = int(selected["extra_table_price_cents"])
+    tenant.saas_included_tables = int(selected["included_tables"])
 
     # Offer trial in Checkout only if tenant has never started one.
     # Always attach tenant_id on the Subscription so billing webhooks can resolve the tenant.
@@ -237,6 +564,7 @@ def create_checkout_session(
         "metadata": {
             "tenant_id": str(tenant.id),
             "user_id": str(user.id),
+            "plan_code": selected_plan,
         },
     }
     if tenant.saas_trial_ends_at is None and (
@@ -246,15 +574,29 @@ def create_checkout_session(
         subscription_data["trial_period_days"] = trial_days
 
     try:
+        line_items: list[dict[str, Any]] = [{"price": price_id, "quantity": 1}]
+        extra_price_id = stripe_extra_table_price_id_for_plan(selected_plan, session)
+        if tenant.saas_extra_tables > 0:
+            if not extra_price_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "code": "extra_table_price_not_configured",
+                        "message": "Extra-table Stripe Price is not configured.",
+                    },
+                )
+            line_items.append({"price": extra_price_id, "quantity": int(tenant.saas_extra_tables)})
+
         params: dict[str, Any] = {
             "mode": "subscription",
-            "line_items": [{"price": price_id, "quantity": 1}],
+            "line_items": line_items,
             "success_url": success_url,
             "cancel_url": cancel_url,
             "client_reference_id": str(tenant.id),
             "metadata": {
                 "tenant_id": str(tenant.id),
                 "user_id": str(user.id),
+                "plan_code": selected_plan,
             },
             "subscription_data": subscription_data,
             "api_key": secret,
@@ -274,6 +616,8 @@ def create_checkout_session(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail={"code": "stripe_error", "message": "No checkout URL returned."},
         )
+    session.add(tenant)
+    session.commit()
     return str(url)
 
 
@@ -288,6 +632,8 @@ def _stripe_status_to_saas(stripe_status: str | None) -> str | None:
         return SAAS_STATUS_ACTIVE
     if s == "past_due":
         return SAAS_STATUS_PAST_DUE
+    if s == "paused":
+        return SAAS_STATUS_SUSPENDED
     if s in ("canceled", "unpaid", "incomplete_expired"):
         return SAAS_STATUS_CANCELED
     # incomplete / paused / etc. — do not invent a status
@@ -318,7 +664,12 @@ def apply_stripe_subscription_object(
     sub_id = _obj_get(sub, "id")
     customer_id = _obj_get(sub, "customer")
     stripe_status = _obj_get(sub, "status")
+    metadata = _obj_get(sub, "metadata") or {}
+    if isinstance(metadata, dict) and metadata.get("plan_code"):
+        tenant.saas_plan_code = normalize_plan_code(str(metadata["plan_code"]))
     mapped = _stripe_status_to_saas(stripe_status)
+    if current == SAAS_STATUS_SUSPENDED and _obj_get(sub, "pause_collection"):
+        mapped = SAAS_STATUS_SUSPENDED
     if mapped is None and stripe_status:
         # Unknown status: still store ids, leave status unchanged unless canceled via deleted
         mapped = None
@@ -330,6 +681,11 @@ def apply_stripe_subscription_object(
 
     if mapped is not None:
         tenant.saas_subscription_status = mapped
+        tenant.saas_suspended_at = (
+            datetime.now(timezone.utc) if mapped == SAAS_STATUS_SUSPENDED else None
+        )
+
+    tenant.saas_cancel_at_period_end = bool(_obj_get(sub, "cancel_at_period_end"))
 
     trial_end = _obj_get(sub, "trial_end")
     if trial_end:
@@ -400,6 +756,9 @@ def apply_checkout_session_to_tenant(
         tenant.saas_stripe_customer_id = str(customer_id)
     if subscription_id:
         tenant.saas_stripe_subscription_id = str(subscription_id)
+    metadata = _obj_get(checkout, "metadata") or {}
+    if isinstance(metadata, dict) and metadata.get("plan_code"):
+        tenant.saas_plan_code = normalize_plan_code(str(metadata["plan_code"]))
 
     # Default optimistic active until we see Subscription details
     tenant.saas_subscription_status = SAAS_STATUS_ACTIVE
@@ -502,6 +861,7 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
     Returns a small result dict for logging/tests (no secrets).
     """
     event_type = str(_obj_get(event, "type") or "")
+    stripe_event_id = str(_obj_get(event, "id") or "") or None
     data_object = _obj_get(_obj_get(event, "data"), "object") or {}
 
     if event_type == "checkout.session.completed":
@@ -533,7 +893,81 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
         if not tenant:
             return {"handled": False, "reason": "tenant_not_found", "type": event_type}
 
+        old_status = tenant.saas_subscription_status
         apply_checkout_session_to_tenant(session, tenant, data_object)
+        record_subscription_event(
+            session,
+            tenant,
+            "checkout_completed",
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            stripe_event_id=stripe_event_id,
+        )
+        session.commit()
+        return {
+            "handled": True,
+            "type": event_type,
+            "tenant_id": tenant.id,
+            "status": tenant.saas_subscription_status,
+        }
+
+    if event_type in {"invoice.paid", "invoice.payment_failed", "invoice.payment_action_required"}:
+        invoice = data_object
+        customer_id = _obj_get(invoice, "customer")
+        subscription_id = _obj_get(invoice, "subscription")
+        parent = _obj_get(invoice, "parent") or {}
+        subscription_details = _obj_get(parent, "subscription_details") or {}
+        subscription_id = subscription_id or _obj_get(subscription_details, "subscription")
+        tenant = find_tenant_for_stripe_subscription(
+            session,
+            subscription_id=str(subscription_id) if subscription_id else None,
+            customer_id=str(customer_id) if customer_id else None,
+        )
+        if not tenant:
+            return {"handled": False, "reason": "tenant_not_found", "type": event_type}
+        old_status = tenant.saas_subscription_status
+        now = datetime.now(timezone.utc)
+        invoice_id = str(_obj_get(invoice, "id") or "") or None
+        invoice_status = str(_obj_get(invoice, "status") or "") or None
+        amount = int(
+            _obj_get(invoice, "amount_paid" if event_type == "invoice.paid" else "amount_due", 0)
+            or 0
+        )
+        currency = str(_obj_get(invoice, "currency") or plan_config(session)["currency"]).lower()
+        tenant.saas_last_invoice_id = invoice_id
+        tenant.saas_last_invoice_status = invoice_status or (
+            "paid" if event_type == "invoice.paid" else "open"
+        )
+        tenant.saas_last_invoice_amount_cents = amount
+        tenant.saas_last_invoice_currency = currency
+        if event_type == "invoice.paid":
+            tenant.saas_last_payment_at = now
+            tenant.saas_last_payment_failed_at = None
+            if tenant.saas_subscription_status not in {
+                SAAS_STATUS_GRANDFATHERED,
+                SAAS_STATUS_SUSPENDED,
+            }:
+                tenant.saas_subscription_status = SAAS_STATUS_ACTIVE
+        else:
+            tenant.saas_last_payment_failed_at = now
+            if tenant.saas_subscription_status != SAAS_STATUS_SUSPENDED:
+                tenant.saas_subscription_status = SAAS_STATUS_PAST_DUE
+        session.add(tenant)
+        record_subscription_event(
+            session,
+            tenant,
+            event_type.replace(".", "_"),
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            amount_cents=amount,
+            currency=currency,
+            stripe_event_id=stripe_event_id,
+            detail={"invoice_id": invoice_id, "invoice_status": tenant.saas_last_invoice_status},
+        )
+        session.commit()
+        session.refresh(tenant)
         return {
             "handled": True,
             "type": event_type,
@@ -559,6 +993,7 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
         if not tenant:
             return {"handled": False, "reason": "tenant_not_found", "type": event_type}
 
+        old_status = tenant.saas_subscription_status
         if event_type == "customer.subscription.deleted":
             if isinstance(sub, dict):
                 apply_stripe_subscription_object(
@@ -573,6 +1008,18 @@ def process_saas_stripe_event(session: Session, event: Any) -> dict[str, Any]:
                     session.refresh(tenant)
         else:
             apply_stripe_subscription_object(session, tenant, sub)
+
+        record_subscription_event(
+            session,
+            tenant,
+            event_type.replace(".", "_"),
+            source="stripe",
+            old_status=old_status,
+            new_status=tenant.saas_subscription_status,
+            stripe_event_id=stripe_event_id,
+            detail={"cancel_at_period_end": tenant.saas_cancel_at_period_end},
+        )
+        session.commit()
 
         return {
             "handled": True,

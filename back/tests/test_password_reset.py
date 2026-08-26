@@ -30,6 +30,18 @@ class TestPasswordReset(PgClientTestCase):
             role=models.UserRole.owner,
         )
         self.session.add(self.user)
+        self.courier = models.User(
+            email="pwreset-courier@amvara.de",
+            hashed_password=security.get_password_hash("old-courier-9"),
+            role=models.UserRole.courier,
+            tenant_id=self.tenant.id,
+        )
+        self.platform = models.User(
+            email="pwreset-platform@amvara.de",
+            hashed_password=security.get_password_hash("old-platform-9"),
+            role=models.UserRole.platform_operator,
+        )
+        self.session.add_all([self.courier, self.platform])
         self.session.commit()
         self.session.refresh(self.user)
 
@@ -133,6 +145,30 @@ class TestPasswordReset(PgClientTestCase):
             json={"token": "not-a-real-token-value-here", "new_password": "x" * 10},
         )
         self.assertEqual(r.status_code, 400, r.text)
+
+    @patch("app.main.email_svc.send_password_reset_email", new_callable=AsyncMock)
+    def test_courier_and_platform_scopes_are_isolated(self, mock_send):
+        mock_send.return_value = True
+        from app.settings import settings
+
+        settings.public_app_base_url = "http://127.0.0.1:4202"
+        for scope, email in (
+            ("courier", self.courier.email),
+            ("platform", self.platform.email),
+        ):
+            response = self.client.post(
+                "/password-reset/request",
+                json={"email": email, "scope": scope},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(mock_send.await_count, 2)
+
+        hidden = self.client.post(
+            "/password-reset/request",
+            json={"email": self.platform.email, "scope": "courier"},
+        )
+        self.assertEqual(hidden.status_code, 200, hidden.text)
+        self.assertEqual(mock_send.await_count, 2)
 
     def test_password_reset_not_configured_translations_defined_for_all_locales(self):
         from app.language_service import SUPPORTED_LANGUAGES

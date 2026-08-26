@@ -716,7 +716,7 @@ def extract_items_from_menu_image(contents: bytes, content_type: str) -> list[Pr
         "You extract restaurant menu items from images. "
         "Return ONLY valid JSON: {\"items\":[{\"name\":\"...\",\"price\":12.5,\"category\":\"...\","
         "\"subcategory\":\"...\",\"description\":\"...\",\"ingredients\":\"...\"}]}. "
-        "Use price as a decimal number in the menu currency (major units, e.g. euros). "
+        "Use price as a decimal number in the menu currency (major units, e.g. pounds). "
         "Include every dish/item with a price when visible. Omit items without a readable price."
     )
     payload = {

@@ -125,8 +125,6 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
           <a routerLink="/customer/login" data-testid="login-customer-login">{{ 'CUSTOMER_AUTH.TITLE' | translate }}</a>
           <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a href="mailto:hello@satisfecho.de" data-testid="login-contact-us">{{ 'LANDING.CONTACT_US' | translate }}</a>
           @if (legalTermsUrl() || legalPrivacyUrl()) {
             <span class="auth-foot-sep" aria-hidden="true">·</span>
             <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
@@ -444,31 +442,7 @@ export class LoginComponent implements OnInit {
     const id = tenantId != null ? parseInt(tenantId, 10) : undefined;
     this.api.login(username, password, isNaN(id as number) ? undefined : id).subscribe({
       next: () => {
-        this.api.checkAuth().subscribe(user => {
-          if (user?.role === 'courier') {
-            void this.router.navigate(['/courier']);
-          } else if (user?.provider_id != null) {
-            void this.router.navigate(['/provider']);
-          } else if (user?.tenant_id != null) {
-            this.api.getSaasSubscription().subscribe({
-              next: (sub) => {
-                this.loading.set(false);
-                if (sub.enabled && !sub.has_access) {
-                  void this.router.navigate(['/paywall']);
-                } else {
-                  void this.router.navigate(['/dashboard']);
-                }
-              },
-              error: () => {
-                this.loading.set(false);
-                void this.router.navigate(['/dashboard']);
-              },
-            });
-          } else {
-            this.loading.set(false);
-            void this.router.navigate(['/dashboard']);
-          }
-        });
+        this.api.checkAuth().subscribe((user) => this.routeAfterLogin(user));
       },
       error: (err) => {
         this.loading.set(false);
@@ -492,31 +466,7 @@ export class LoginComponent implements OnInit {
     this.loading.set(true);
     this.api.loginWithOtp(token, this.otpCode).subscribe({
       next: () => {
-        this.api.checkAuth().subscribe(user => {
-          if (user?.role === 'courier') {
-            void this.router.navigate(['/courier']);
-          } else if (user?.provider_id != null) {
-            void this.router.navigate(['/provider']);
-          } else if (user?.tenant_id != null) {
-            this.api.getSaasSubscription().subscribe({
-              next: (sub) => {
-                this.loading.set(false);
-                if (sub.enabled && !sub.has_access) {
-                  void this.router.navigate(['/paywall']);
-                } else {
-                  void this.router.navigate(['/dashboard']);
-                }
-              },
-              error: () => {
-                this.loading.set(false);
-                void this.router.navigate(['/dashboard']);
-              },
-            });
-          } else {
-            this.loading.set(false);
-            void this.router.navigate(['/dashboard']);
-          }
-        });
+        this.api.checkAuth().subscribe((user) => this.routeAfterLogin(user));
       },
       error: (err) => {
         this.loading.set(false);
@@ -530,5 +480,52 @@ export class LoginComponent implements OnInit {
     this.otpTempToken.set(null);
     this.otpCode = '';
     this.error.set('');
+  }
+
+  private routeAfterLogin(
+    user: { role?: string; provider_id?: number | null; tenant_id?: number | null } | null,
+  ): void {
+    if (user?.role === 'courier') {
+      this.loading.set(false);
+      void this.router.navigate(['/courier']);
+      return;
+    }
+    if (user?.provider_id != null) {
+      this.loading.set(false);
+      void this.router.navigate(['/provider']);
+      return;
+    }
+    if (user?.tenant_id == null) {
+      this.loading.set(false);
+      void this.router.navigate(['/dashboard']);
+      return;
+    }
+    const continueToSubscription = () => {
+      this.api.getSaasSubscription().subscribe({
+        next: (sub) => {
+          this.loading.set(false);
+          void this.router.navigate([sub.enabled && !sub.has_access ? '/paywall' : '/dashboard']);
+        },
+        error: () => {
+          this.loading.set(false);
+          void this.router.navigate(['/dashboard']);
+        },
+      });
+    };
+    if (user.role !== 'owner') {
+      continueToSubscription();
+      return;
+    }
+    this.api.getRestaurantOnboarding().subscribe({
+      next: (onboarding) => {
+        if (onboarding.status !== 'completed') {
+          this.loading.set(false);
+          void this.router.navigate(['/onboarding']);
+          return;
+        }
+        continueToSubscription();
+      },
+      error: () => continueToSubscription(),
+    });
   }
 }
