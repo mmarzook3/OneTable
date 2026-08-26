@@ -62,12 +62,15 @@ class TestPlatformSettings(PgClientTestCase):
         row.smtp_last_tested_at = None
         row.smtp_last_test_success = None
         row.smtp_last_test_message = None
+        self.operator.recovery_email = None
+        self.session.add(self.operator)
         self.session.add(row)
         self.session.commit()
         self.session.refresh(self.operator)
 
     def _body(self, **overrides) -> dict:
         body = {
+            "operator_recovery_email": "platform-owner@scanaki.uk",
             "company_legal_name": "Scanaki Systems Ltd",
             "support_email": "support@scanaki.uk",
             "contact_email": "hello@scanaki.uk",
@@ -115,6 +118,7 @@ class TestPlatformSettings(PgClientTestCase):
         self.assertEqual(response.status_code, 200, response.text)
         payload = response.json()
         self.assertEqual(payload["company_legal_name"], "Scanaki Systems Ltd")
+        self.assertEqual(payload["operator_recovery_email"], "platform-owner@scanaki.uk")
         self.assertEqual(payload["smtp_password_masked"], "••••••••")
         self.assertTrue(payload["smtp_password_configured"])
         self.assertEqual(payload["smtp_source"], "database")

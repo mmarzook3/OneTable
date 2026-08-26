@@ -445,6 +445,7 @@ class PlatformSettings(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
+    recovery_email: str | None = Field(default=None, max_length=320, index=True)
     hashed_password: str
     full_name: str | None = None
     token_version: int = Field(default=0)  # Increment to invalidate all tokens
@@ -679,6 +680,7 @@ class PlatformPricingPublish(SQLModel):
 
 
 class PlatformSettingsUpdate(SQLModel):
+    operator_recovery_email: str | None = Field(default=None, max_length=320)
     company_legal_name: str | None = Field(default=None, max_length=200)
     support_email: str | None = Field(default=None, max_length=320)
     contact_email: str | None = Field(default=None, max_length=320)

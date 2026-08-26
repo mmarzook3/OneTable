@@ -153,7 +153,10 @@ def public_platform_settings(session: Session) -> dict[str, Any]:
     }
 
 
-def platform_settings_payload(session: Session) -> dict[str, Any]:
+def platform_settings_payload(
+    session: Session,
+    operator: models.User | None = None,
+) -> dict[str, Any]:
     row = get_platform_settings(session)
     assert row is not None
     smtp = effective_platform_smtp_config(session)
@@ -173,6 +176,7 @@ def platform_settings_payload(session: Session) -> dict[str, Any]:
     else:
         status = "not_configured"
     return {
+        "operator_recovery_email": operator.recovery_email if operator else None,
         **public_platform_settings(session),
         "smtp_host": row.smtp_host or smtp.get("host") or "",
         "smtp_port": row.smtp_port or smtp.get("port") or 587,
@@ -214,6 +218,7 @@ def update_platform_settings(
     smtp_host = _clean(body.smtp_host)
     smtp_user = _clean(body.smtp_user)
     smtp_auth_required = bool(body.smtp_auth_required)
+    operator_recovery_email = _email(body.operator_recovery_email, "recovery email")
     sender_email = _email(body.email_from, "sender email")
     sender_name = _clean(body.email_from_name)
     new_password = _clean(body.smtp_password)
@@ -283,10 +288,12 @@ def update_platform_settings(
         row.smtp_last_test_message = None
     row.updated_by_user_id = operator.id
     row.updated_at = datetime.now(timezone.utc)
+    operator.recovery_email = operator_recovery_email
+    session.add(operator)
     session.add(row)
     session.commit()
     session.refresh(row)
-    return platform_settings_payload(session)
+    return platform_settings_payload(session, operator)
 
 
 async def test_platform_smtp(

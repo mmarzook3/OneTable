@@ -724,6 +724,7 @@ export interface PlatformPublicSettings {
 }
 
 export interface PlatformSettings extends PlatformPublicSettings {
+  operator_recovery_email?: string | null;
   smtp_host: string;
   smtp_port: number;
   smtp_use_tls: boolean;
@@ -742,6 +743,7 @@ export interface PlatformSettings extends PlatformPublicSettings {
 }
 
 export interface PlatformSettingsUpdate extends PlatformPublicSettings {
+  operator_recovery_email?: string | null;
   smtp_host?: string | null;
   smtp_port?: number | null;
   smtp_use_tls: boolean;
