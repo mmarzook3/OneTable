@@ -161,7 +161,7 @@ Do not start this section until sandbox acceptance is complete.
 | MVP-078 | [ ] | P0 | Joint | Verify customer ordering context. | Location and room/table remain visible through menu, basket, payment and receipt. |
 | MVP-079 | [ ] | P0 | Joint | Build a basket and complete sandbox payment. | Correct products, modifiers, total and payment result are shown. |
 | MVP-080 | [x] | P0 | Joint | Verify kitchen release. | Exactly one correctly routed FIFO card appears after payment only. |
-| MVP-081 | [ ] | P0 | Yew Trees | Process the kitchen status lifecycle. | Staff move order through Pending, Preparing, Ready and Delivered correctly. |
+| MVP-081 | [x] | P0 | Yew Trees | Process the kitchen status lifecycle. | The Kitchen account moved full paid tickets through Pending, Preparing, Ready and completed delivery correctly in production. |
 | MVP-082 | [ ] | P0 | Yew Trees | Test sold-out and restore. | Product becomes unavailable/available immediately and existing paid order remains intact. |
 | MVP-083 | [x] | P0 | Scanaki | Submit a failed sandbox payment. | It never enters KDS and the customer can retry safely. |
 | MVP-084 | [ ] | P0 | Joint | Disconnect venue Wi-Fi during service. | Tablet switches to SIM and KDS recovers without missing/duplicating orders. |
@@ -206,6 +206,16 @@ Do not start this section until sandbox acceptance is complete.
 - Live sandbox acceptance was repeated on 26 August 2026 using orders 6–8: a successful Visa test payment released one kitchen order exactly once; a duplicate signed webhook released none; failed and cancelled payments never reached KDS; the Stripe refund and signed refund webhook completed; an invalid signature returned HTTP 400; and payment reconciliation passed. The test orders were then cancelled and soft-deleted from the operational queue without removing their payment audit records.
 - Live multi-location browser acceptance was completed using Indoor Table 1, Outdoor Bench 1, Sports Lounge Table 1 and Premium Building PB1. Every QR/NFC menu showed the correct location/ordering-point context and the same 20-item inherited menu; paid food orders appeared in FIFO order on the shared Kitchen display, while Coffee and Water correctly routed to the Bar display. A real mobile PB1 Stripe test-card checkout reached the visible `Payment successful!` state and `/confirm-payment` returned HTTP 200 after fixing its SlowAPI response injection. All screenshot orders were refunded and soft-deleted, the temporary kitchen login was restored and revoked, and reconciliation remained green.
 - The Yew Trees was then switched to the configurable `kitchen_all` routing mode. Live paid order 17 proved that Coffee and Cheese Samosa appeared together on one Kitchen FIFO ticket. The redesigned ticket kept `PAID`, location, ordering point, items and the primary `Start`/`Ready` action visible; secondary customer, timing, item-state and note details opened through `Show more`; all controls remained contained at the 1280×720 tablet viewport. `Start` advanced both lines to Preparing and exposed `Ready`. The sandbox payment was refunded, the test order was soft-deleted, and the original Kitchen password was restored.
+- Full production KDS acceptance was repeated with paid sandbox orders 18–20 from Indoor Table 1, Sports Lounge Table 1 and Premium Building PB1. Each ticket contained a beverage and food item, all six lines stayed together in the Kitchen queue under `kitchen_all`, and FIFO order, `PAID`, location and ordering-point context were correct. Location filtering, expanded details and the full `Start` → `Ready` → `Complete` lifecycle passed. Stock temporarily removed Water from the public menu while the already-paid PB1 ticket retained it, then restored Water successfully. The three Stripe payments were refunded, orders were cancelled and soft-deleted, the Kitchen password was restored, the KDS queue returned empty, payment reconciliation passed and production logs remained error-free. Full regression remained green at 526 backend tests plus the Angular production build.
+
+### Full KDS acceptance screenshots
+
+- [All-location paid FIFO queue](evidence/2026-08-26-kds-full/kds-full-01-fifo-all-locations.jpg)
+- [Ready action and expanded details](evidence/2026-08-26-kds-full/kds-full-02-ready-show-more.jpg)
+- [Combined Kitchen routing settings](evidence/2026-08-26-kds-full/kds-full-03-routing-settings.jpg)
+- [Kitchen Stock control](evidence/2026-08-26-kds-full/kds-full-04-stock-control.jpg)
+- [Sports Lounge location filter](evidence/2026-08-26-kds-full/kds-full-05-location-filter.jpg)
+- [Empty queue after completion](evidence/2026-08-26-kds-full/kds-full-06-no-active-orders.jpg)
 - Live KDS gate returned `KDS_OFFLINE` after the heartbeat expired and reopened for the controlled payment test when heartbeat was current.
 - Legacy platform administrator was disabled and existing tokens were revoked.
 - Live customer, courier and platform forgot-password pages render on mobile without browser errors. Email delivery remains blocked until `MVP-004` is supplied.
