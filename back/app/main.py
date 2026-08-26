@@ -4988,6 +4988,7 @@ def get_kitchen_display_settings(
         "yellow_minutes": tenant.kitchen_display_timer_yellow_minutes if tenant.kitchen_display_timer_yellow_minutes is not None else 5,
         "orange_minutes": tenant.kitchen_display_timer_orange_minutes if tenant.kitchen_display_timer_orange_minutes is not None else 10,
         "red_minutes": tenant.kitchen_display_timer_red_minutes if tenant.kitchen_display_timer_red_minutes is not None else 15,
+        "routing_mode": tenant.kds_routing_mode or "split",
     }
 
 
@@ -4997,7 +4998,7 @@ def update_kitchen_display_settings(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Update kitchen/bar display timer thresholds (minutes)."""
+    """Update KDS timer thresholds and kitchen/bar routing mode."""
     tenant = session.exec(
         select(models.Tenant).where(models.Tenant.id == current_user.tenant_id)
     ).first()
@@ -5006,12 +5007,18 @@ def update_kitchen_display_settings(
     yellow = body.get("yellow_minutes")
     orange = body.get("orange_minutes")
     red = body.get("red_minutes")
+    routing_mode = body.get("routing_mode")
     if yellow is not None:
         tenant.kitchen_display_timer_yellow_minutes = max(0, int(yellow))
     if orange is not None:
         tenant.kitchen_display_timer_orange_minutes = max(0, int(orange))
     if red is not None:
         tenant.kitchen_display_timer_red_minutes = max(0, int(red))
+    if routing_mode is not None:
+        normalized_routing = str(routing_mode).strip().lower()
+        if normalized_routing not in {"split", "kitchen_all"}:
+            raise HTTPException(status_code=400, detail="Invalid KDS routing mode")
+        tenant.kds_routing_mode = normalized_routing
     session.add(tenant)
     session.commit()
     session.refresh(tenant)
@@ -5019,6 +5026,7 @@ def update_kitchen_display_settings(
         "yellow_minutes": tenant.kitchen_display_timer_yellow_minutes or 5,
         "orange_minutes": tenant.kitchen_display_timer_orange_minutes or 10,
         "red_minutes": tenant.kitchen_display_timer_red_minutes or 15,
+        "routing_mode": tenant.kds_routing_mode or "split",
     }
 
 
@@ -5871,18 +5879,10 @@ def list_product_availability(
     ).all()
     rows: list[dict] = []
     for product in products:
-        explicit_station = (
-            station_by_id.get(int(product.kitchen_station_id))
-            if product.kitchen_station_id is not None
-            else None
-        )
-        route = (
-            explicit_station.display_route
-            if explicit_station is not None
-            else ("bar" if product.category == "Beverages" else "kitchen")
-        )
-        resolved_station_id = product.kitchen_station_id or (
-            tenant.default_bar_station_id if route == "bar" else tenant.default_kitchen_station_id
+        resolved_station_id, _station_name, route = resolve_order_item_kds(
+            product,
+            tenant,
+            station_by_id,
         )
         rows.append(
             {

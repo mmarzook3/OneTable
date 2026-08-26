@@ -23,7 +23,7 @@ import {
 } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
-import { Subscription } from 'rxjs';
+import { forkJoin, Subscription } from 'rxjs';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
@@ -46,6 +46,14 @@ type FullscreenDocument = Document & {
   webkitExitFullscreen?: () => Promise<void> | void;
   mozCancelFullScreen?: () => Promise<void> | void;
   msExitFullscreen?: () => Promise<void> | void;
+};
+
+type KdsRoutingMode = 'split' | 'kitchen_all';
+type KitchenDisplaySettings = {
+  yellow_minutes: number;
+  orange_minutes: number;
+  red_minutes: number;
+  routing_mode: KdsRoutingMode;
 };
 
 function getFullscreenElement(): Element | null {
@@ -163,9 +171,9 @@ const VIEW_CATEGORY: Record<string, string> = {
               {{ 'COMMON.ENTER_FULLSCREEN' | translate }}
             }
           </button>
-          <button type="button" class="timer-settings-btn" (click)="openTimerSettingsModal()" [title]="'KITCHEN_DISPLAY.TIMER_SETTINGS' | translate">
+          <button type="button" class="timer-settings-btn" (click)="openTimerSettingsModal()" title="Display settings">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            {{ 'KITCHEN_DISPLAY.TIMER_SETTINGS' | translate }}
+            Display settings
           </button>
           <label class="sound-toggle">
             <input type="checkbox" [checked]="soundEnabled()" (change)="toggleSound($event)" />
@@ -204,23 +212,22 @@ const VIEW_CATEGORY: Record<string, string> = {
           <div class="order-grid">
             @for (order of activeOrders(); track order.id; let position = $index) {
               <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
-                <div class="order-header">
-                  <div class="order-meta">
+                <header class="order-header">
+                  <div class="order-sequence">
                     <span class="fifo-position">FIFO {{ position + 1 }}</span>
                     <span class="order-id">#{{ order.id }}</span>
-                    @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
-                    <span class="order-table">{{ order.service_point_label || order.table_name }}</span>
                     @if (order.staff_urgent) {
                       <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
                     }
-                    @if (order.customer_name) {
-                      <span class="order-customer">{{ 'ORDERS.CUSTOMER' | translate }}: {{ order.customer_name }}</span>
-                    }
-                    <span class="order-time" [title]="formatExactTime(getKitchenStart(order))">{{ formatOrderTime(getKitchenStart(order)) }}</span>
-                    <span class="order-waiting" [title]="formatExactTime(getKitchenStart(order))">{{ 'KITCHEN_DISPLAY.WAITING' | translate }}: {{ formatWaitingTime(getKitchenStart(order)) }}</span>
                   </div>
-                  <span class="status-badge status-{{ order.status }}">{{ getStatusLabel(order.status) }}</span>
-                </div>
+                  <span class="payment-badge" [class.payment-badge-paid]="isOrderPaid(order)">
+                    {{ isOrderPaid(order) ? 'PAID' : 'NOT PAID' }}
+                  </span>
+                </header>
+                <section class="order-destination">
+                  @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
+                  <strong class="order-table">{{ order.service_point_label || order.table_name }}</strong>
+                </section>
                 <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
                   <div class="order-timer-bar-track">
                     <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
@@ -231,39 +238,54 @@ const VIEW_CATEGORY: Record<string, string> = {
                     @if (!item.removed_by_customer) {
                       <li class="order-item">
                         <span class="item-qty">{{ item.quantity }}×</span>
-                        <span class="item-name">{{ item.product_name }}</span>
-                        @if (hasCustomization(item)) {
-                          <span class="item-customization">{{ formatCustomizationItem(item) }}</span>
-                        }
-                        @if (item.notes) {
-                          <span class="item-notes"><strong>{{ 'KITCHEN_DISPLAY.ITEM_COMMENT' | translate }}:</strong> {{ item.notes }}</span>
-                        }
-                        @if (canUpdateItemStatus() && item.id != null && item.status !== 'delivered' && item.status !== 'cancelled') {
-                          <div class="item-status-control">
-                            <span class="item-status-badge" [class]="'status-' + (item.status || 'pending')">
-                              {{ getItemStatusLabel(item.status || 'pending') }}
-                            </span>
-                            @if (getPreviousItemStatus(item.status || 'pending'); as previousStatus) {
-                              <button type="button" class="item-action item-action-back"
-                                (click)="updateItemStatus(order.id, item.id!, previousStatus)"
-                                [attr.aria-label]="'ORDERS.GO_BACK' | translate">↶</button>
-                            }
-                            @if (getNextItemStatus(item.status || 'pending'); as nextStatus) {
-                              <button type="button" class="item-action item-action-forward"
-                                (click)="updateItemStatus(order.id, item.id!, nextStatus)">
-                                {{ getKitchenActionLabel(nextStatus) | translate }}
-                              </button>
-                            }
-                          </div>
-                        } @else {
-                          <span class="item-status" [class]="'status-' + (item.status || 'pending')">{{ getItemStatusLabel(item.status || 'pending') }}</span>
-                        }
+                        <span class="item-copy">
+                          <strong class="item-name">{{ item.product_name }}</strong>
+                          @if (hasCustomization(item)) {
+                            <small class="item-customization">{{ formatCustomizationItem(item) }}</small>
+                          }
+                          @if (item.notes) {
+                            <small class="item-notes"><strong>{{ 'KITCHEN_DISPLAY.ITEM_COMMENT' | translate }}:</strong> {{ item.notes }}</small>
+                          }
+                        </span>
                       </li>
                     }
                   }
                 </ul>
-                @if (order.notes) {
-                  <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ order.notes }}</div>
+                <footer class="order-actions">
+                  @if (getOrderActionTarget(order)) {
+                    <button
+                      type="button"
+                      class="order-primary-action"
+                      [class]="getOrderActionClass(order)"
+                      [disabled]="isOrderActionBusy(order.id) || !canUpdateItemStatus()"
+                      (click)="advanceOrder(order)"
+                    >
+                      {{ isOrderActionBusy(order.id) ? 'Updating...' : getOrderActionLabel(order) }}
+                    </button>
+                  }
+                  <button type="button" class="order-details-toggle" (click)="toggleOrderDetails(order.id)" [attr.aria-expanded]="isOrderDetailsOpen(order.id)">
+                    {{ isOrderDetailsOpen(order.id) ? 'Show less' : 'Show more' }}
+                  </button>
+                </footer>
+                @if (isOrderDetailsOpen(order.id)) {
+                  <section class="order-details">
+                    <dl>
+                      @if (order.customer_name) { <div><dt>Customer</dt><dd>{{ order.customer_name }}</dd></div> }
+                      <div><dt>Waiting</dt><dd>{{ formatWaitingTime(getKitchenStart(order)) }}</dd></div>
+                      <div><dt>Received</dt><dd>{{ formatOrderTime(getKitchenStart(order)) }}</dd></div>
+                      <div><dt>Status</dt><dd>{{ getStatusLabel(order.status) }}</dd></div>
+                    </dl>
+                    <div class="item-status-summary">
+                      @for (item of getSortedItems(order.items); track item.id) {
+                        @if (!item.removed_by_customer) {
+                          <span>{{ item.product_name }}: {{ getItemStatusLabel(item.status || 'pending') }}</span>
+                        }
+                      }
+                    </div>
+                    @if (cleanKitchenNotes(order.notes); as visibleNotes) {
+                      <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ visibleNotes }}</div>
+                    }
+                  </section>
                 }
               </article>
             }
@@ -340,8 +362,16 @@ const VIEW_CATEGORY: Record<string, string> = {
       @if (timerSettingsModalOpen()) {
         <div class="modal-backdrop" (click)="closeTimerSettingsModal()"></div>
         <div class="modal timer-settings-modal" role="dialog" aria-labelledby="timer-settings-title" appFocusFirstInput>
-          <h2 id="timer-settings-title" class="modal-title">{{ 'KITCHEN_DISPLAY.TIMER_SETTINGS_TITLE' | translate }}</h2>
-          <p class="modal-desc">{{ 'KITCHEN_DISPLAY.TIMER_SETTINGS_DESC' | translate }}</p>
+          <h2 id="timer-settings-title" class="modal-title">Display settings</h2>
+          <p class="modal-desc">Set order routing and wait-time colours.</p>
+          <label class="routing-mode-control">
+            <span>Order display routing</span>
+            <select [ngModel]="timerSettingsForm().routing_mode" (ngModelChange)="updateTimerFormRouting($event)">
+              <option [ngValue]="'kitchen_all'">All items in Kitchen</option>
+              <option [ngValue]="'split'">Split Kitchen and Bar</option>
+            </select>
+            <small>Use one combined kitchen queue or send drinks separately to Bar.</small>
+          </label>
           <div class="timer-settings-form">
             <label>
               <span>{{ 'KITCHEN_DISPLAY.TIMER_YELLOW_MINUTES' | translate }}</span>
@@ -488,16 +518,18 @@ const VIEW_CATEGORY: Record<string, string> = {
     .empty-state p { margin: 0; color: var(--color-text-muted); }
     .order-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: var(--space-5);
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+      gap: 16px;
       align-items: start;
     }
     .order-card {
+      display: grid;
+      min-width: 0;
       background: #292e39;
       border: 2px solid #414959;
       border-left: 6px solid var(--color-warning);
-      border-radius: var(--radius-lg);
-      overflow: visible;
+      border-radius: 12px;
+      overflow: hidden;
       box-shadow: var(--shadow-md);
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
@@ -516,7 +548,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: #b91c1c;
     }
     .fifo-position {
-      align-self: flex-start;
+      align-self: center;
       padding: 3px 8px;
       border-radius: 4px;
       background: #111827;
@@ -525,8 +557,15 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-weight: 800;
       letter-spacing: 0.06em;
     }
+    .order-sequence {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 10px;
+    }
     .order-timer-bar-wrap {
-      padding: 0 var(--space-5) var(--space-3);
+      padding: 0 16px 12px;
+      background: #20242d;
     }
     .order-timer-bar-track {
       height: 8px;
@@ -551,138 +590,150 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      padding: var(--space-4) var(--space-5);
-      border-bottom: 2px solid #414959;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px 10px;
       background: #20242d;
     }
-    .order-meta {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-1);
-    }
     .order-id {
-      font-size: 1.5rem;
-      font-weight: 700;
+      font-size: 1.2rem;
+      font-weight: 800;
       color: #f8fafc;
+      white-space: nowrap;
+    }
+    .order-destination {
+      display: grid;
+      min-width: 0;
+      gap: 4px;
+      padding: 4px 16px 14px;
+      background: #20242d;
+      border-bottom: 1px solid #414959;
     }
     .order-table {
-      font-size: 1.25rem;
-      font-weight: 600;
+      overflow-wrap: anywhere;
+      font-size: clamp(1.35rem, 2.3vw, 1.8rem);
+      line-height: 1.05;
+      font-weight: 850;
       color: #fbbf24;
     }
     .order-location {
-      width: 100%;
       color: #bfdbfe;
-      font-size: .78rem;
+      font-size: .72rem;
       font-weight: 800;
       letter-spacing: .045em;
       text-transform: uppercase;
+      overflow-wrap: anywhere;
     }
-    .order-customer { font-size: 1rem; color: #cbd5e1; }
-    .order-time { font-size: 1rem; color: #cbd5e1; }
-    .order-waiting { font-size: 1.125rem; font-weight: 700; color: #f8fafc; }
-    .status-badge {
-      padding: var(--space-2) var(--space-4);
-      border-radius: 20px;
-      font-size: 0.9375rem;
-      font-weight: 700;
-      color: #f8fafc;
-      background: #374151;
+    .payment-badge {
+      flex: 0 0 auto;
+      padding: 8px 11px;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      background: #451a1a;
+      color: #fecaca;
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .06em;
+      white-space: nowrap;
     }
-    .status-badge.status-pending { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-    .status-badge.status-paid { background: rgba(34, 197, 94, 0.22); color: #86efac; }
-    .status-badge.status-preparing { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
-    .status-badge.status-ready,
-    .status-badge.status-partially_delivered { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+    .payment-badge-paid { border-color: #166534; background: #14532d; color: #dcfce7; }
     .order-items {
       list-style: none;
       margin: 0;
-      padding: var(--space-4) var(--space-5);
+      padding: 10px 16px;
     }
     .order-item {
       display: grid;
-      grid-template-columns: auto 1fr auto auto;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) 0;
-      font-size: 1.125rem;
-      line-height: 1.4;
+      grid-template-columns: 42px minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      min-width: 0;
+      padding: 13px 0;
+      font-size: 1.1rem;
+      line-height: 1.25;
       border-bottom: 1px solid #414959;
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
       font-weight: 700;
       color: var(--color-primary);
-      font-size: 1.25rem;
+      font-size: 1.3rem;
     }
-    .item-name { font-weight: 650; color: #f8fafc; }
+    .item-copy { display: grid; min-width: 0; gap: 5px; }
+    .item-name { overflow-wrap: anywhere; font-weight: 800; color: #f8fafc; }
     .item-notes {
-      grid-column: 1 / -1;
-      font-size: 1rem;
+      display: block;
+      font-size: .9rem;
       font-weight: 600;
-      color: #b45309;
+      color: #fde68a;
       background: rgba(245, 158, 11, 0.12);
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-sm);
+      padding: 7px 9px;
+      border-radius: 7px;
       border-left: 3px solid var(--color-warning);
       white-space: pre-wrap;
       word-break: break-word;
-      font-style: normal;
     }
     .item-customization {
-      grid-column: 2 / 4;
-      font-size: 0.8125rem;
+      display: block;
+      font-size: .85rem;
+      line-height: 1.3;
       color: #cbd5e1;
     }
-    .item-status {
-      font-size: 0.8125rem;
-      font-weight: 600;
-      padding: 2px 8px;
-      border-radius: 10px;
+    .order-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 12px 16px 14px;
+      border-top: 1px solid #414959;
+      background: #20242d;
     }
-    .item-status.status-pending { background: rgba(245, 158, 11, 0.15); color: var(--color-warning); }
-    .item-status.status-preparing { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
-    .item-status.status-ready { background: var(--color-success-light); color: var(--color-success); }
-    .item-status.status-delivered { background: var(--color-bg); color: var(--color-text-muted); }
-    .item-status-control {
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      grid-column: 3 / -1;
-    }
-    .item-action {
-      min-height: 52px;
-      border-radius: 8px;
-      border: 1px solid #64748b;
-      font-size: 1rem;
-      font-weight: 800;
+    .order-primary-action,
+    .order-details-toggle {
+      min-width: 0;
+      min-height: 56px;
+      border-radius: 9px;
+      font: inherit;
+      font-size: 1.05rem;
+      font-weight: 900;
+      white-space: nowrap;
       cursor: pointer;
       touch-action: manipulation;
     }
-    .item-action-forward {
-      min-width: 116px;
-      padding: 0 18px;
-      color: #07120b;
-      background: #4ade80;
-      border-color: #4ade80;
-    }
-    .item-action-back {
-      width: 52px;
+    .order-primary-action { border: 1px solid #2563eb; background: #2563eb; color: #fff; }
+    .order-primary-action.order-action-ready { border-color: #16a34a; background: #16a34a; }
+    .order-primary-action.order-action-complete { border-color: #64748b; background: #475569; }
+    .order-primary-action:disabled { cursor: wait; opacity: .55; }
+    .order-details-toggle {
+      min-width: 102px;
+      padding: 0 12px;
+      border: 1px solid #64748b;
+      background: transparent;
       color: #e2e8f0;
-      background: #343b49;
+      font-size: .9rem;
     }
+    .order-primary-action:active,.order-details-toggle:active { transform: translateY(1px); }
+    .order-details { padding: 12px 16px 16px; border-top: 1px solid #414959; background: #171a21; }
+    .order-details dl { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; margin: 0; }
+    .order-details dl div { min-width: 0; }
+    .order-details dt { color: #94a3b8; font-size: .7rem; font-weight: 800; text-transform: uppercase; }
+    .order-details dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #f8fafc; font-weight: 700; }
+    .item-status-summary { display: grid; gap: 5px; margin-top: 12px; color: #cbd5e1; font-size: .78rem; }
     .order-notes {
-      padding: var(--space-3) var(--space-5);
+      margin-top: 12px;
+      padding: 10px 11px;
       background: rgba(245, 158, 11, 0.12);
-      font-size: 1rem;
+      border: 1px solid rgba(245, 158, 11, .26);
+      border-radius: 8px;
+      font-size: .82rem;
       font-weight: 600;
       color: #f8fafc;
-      border-top: 1px solid var(--color-border);
-      border-left: 4px solid var(--color-warning);
       white-space: pre-wrap;
       word-break: break-word;
+    }
+    @media (max-width: 520px) {
+      .order-actions { grid-template-columns: 1fr; }
+      .order-details-toggle { width: 100%; }
+      .order-details dl { grid-template-columns: 1fr; }
     }
     .stock-notice {
       padding: 10px 24px;
@@ -836,6 +887,24 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .modal-title { margin: 0 0 var(--space-2); font-size: 1.25rem; }
     .modal-desc { margin: 0 0 var(--space-4); color: var(--color-text-muted); font-size: 0.9375rem; }
+    .routing-mode-control {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 18px;
+      color: var(--color-text);
+      font-weight: 700;
+    }
+    .routing-mode-control select {
+      width: 100%;
+      min-height: 44px;
+      padding: 0 11px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text);
+      font: inherit;
+    }
+    .routing-mode-control small { color: var(--color-text-muted); font-size: .78rem; font-weight: 500; }
     .timer-settings-form {
       display: flex;
       flex-direction: column;
@@ -922,16 +991,18 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   /** Current time for live timer (updates every second). */
   now = signal(Date.now());
   /** Timer thresholds (minutes) for card color. Defaults 5, 10, 15. */
-  timerSettings = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
+  timerSettings = signal<KitchenDisplaySettings>({
     yellow_minutes: 5,
     orange_minutes: 10,
     red_minutes: 15,
+    routing_mode: 'split',
   });
   timerSettingsModalOpen = signal(false);
-  timerSettingsForm = signal<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>({
+  timerSettingsForm = signal<KitchenDisplaySettings>({
     yellow_minutes: 5,
     orange_minutes: 10,
     red_minutes: 15,
+    routing_mode: 'split',
   });
   private tickIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -939,6 +1010,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private wakeLock: { release: () => Promise<void> } | null = null;
   kdsOnline = signal(true);
   strictFifo = signal(true);
+  expandedOrderDetails = signal<Set<number>>(new Set());
+  orderActionBusy = signal<Set<number>>(new Set());
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
@@ -1040,7 +1113,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   lastRefreshRelative = computed(() => {
     const at = this.lastRefreshAt();
-    if (!at) return '—';
+    if (!at) return '-';
     const sec = Math.floor((Date.now() - at.getTime()) / 1000);
     if (sec < 10) return '< 10s';
     if (sec < 60) return `${sec}s`;
@@ -1325,7 +1398,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return 'timer-green';
   }
 
-  /** Fill width 0–100% toward red threshold (visual progress of wait time). */
+  /** Fill width 0-100% toward red threshold (visual progress of wait time). */
   getTimerBarPercent(order: Order): number {
     const min = this.getElapsedMinutes(this.getKitchenStart(order));
     const cap = this.timerSettings().red_minutes ?? 15;
@@ -1340,7 +1413,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   /** Format waiting time with seconds (mm:ss or h:mm:ss) so it ticks every second. */
   formatWaitingTime(createdAt: string): string {
     const created = this.parseOrderDate(createdAt);
-    if (!created) return '—';
+    if (!created) return '-';
     const totalSeconds = Math.floor((this.now() - created) / 1000);
     if (totalSeconds < 0) return '0:00';
     const s = totalSeconds % 60;
@@ -1378,6 +1451,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
   updateTimerFormRed(v: number): void {
     this.timerSettingsForm.update((f) => ({ ...f, red_minutes: Math.max(0, Number(v) || 0) }));
+  }
+  updateTimerFormRouting(value: KdsRoutingMode): void {
+    this.timerSettingsForm.update((form) => ({
+      ...form,
+      routing_mode: value === 'kitchen_all' ? 'kitchen_all' : 'split',
+    }));
   }
 
   saveTimerSettings(): void {
@@ -1583,13 +1662,13 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   formatOrderTime(dateString: string): string {
-    if (!dateString) return '—';
+    if (!dateString) return '-';
     const dateStr =
       dateString.endsWith('Z') || dateString.includes('+') || dateString.includes('-', 10)
         ? dateString
         : dateString + 'Z';
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '—';
+    if (isNaN(date.getTime())) return '-';
     const diffMs = Date.now() - date.getTime();
     if (diffMs < 60_000) return '< 1m ago';
     if (diffMs < 3600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
@@ -1605,6 +1684,89 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
         : dateString + 'Z';
     const date = new Date(dateStr);
     return isNaN(date.getTime()) ? dateString : date.toLocaleString();
+  }
+
+  isOrderPaid(order: Order): boolean {
+    return !!order.paid_at || ['succeeded', 'refunded'].includes(order.payment_state || '');
+  }
+
+  toggleOrderDetails(orderId: number): void {
+    this.expandedOrderDetails.update((current) => {
+      const next = new Set(current);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  }
+
+  isOrderDetailsOpen(orderId: number): boolean {
+    return this.expandedOrderDetails().has(orderId);
+  }
+
+  isOrderActionBusy(orderId: number): boolean {
+    return this.orderActionBusy().has(orderId);
+  }
+
+  getOrderActionTarget(order: Order): 'preparing' | 'ready' | 'delivered' | null {
+    const statuses = (order.items || [])
+      .filter((item) => !item.removed_by_customer)
+      .map((item) => item.status || 'pending');
+    if (statuses.includes('pending')) return 'preparing';
+    if (statuses.includes('preparing')) return 'ready';
+    if (statuses.includes('ready')) return 'delivered';
+    return null;
+  }
+
+  getOrderActionLabel(order: Order): string {
+    const target = this.getOrderActionTarget(order);
+    if (target === 'preparing') return 'Start';
+    if (target === 'ready') return 'Ready';
+    if (target === 'delivered') return 'Complete';
+    return '';
+  }
+
+  getOrderActionClass(order: Order): string {
+    const target = this.getOrderActionTarget(order);
+    if (target === 'ready') return 'order-primary-action order-action-ready';
+    if (target === 'delivered') return 'order-primary-action order-action-complete';
+    return 'order-primary-action order-action-start';
+  }
+
+  advanceOrder(order: Order): void {
+    const target = this.getOrderActionTarget(order);
+    if (!target || this.isOrderActionBusy(order.id)) return;
+    const sourceStatus = target === 'preparing' ? 'pending' : target === 'ready' ? 'preparing' : 'ready';
+    const itemIds = (order.items || [])
+      .filter(
+        (item) =>
+          item.id != null &&
+          !item.removed_by_customer &&
+          (item.status || 'pending') === sourceStatus,
+      )
+      .map((item) => item.id!);
+    if (itemIds.length === 0) return;
+    this.orderActionBusy.update((current) => new Set(current).add(order.id));
+    forkJoin(itemIds.map((itemId) => this.api.updateOrderItemStatus(order.id, itemId, target))).subscribe({
+      next: () => this.finishOrderAction(order.id),
+      error: () => this.finishOrderAction(order.id),
+    });
+  }
+
+  private finishOrderAction(orderId: number): void {
+    this.orderActionBusy.update((current) => {
+      const next = new Set(current);
+      next.delete(orderId);
+      return next;
+    });
+    this.loadOrders({ background: true });
+  }
+
+  cleanKitchenNotes(notes?: string | null): string {
+    return (notes || '')
+      .split(/\r?\n/)
+      .filter((line) => !/^\s*\[PAID:/i.test(line))
+      .join('\n')
+      .trim();
   }
 
   getItemStatusTransitions(currentStatus: string): { forward: string[]; backward: string[] } {

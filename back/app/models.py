@@ -247,6 +247,8 @@ class Tenant(SQLModel, table=True):
     kitchen_display_timer_yellow_minutes: int | None = Field(default=5)
     kitchen_display_timer_orange_minutes: int | None = Field(default=10)
     kitchen_display_timer_red_minutes: int | None = Field(default=15)
+    # split = category/station routing; kitchen_all = every item appears in Kitchen.
+    kds_routing_mode: str = Field(default="split", max_length=24)
 
     # POS checkout: up to 4 tip percentages (e.g. 5,10,15,20); empty list disables tips; null = legacy default in API
     tip_preset_percents: list | None = Field(default=None, sa_column=Column(JSONB, nullable=True))
@@ -2547,6 +2549,7 @@ class TenantUpdate(SQLModel):
     kitchen_display_timer_yellow_minutes: int | None = None
     kitchen_display_timer_orange_minutes: int | None = None
     kitchen_display_timer_red_minutes: int | None = None
+    kds_routing_mode: str | None = Field(default=None, max_length=24)
 
     # Staff UI: show/hide sidebar, dashboard tiles, and routes per module
     ui_modules: dict[str, bool] | None = None
