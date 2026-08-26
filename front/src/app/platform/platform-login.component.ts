@@ -58,6 +58,8 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
         </form>
 
         <div class="auth-actions-foot">
+          <a routerLink="/platform/forgot-password">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
+          <span aria-hidden="true"> · </span>
           <a routerLink="/login">{{ 'PLATFORM_AUTH.BACK_STAFF_LOGIN' | translate }}</a>
         </div>
       </div>

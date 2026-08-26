@@ -10,7 +10,6 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 /** Scanaki support login for owner-granted temporary admin access (issue #257). */
 export const SUPPORT_USER_EMAIL = 'support@scanaki.uk';
-const LEGACY_SUPPORT_USER_EMAIL = 'support@satisfecho.de';
 
 @Component({
   selector: 'app-users',
@@ -723,11 +722,11 @@ export class UsersComponent implements OnInit {
   }
 
   isSupportUser(user: User): boolean {
-    return [SUPPORT_USER_EMAIL, LEGACY_SUPPORT_USER_EMAIL].includes(user.email.trim().toLowerCase());
+    return user.email.trim().toLowerCase() === SUPPORT_USER_EMAIL;
   }
 
   isSupportEmailForm(): boolean {
-    return [SUPPORT_USER_EMAIL, LEGACY_SUPPORT_USER_EMAIL].includes(this.formEmail.trim().toLowerCase());
+    return this.formEmail.trim().toLowerCase() === SUPPORT_USER_EMAIL;
   }
 
   canManageSupportAccess(): boolean {

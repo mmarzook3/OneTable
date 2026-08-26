@@ -59,6 +59,8 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
         </form>
 
         <div class="auth-actions-foot">
+          <a routerLink="/customer/forgot-password">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
+          <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/customer/register" data-testid="customer-login-register">{{ 'CUSTOMER_AUTH.NO_ACCOUNT' | translate }}</a>
           <span class="auth-foot-sep" aria-hidden="true">·</span>
           <a routerLink="/login">{{ 'CUSTOMER_AUTH.BACK_STAFF_LOGIN' | translate }}</a>

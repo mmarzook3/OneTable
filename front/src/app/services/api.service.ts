@@ -2633,9 +2633,16 @@ export class ApiService {
   requestPasswordReset(
     email: string,
     tenantId?: number,
-    scope?: 'provider',
+    scope?: 'provider' | 'courier' | 'platform' | 'customer',
   ): Observable<{ status: string; message: string }> {
     const params = new HttpParams().set('lang', this.language.getLanguage());
+    if (scope === 'customer') {
+      return this.http.post<{ status: string; message: string }>(
+        `${this.apiUrl}/customer/password-reset/request`,
+        { email },
+        { params },
+      );
+    }
     return this.http.post<{ status: string; message: string }>(
       `${this.apiUrl}/password-reset/request`,
       {
@@ -2647,10 +2654,12 @@ export class ApiService {
     );
   }
 
-  confirmPasswordReset(token: string, newPassword: string): Observable<{ status: string }> {
+  confirmPasswordReset(token: string, newPassword: string, scope?: 'customer'): Observable<{ status: string }> {
     const params = new HttpParams().set('lang', this.language.getLanguage());
     return this.http.post<{ status: string }>(
-      `${this.apiUrl}/password-reset/confirm`,
+      scope === 'customer'
+        ? `${this.apiUrl}/customer/password-reset/confirm`
+        : `${this.apiUrl}/password-reset/confirm`,
       {
         token,
         new_password: newPassword,

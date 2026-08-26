@@ -513,6 +513,10 @@ class Customer(SQLModel, table=True):
     email_verification_sent_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    password_reset_token_hash: str | None = Field(default=None, max_length=64, index=True)
+    password_reset_sent_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     token_version: int = Field(default=0)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -537,6 +541,15 @@ class CustomerLogin(SQLModel):
 
 class CustomerResendVerification(SQLModel):
     email: str
+
+
+class CustomerPasswordResetRequest(SQLModel):
+    email: str
+
+
+class CustomerPasswordResetConfirm(SQLModel):
+    token: str = Field(min_length=16, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)
 
 
 class CustomerResponse(SQLModel):

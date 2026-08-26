@@ -8,6 +8,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Need to… | See |
 |----------|-----|
+| Respond safely to payment, KDS, plaque, tablet and VPS incidents | [0090-scanaki-live-incident-runbook.md](0090-scanaki-live-incident-runbook.md) |
 | Track every Scanaki and Yew Trees MVP task by a permanent numbered ID | [0089-scanaki-mvp-master-checklist.md](0089-scanaki-mvp-master-checklist.md) |
 | Request, manufacture, ship and install reusable QR/NFC plaques | [0088-smart-plaque-request-fulfilment.md](0088-smart-plaque-request-fulfilment.md) |
 | Train a restaurant owner to add locations, rooms/tables, QR/NFC plaques and kitchen routes | [Scanaki-Multi-Location-Restaurant-Owner-Manual.docx](Scanaki-Multi-Location-Restaurant-Owner-Manual.docx) |

@@ -81,6 +81,7 @@ const NOINDEX_PREFIXES = [
   '/guest-feedback',
   '/provider',
   '/courier',
+  '/customer',
   '/platform',
 ];
 

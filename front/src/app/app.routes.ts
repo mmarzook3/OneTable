@@ -61,15 +61,19 @@ export const routes: Routes = [
   { path: 'provider', canActivate: [providerGuard], loadComponent: () => import('./provider/provider-dashboard.component').then(m => m.ProviderDashboardComponent) },
   // Courier portal (public auth + protected home)
   { path: 'courier/login', loadComponent: () => import('./courier/courier-login.component').then(m => m.CourierLoginComponent) },
+  { path: 'courier/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'courier' } },
   { path: 'courier/orders/:id', canActivate: [courierGuard], loadComponent: () => import('./courier/courier-order-detail.component').then(m => m.CourierOrderDetailComponent) },
   { path: 'courier', canActivate: [courierGuard], loadComponent: () => import('./courier/courier-home.component').then(m => m.CourierHomeComponent) },
   // End-user customer portal (separate from staff User and Factura /customers)
   { path: 'customer/login', loadComponent: () => import('./customer/customer-login.component').then(m => m.CustomerLoginComponent) },
   { path: 'customer/register', loadComponent: () => import('./customer/customer-register.component').then(m => m.CustomerRegisterComponent) },
+  { path: 'customer/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'customer' } },
+  { path: 'customer/reset-password', loadComponent: () => import('./auth/reset-password.component').then(m => m.ResetPasswordComponent), data: { passwordResetScope: 'customer' } },
   { path: 'customer/verify-email', loadComponent: () => import('./customer/customer-verify-email.component').then(m => m.CustomerVerifyEmailComponent) },
   { path: 'customer', canActivate: [customerGuard], loadComponent: () => import('./customer/customer-home.component').then(m => m.CustomerHomeComponent) },
   // Platform operator portal (public auth + protected dashboard)
   { path: 'platform/login', loadComponent: () => import('./platform/platform-login.component').then(m => m.PlatformLoginComponent) },
+  { path: 'platform/forgot-password', loadComponent: () => import('./auth/forgot-password.component').then(m => m.ForgotPasswordComponent), data: { passwordResetScope: 'platform' } },
   {
     path: 'platform',
     canActivate: [platformGuard],

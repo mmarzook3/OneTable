@@ -24,10 +24,10 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 
         @if (tokenMissing()) {
           <div class="error-banner">{{ 'AUTH.RESET_TOKEN_MISSING' | translate }}</div>
-          <a routerLink="/login" class="btn-link">{{ 'AUTH.BACK_TO_LOGIN' | translate }}</a>
+          <a [routerLink]="loginPath" class="btn-link">{{ 'AUTH.BACK_TO_LOGIN' | translate }}</a>
         } @else if (done()) {
           <p class="success-msg">{{ 'AUTH.RESET_SUCCESS' | translate }}</p>
-          <a routerLink="/login" class="btn-link">{{ 'AUTH.BACK_TO_LOGIN' | translate }}</a>
+          <a [routerLink]="loginPath" class="btn-link">{{ 'AUTH.BACK_TO_LOGIN' | translate }}</a>
         } @else {
           <form [formGroup]="form" (ngSubmit)="onSubmit()">
             <div class="form-group">
@@ -226,6 +226,8 @@ export class ResetPasswordComponent implements OnInit {
   done = signal(false);
   showPassword = signal(false);
   showPassword2 = signal(false);
+  resetScope = this.route.snapshot.data['passwordResetScope'] as 'customer' | undefined;
+  loginPath = this.resetScope === 'customer' ? '/customer/login' : '/login';
 
   form = this.fb.group(
     {
@@ -260,7 +262,7 @@ export class ResetPasswordComponent implements OnInit {
     this.error.set('');
     this.loading.set(true);
     const password = this.form.get('password')?.value ?? '';
-    this.api.confirmPasswordReset(this.token, password).subscribe({
+    this.api.confirmPasswordReset(this.token, password, this.resetScope).subscribe({
       next: () => {
         this.loading.set(false);
         this.done.set(true);

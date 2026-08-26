@@ -3035,6 +3035,17 @@ def _resolve_user_for_password_reset(
             models.User.provider_id.is_not(None),
             models.User.tenant_id.is_(None),
         )
+    elif scope == "courier":
+        statement = statement.where(
+            models.User.role == models.UserRole.courier,
+            models.User.tenant_id.is_not(None),
+        )
+    elif scope == "platform":
+        statement = statement.where(
+            models.User.role == models.UserRole.platform_operator,
+            models.User.tenant_id.is_(None),
+            models.User.provider_id.is_(None),
+        )
     elif tenant_id is not None:
         statement = statement.where(models.User.tenant_id == tenant_id)
     return session.exec(statement).first()
@@ -3060,7 +3071,7 @@ async def password_reset_request(
     session: Session = Depends(get_session),
 ) -> JSONResponse:
     """Request a password reset email. Response is always generic (no email enumeration)."""
-    if body.scope is not None and body.scope != "provider":
+    if body.scope is not None and body.scope not in {"provider", "courier", "platform"}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid scope",
