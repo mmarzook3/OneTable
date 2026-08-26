@@ -44,7 +44,7 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 | MVP-009 | [x] | P0 | Joint | Complete one successful Stripe sandbox table order. | Paid order reaches the correct kitchen once with the correct location and table. |
 | MVP-010 | [x] | P0 | Scanaki | Test failed and cancelled Stripe payments. | Neither payment appears in KDS; order states and customer messages are correct. |
 | MVP-011 | [x] | P0 | Scanaki | Test duplicate successful-payment webhook delivery. | Duplicate event does not create another order, release, stock movement or kitchen card. |
-| MVP-012 | [ ] | P0 | Scanaki | Test sandbox refund and reconciliation. | Refund updates the order, appears in reporting, and reconciliation finishes without mismatch. |
+| MVP-012 | [x] | P0 | Scanaki | Test sandbox refund and reconciliation. | A real test-mode refund updated the order to `refunded`; the single payment leg remained intact and the refund-aware reconciliation monitor completed without mismatch. |
 | MVP-013 | [ ] | P0 | Joint | Configure the selected Android kitchen tablet. | Updated Chrome, SIM, Wi-Fi, sound, landscape mode, wake lock, rugged case and permanent charger are working. |
 | MVP-014 | [ ] | P0 | Joint | Run an eight-hour tablet and connectivity test. | KDS remains responsive; Wi-Fi-to-SIM failover works; no missed or duplicate orders; battery/temperature remain safe. |
 | MVP-015 | [ ] | P0 | Scanaki | Manufacture three QR/NFC prototype plaques. | Three permanent Scanaki plaque IDs are printed/embedded and recorded in inventory. |
@@ -203,7 +203,7 @@ Do not start this section until sandbox acceptance is complete.
 - Production release `f315f4032` is healthy; schema migration `20260826150000` is applied.
 - Pre-deploy encrypted backup completed and isolated restore passed with 76 schema tables.
 - Full local regression: 518 backend tests passed; Angular browser/server build passed.
-- Live sandbox acceptance: successful payment released one kitchen order; duplicate signed webhook released none; failed and cancelled payments never reached KDS; refund webhook and payment reconciliation passed. Refund reporting remains to be signed off under `MVP-012`.
+- Live sandbox acceptance was repeated on 26 August 2026 using orders 6–8: a successful Visa test payment released one kitchen order exactly once; a duplicate signed webhook released none; failed and cancelled payments never reached KDS; the Stripe refund and signed refund webhook completed; an invalid signature returned HTTP 400; and payment reconciliation passed. The test orders were then cancelled and soft-deleted from the operational queue without removing their payment audit records.
 - Live KDS gate returned `KDS_OFFLINE` after the heartbeat expired and reopened for the controlled payment test when heartbeat was current.
 - Legacy platform administrator was disabled and existing tokens were revoked.
 - Live customer, courier and platform forgot-password pages render on mobile without browser errors. Email delivery remains blocked until `MVP-004` is supplied.
