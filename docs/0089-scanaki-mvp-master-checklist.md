@@ -193,7 +193,7 @@ Do not start this section until sandbox acceptance is complete.
 - Delivery is disabled for the pilot.
 - Stripe sandbox tenant keys and signed webhook are configured.
 - The Yew Trees currently has twenty available products, but no linked product images and no allergen-reviewed products.
-- The Yew Trees customer menus use the approved [gold tree logo](brand-assets/yew-trees-logo.jpg) with the deep green-black brand colour `#0B1A11`.
+- The Yew Trees customer menus use the approved [gold tree logo](brand-assets/yew-trees-logo.jpg) with the deep green-black brand colour `#0B1A11`; the edge-to-edge [live hero treatment](evidence/2026-08-27-yew-branding/yew-logo-integrated-final.jpg) removes the generic white upload frame.
 - Premium Building currently uses temporary labels `PB1`–`PB13`; final hotel room numbers remain changeable without replacing QR/NFC plaques.
 - One prototype plaque is assigned to Table 1; NFC is not yet written or verified.
 - The production KDS device records are stale/offline, so unattended customer checkout is safely gated.
