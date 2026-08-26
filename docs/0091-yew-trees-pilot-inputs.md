@@ -39,7 +39,7 @@ This document records the platform-owner answers used to configure the pilot. `T
 
 Do not store Google app passwords, Stripe secrets or bank information in this document.
 
-Google Workspace relay is configured for the production VPS. SPF and DKIM are published, and Gmail received both a platform SMTP test and a real platform password-reset email from `support@scanaki.uk`. The personal Gmail app password created during setup is not used by Scanaki and must be revoked after Google account re-verification.
+Google Workspace relay is configured for the production VPS. SPF and DKIM are published, and Gmail received both a platform SMTP test and a real platform password-reset email from `support@scanaki.uk`. The temporary personal Gmail app password created during setup was never used by Scanaki and has been revoked.
 
 ## Venue profile
 
