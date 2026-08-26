@@ -8,6 +8,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 
 | Need to… | See |
 |----------|-----|
+| Review confirmed and outstanding Yew Trees pilot inputs | [0091-yew-trees-pilot-inputs.md](0091-yew-trees-pilot-inputs.md) |
 | Respond safely to payment, KDS, plaque, tablet and VPS incidents | [0090-scanaki-live-incident-runbook.md](0090-scanaki-live-incident-runbook.md) |
 | Track every Scanaki and Yew Trees MVP task by a permanent numbered ID | [0089-scanaki-mvp-master-checklist.md](0089-scanaki-mvp-master-checklist.md) |
 | Request, manufacture, ship and install reusable QR/NFC plaques | [0088-smart-plaque-request-fulfilment.md](0088-smart-plaque-request-fulfilment.md) |

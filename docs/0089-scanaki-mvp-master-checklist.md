@@ -30,7 +30,7 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 |---|---|---|---|---|---|
 | MVP-001 | [x] | P0 | Scanaki | Deploy the latest `development` release to the VPS. | Production serves commit `263249c3c` or a later approved commit and health checks return 200. |
 | MVP-002 | [x] | P0 | Scanaki | Apply the smart-plaque request migration during deployment. | Production schema includes migration `20260826013000`; pre-deploy backup and post-deploy health checks pass. |
-| MVP-003 | [ ] | P0 | Scanaki | Complete the Platform Settings company and legal identity. | Company name, address, phone, website, company number, VAT number, support/contact emails, Terms URL and Privacy URL are saved. |
+| MVP-003 | [x] | P0 | Scanaki | Complete the Platform Settings company and legal identity. | Company name, address, phone, website, company number, VAT number, support/contact emails, Terms URL and Privacy URL are saved. |
 | MVP-004 | [ ] | P0 | Scanaki | Configure and test platform SMTP. | SMTP connection test succeeds and a real inbox receives the test email and a password-reset email. |
 | MVP-005 | [ ] | P0 | Scanaki | Separate the VPS root and Scanaki platform-admin passwords. | Both have unique strong passwords stored in the approved password manager and both logins are tested. |
 | MVP-006 | [ ] | P0 | Scanaki | Rotate the unrestricted Stripe test secret shared during setup. | Old key is revoked; Scanaki continues using the encrypted restricted key; webhook and PaymentIntent test pass. |
@@ -49,7 +49,7 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 | MVP-014 | [ ] | P0 | Joint | Run an eight-hour tablet and connectivity test. | KDS remains responsive; Wi-Fi-to-SIM failover works; no missed or duplicate orders; battery/temperature remain safe. |
 | MVP-015 | [ ] | P0 | Scanaki | Manufacture three QR/NFC prototype plaques. | Three permanent Scanaki plaque IDs are printed/embedded and recorded in inventory. |
 | MVP-016 | [ ] | P0 | Joint | Complete physical QR/NFC and reassignment tests. | QR and NFC work on Android/iPhone; location/table labels are correct; reassignment works; old basket is rejected. |
-| MVP-017 | [ ] | P1 | Joint | Decide the outside-venue ordering policy. | Written decision approves paid remote orders or enables tested GPS/location validation without breaking hotel-room ordering. |
+| MVP-017 | [x] | P1 | Joint | Decide the outside-venue ordering policy. | Written decision approves paid remote orders or enables tested GPS/location validation without breaking hotel-room ordering. |
 
 ## C. Scanaki platform operations and reliability
 
@@ -88,15 +88,15 @@ These are not blockers while The Yew Trees remains on the free internal Pilot ti
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
 | MVP-036 | [ ] | P0 | Yew Trees | Provide the pub phone number. | Number is verified and displayed in the tenant profile and customer help surfaces. |
-| MVP-037 | [ ] | P0 | Yew Trees | Confirm the real owner/contact email. | Inbox exists, receives Scanaki email and is approved for account recovery. |
-| MVP-038 | [ ] | P1 | Yew Trees | Provide company/VAT details if applicable. | Legal and invoice fields are completed or explicitly marked not applicable. |
+| MVP-037 | [x] | P0 | Yew Trees | Confirm the real owner/contact email. | Inbox exists, receives Scanaki email and is approved for account recovery. |
+| MVP-038 | [x] | P1 | Yew Trees | Provide company/VAT details if applicable. | Legal and invoice fields are completed or explicitly marked not applicable. |
 | MVP-039 | [ ] | P1 | Joint | Approve the public description, logo and venue branding. | Owner signs off the public menu and booking header on mobile and desktop. |
-| MVP-040 | [ ] | P0 | Yew Trees | Confirm exactly ten pub tables. | Approved table list matches Scanaki production. |
+| MVP-040 | [x] | P0 | Yew Trees | Confirm the pub ordering-point count. | Production contains 9 indoor tables and 8 outdoor benches under The Yew Trees. |
 | MVP-041 | [ ] | P0 | Yew Trees | Confirm each pub table’s seating capacity. | Every table has an owner-approved capacity; current four-seat assumptions are corrected if needed. |
 | MVP-042 | [ ] | P0 | Yew Trees | Provide Sports Lounge table numbers and capacities. | All approved lounge tables are created, enabled and assigned to the correct location. |
 | MVP-043 | [ ] | P0 | Yew Trees | Provide Premium Building room numbers. | All approved rooms are created as Room ordering points in the Premium Building. |
-| MVP-044 | [ ] | P0 | Yew Trees | Provide Main Building room numbers. | All approved rooms are created as Room ordering points in the Main Building. |
-| MVP-045 | [ ] | P0 | Yew Trees | Approve customer-facing location names. | QR/NFC menu header, cart, payment, KDS and report all show approved wording. |
+| MVP-044 | [x] | P0 | Yew Trees | Confirm Main Building rollout status. | Main Building is retained inactive with no ordering points until the venue requests it. |
+| MVP-045 | [x] | P0 | Yew Trees | Approve customer-facing location names. | QR/NFC menu header, cart, payment, KDS and report all show approved wording. |
 
 ## F. The Yew Trees menu and allergens
 
@@ -116,7 +116,7 @@ These are not blockers while The Yew Trees remains on the free internal Pilot ti
 
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
-| MVP-055 | [ ] | P0 | Yew Trees | Confirm ordering opening/closing times. | Effective ordering schedule is approved for all days and each location. |
+| MVP-055 | [x] | P0 | Yew Trees | Confirm ordering opening/closing times. | Effective ordering schedule is approved for all days and each location. |
 | MVP-056 | [ ] | P1 | Yew Trees | Confirm reservation availability and capacity rules. | Booking hours, party sizes, table turns, walk-in reserve and closures are approved and tested. |
 | MVP-057 | [ ] | P0 | Joint | Publish Terms of Service. | Approved HTTPS Terms URL is saved in Scanaki and visible before ordering. |
 | MVP-058 | [ ] | P0 | Joint | Publish Privacy Policy. | Approved UK privacy notice covers orders, payments, analytics and reservations and is linked publicly. |
@@ -207,6 +207,8 @@ Do not start this section until sandbox acceptance is complete.
 - Live KDS gate returned `KDS_OFFLINE` after the heartbeat expired and reopened for the controlled payment test when heartbeat was current.
 - Legacy platform administrator was disabled and existing tokens were revoked.
 - Live customer, courier and platform forgot-password pages render on mobile without browser errors. Email delivery remains blocked until `MVP-004` is supplied.
+- Scanaki platform identity, support/contact email, public phone/address, sender identity and approved Terms/Privacy URLs are saved in production.
+- The Yew Trees production layout now contains 17 pub points, 8 Sports Lounge tables, 13 Premium rooms and no active Main Building points (38 total); Premium menu overrides are enabled for location-specific prices.
 
 ## Related references
 

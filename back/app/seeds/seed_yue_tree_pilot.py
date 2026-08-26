@@ -163,14 +163,14 @@ def run() -> None:
                     slug=slug,
                     location_type=location_type,
                 )
+                location.menu_mode = "inherit"
+                location.hours_mode = "inherit"
+                location.kitchen_mode = "inherit"
+                location.payment_mode = "inherit"
             location.name = name
             location.display_name = display_name
             location.location_type = location_type
             location.sort_order = sort_order
-            location.menu_mode = "inherit"
-            location.hours_mode = "inherit"
-            location.kitchen_mode = "inherit"
-            location.payment_mode = "inherit"
             session.add(location)
             locations_by_slug[slug] = location
         session.commit()
@@ -209,36 +209,30 @@ def run() -> None:
             table.name: table
             for table in session.exec(select(Table).where(Table.tenant_id == tenant.id)).all()
         }
-        for number in range(1, table_count + 1):
-            name = f"Table {number}"
-            if name in existing_tables:
-                table = existing_tables[name]
-                table.floor_id = floor.id
-                table.location_id = yew_location.id
-                table.service_point_type = "table"
-                table.display_number = str(number)
-                table.is_ordering_enabled = True
-                session.add(table)
-                continue
-            column = (number - 1) % 4
-            row = (number - 1) // 4
-            session.add(
-                Table(
-                    tenant_id=tenant.id,
-                    name=name,
-                    token=str(uuid4()),
-                    floor_id=floor.id,
-                    location_id=yew_location.id,
-                    service_point_type="table",
-                    display_number=str(number),
-                    is_ordering_enabled=True,
-                    seat_count=4,
-                    x_position=40 + column * 140,
-                    y_position=40 + row * 100,
-                    is_active=False,
-                    plaque_status="not_created",
+        # Existing pilot layouts are venue-owned configuration. Never recreate the
+        # original Table 1..N template after rooms/benches have been renamed or moved.
+        if not existing_tables:
+            for number in range(1, table_count + 1):
+                name = f"Table {number}"
+                column = (number - 1) % 4
+                row = (number - 1) // 4
+                session.add(
+                    Table(
+                        tenant_id=tenant.id,
+                        name=name,
+                        token=str(uuid4()),
+                        floor_id=floor.id,
+                        location_id=yew_location.id,
+                        service_point_type="table",
+                        display_number=str(number),
+                        is_ordering_enabled=True,
+                        seat_count=4,
+                        x_position=40 + column * 140,
+                        y_position=40 + row * 100,
+                        is_active=False,
+                        plaque_status="not_created",
+                    )
                 )
-            )
 
         existing_products = {
             product.name: product
