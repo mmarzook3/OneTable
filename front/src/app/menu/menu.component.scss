@@ -178,6 +178,11 @@ $cart-expanded-max: 60vh;
   min-height: 100vh;
   background: var(--color-bg);
   padding-bottom: calc(#{$cart-collapsed-height} + env(safe-area-inset-bottom) + 20px);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 // ============================================
@@ -1618,7 +1623,7 @@ $cart-expanded-max: 60vh;
 
   span { color: var(--color-text-muted); font-size: 0.72rem; }
   strong { grid-row: 2; }
-  small { grid-row: 1 / 3; grid-column: 2; align-self: center; font-weight: 800; }
+  small { grid-row: 1 / 3; grid-column: 2; align-self: center; font-weight: 700; }
 }
 
 .cart-shared-hint {
@@ -1870,7 +1875,7 @@ $cart-expanded-max: 60vh;
   border-radius: 0.75rem;
   background: #f6f8fb;
   color: #172033;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
   cursor: pointer;
 
@@ -2814,7 +2819,7 @@ $cart-expanded-max: 60vh;
 
 .restaurant-name {
   font-size: clamp(2rem, 5vw, 3.2rem);
-  font-weight: 760;
+  font-weight: 700;
   letter-spacing: -0.045em;
   line-height: 1;
 }
@@ -2857,7 +2862,7 @@ $cart-expanded-max: 60vh;
 .menu-search-row > label {
   color: var(--ordering-ink);
   font-size: 0.875rem;
-  font-weight: 750;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -2949,7 +2954,7 @@ $cart-expanded-max: 60vh;
   color: var(--ordering-muted);
   font: inherit;
   font-size: 0.78rem;
-  font-weight: 680;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
   white-space: nowrap;
@@ -3073,7 +3078,7 @@ $cart-expanded-max: 60vh;
   background: var(--ordering-bg);
   color: var(--ordering-muted);
   font-size: 0.65rem;
-  font-weight: 720;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -3085,13 +3090,13 @@ $cart-expanded-max: 60vh;
 
 .product-name {
   font-size: 1.02rem;
-  font-weight: 730;
+  font-weight: 600;
   letter-spacing: -0.015em;
 }
 
 .product-price {
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .product-description {
