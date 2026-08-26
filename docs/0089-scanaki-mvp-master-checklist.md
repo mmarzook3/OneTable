@@ -31,7 +31,7 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 | MVP-001 | [x] | P0 | Scanaki | Deploy the latest `development` release to the VPS. | Production serves commit `263249c3c` or a later approved commit and health checks return 200. |
 | MVP-002 | [x] | P0 | Scanaki | Apply the smart-plaque request migration during deployment. | Production schema includes migration `20260826013000`; pre-deploy backup and post-deploy health checks pass. |
 | MVP-003 | [x] | P0 | Scanaki | Complete the Platform Settings company and legal identity. | Company name, address, phone, website, company number, VAT number, support/contact emails, Terms URL and Privacy URL are saved. |
-| MVP-004 | [ ] | P0 | Scanaki | Configure and test platform SMTP. | SMTP connection test succeeds and a real inbox receives the test email and a password-reset email. |
+| MVP-004 | [x] | P0 | Scanaki | Configure and test platform SMTP. | Google Workspace IP-authenticated relay is verified; Gmail received both the SMTP test and the platform password-reset email from `support@scanaki.uk` with valid Scanaki links. |
 | MVP-005 | [ ] | P0 | Scanaki | Separate the VPS root and Scanaki platform-admin passwords. | Both have unique strong passwords stored in the approved password manager and both logins are tested. |
 | MVP-006 | [ ] | P0 | Scanaki | Rotate the unrestricted Stripe test secret shared during setup. | Old key is revoked; Scanaki continues using the encrypted restricted key; webhook and PaymentIntent test pass. |
 | MVP-007 | [x] | P0 | Scanaki | Remove or disable the legacy `superadmin@scanaki.uk` platform account. | Only approved named platform operators can authenticate; legacy tokens are revoked. |
@@ -55,9 +55,9 @@ This is the single numbered checklist for taking Scanaki and The Yew Trees pilot
 
 | ID | Done | Priority | Owner | Task | Completion condition |
 |---|---|---|---|---|---|
-| MVP-018 | [ ] | P1 | Scanaki | Add forgotten-password recovery for platform administrators. | Platform admin can request a scoped, expiring reset link without exposing account existence. |
-| MVP-019 | [ ] | P1 | Scanaki | Add forgotten-password recovery for customer accounts. | Customer reset email, one-time token, session revocation and UI flow pass. |
-| MVP-020 | [ ] | P1 | Scanaki | Add forgotten-password recovery for courier accounts. | Courier reset email, one-time token, session revocation and UI flow pass. |
+| MVP-018 | [x] | P1 | Scanaki | Add forgotten-password recovery for platform administrators. | Username-based operators have a separate recovery inbox and can request a scoped, expiring reset link without exposing account existence. |
+| MVP-019 | [x] | P1 | Scanaki | Add forgotten-password recovery for customer accounts. | Customer reset email, one-time token, session revocation and UI flow pass. |
+| MVP-020 | [x] | P1 | Scanaki | Add forgotten-password recovery for courier accounts. | Courier reset email, one-time token, session revocation and UI flow pass. |
 | MVP-021 | [x] | P1 | Scanaki | Write the live incident and support runbook. | Runbook covers duplicate orders, refunds, kitchen outage, Stripe outage, internet failure, lost tablet and wrong plaque assignment. |
 | MVP-022 | [ ] | P1 | Scanaki | Configure operational alerts. | Named recipient receives container, health, KDS, reconciliation, disk, backup and TLS-expiry alerts. |
 | MVP-023 | [ ] | P1 | Scanaki | Configure encrypted off-VPS backups. | Automated encrypted copy exists outside the VPS and retention/restore ownership is documented. |

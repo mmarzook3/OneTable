@@ -16,7 +16,7 @@ This document records the platform-owner answers used to configure the pilot. `T
 - VAT number: N/A
 - Terms: **https://scanaki.uk/terms**
 - Privacy: **https://scanaki.uk/privacy**
-- Platform recovery email: **mmarzook3@gmail.com** (account update still required)
+- Platform recovery email: **mmarzook3@gmail.com** (saved and live-tested)
 
 ## SMTP and operations
 
@@ -39,7 +39,7 @@ This document records the platform-owner answers used to configure the pilot. `T
 
 Do not store Google app passwords, Stripe secrets or bank information in this document.
 
-Google Workspace relay is configured for the production VPS. The `scanaki.uk` SPF DNS record and end-to-end delivery test remain required before platform email is marked verified. The personal Gmail app password created during setup is not used by Scanaki and must be revoked after Google account re-verification.
+Google Workspace relay is configured for the production VPS. SPF and DKIM are published, and Gmail received both a platform SMTP test and a real platform password-reset email from `support@scanaki.uk`. The personal Gmail app password created during setup is not used by Scanaki and must be revoked after Google account re-verification.
 
 ## Venue profile
 
