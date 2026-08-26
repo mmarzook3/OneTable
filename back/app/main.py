@@ -17152,6 +17152,7 @@ def create_payment_intent(
 )
 def confirm_payment(
     request: Request,
+    response: Response,
     order_id: int,
     payment_intent_id: str,
     table_token: str | None = None,
