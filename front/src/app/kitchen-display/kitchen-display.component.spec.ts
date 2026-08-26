@@ -208,6 +208,39 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.isOrderDetailsOpen(42)).toBeFalse();
   });
 
+  it('should keep the elapsed wait timer visible on a collapsed ticket', () => {
+    mockApi.getOrders.and.returnValue(
+      of([
+        {
+          id: 92,
+          status: 'paid',
+          table_name: 'T1',
+          created_at: new Date(Date.now() - 65_000).toISOString(),
+          paid_at: new Date(Date.now() - 65_000).toISOString(),
+          items: [
+            {
+              id: 903,
+              product_name: 'Pie',
+              quantity: 1,
+              status: 'pending',
+              price_cents: 1200,
+              category: 'Main Course',
+            },
+          ],
+          total_cents: 1200,
+        },
+      ]),
+    );
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    const timer = fixture.nativeElement.querySelector('.order-waiting') as HTMLElement | null;
+    expect(timer).not.toBeNull();
+    expect(timer?.textContent).toContain('Waiting');
+    expect(timer?.textContent).toMatch(/1:\d{2}/);
+    expect(fixture.nativeElement.querySelector('.order-details')).toBeNull();
+  });
+
   it('should toggle sound and persist to localStorage', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
