@@ -60,6 +60,7 @@ def _effective_smtp_config(tenant: Optional["Tenant"] = None) -> dict[str, Any]:
         "use_tls": (tenant.smtp_use_tls if tenant and tenant.smtp_use_tls is not None else platform_cfg["use_tls"])
         if use_tenant
         else platform_cfg["use_tls"],
+        "auth_required": True if use_tenant else bool(platform_cfg.get("auth_required", True)),
         "user": (tenant.smtp_user or platform_cfg["user"]) if use_tenant else platform_cfg["user"],
         "password": (tenant.smtp_password or platform_cfg["password"]) if use_tenant else platform_cfg["password"],
         "from_email": (tenant.email_from or platform_cfg["from_email"]) if use_tenant else platform_cfg["from_email"],
@@ -68,9 +69,11 @@ def _effective_smtp_config(tenant: Optional["Tenant"] = None) -> dict[str, Any]:
 
 
 def smtp_credentials_configured(tenant: Optional["Tenant"] = None) -> bool:
-    """True when tenant or global SMTP has user and password (email can be attempted)."""
+    """True when authenticated SMTP or an IP-authenticated relay can send email."""
     cfg = _effective_smtp_config(tenant)
-    return bool(cfg.get("user") and cfg.get("password"))
+    if bool(cfg.get("auth_required", True)):
+        return bool(cfg.get("user") and cfg.get("password"))
+    return bool(cfg.get("host") and cfg.get("from_email"))
 
 
 def reminder_send_failure_message(
@@ -129,8 +132,8 @@ async def send_email(
         True if email sent successfully, False otherwise
     """
     cfg = _effective_smtp_config(tenant)
-    if not cfg["user"] or not cfg["password"]:
-        logger.error("SMTP credentials not configured (tenant or global)")
+    if not smtp_credentials_configured(tenant):
+        logger.error("SMTP delivery not configured (tenant or global)")
         return False
 
     from_addr = from_email or cfg["from_email"]
@@ -147,33 +150,15 @@ async def send_email(
 
     try:
         port = cfg["port"]
-        if port == 587:
-            await aiosmtplib.send(
-                message,
-                hostname=cfg["host"],
-                port=port,
-                username=cfg["user"],
-                password=cfg["password"],
-                start_tls=True,
-            )
-        elif port == 465:
-            await aiosmtplib.send(
-                message,
-                hostname=cfg["host"],
-                port=port,
-                username=cfg["user"],
-                password=cfg["password"],
-                use_tls=True,
-            )
+        kwargs: dict[str, Any] = {"hostname": cfg["host"], "port": port}
+        if bool(cfg.get("auth_required", True)):
+            kwargs["username"] = cfg["user"]
+            kwargs["password"] = cfg["password"]
+        if port == 465:
+            kwargs["use_tls"] = True
         else:
-            await aiosmtplib.send(
-                message,
-                hostname=cfg["host"],
-                port=port,
-                username=cfg["user"],
-                password=cfg["password"],
-                start_tls=cfg["use_tls"],
-            )
+            kwargs["start_tls"] = True if port == 587 else cfg["use_tls"]
+        await aiosmtplib.send(message, **kwargs)
         logger.info(f"Email sent successfully to {to_email}")
         return True
     except Exception as e:
