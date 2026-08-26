@@ -17016,6 +17016,7 @@ def _release_paid_stripe_order(
 )
 def create_payment_intent(
     request: Request,
+    response: Response,
     order_id: int,
     table_token: str | None = None,
     public_order_token: str | None = None,
