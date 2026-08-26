@@ -18,10 +18,12 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
         <div class="auth-header">
           <div class="auth-header-row">
             <div>
-              <h1>{{ 'AUTH.WELCOME_BACK' | translate }}</h1>
-              <p>{{ 'AUTH.SIGN_IN_ACCOUNT' | translate }}</p>
+              <h1>{{ isKitchenApp() ? 'Kitchen login' : ('AUTH.WELCOME_BACK' | translate) }}</h1>
+              <p>{{ isKitchenApp() ? 'Sign in to open the kitchen display' : ('AUTH.SIGN_IN_ACCOUNT' | translate) }}</p>
             </div>
-            <app-language-picker></app-language-picker>
+            @if (!isKitchenApp()) {
+              <app-language-picker></app-language-picker>
+            }
           </div>
         </div>
 
@@ -99,9 +101,11 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
                 }
               </button>
             </div>
-            <div class="forgot-row">
-              <a routerLink="/forgot-password" [queryParams]="forgotPasswordQueryParams">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
-            </div>
+            @if (!isKitchenApp()) {
+              <div class="forgot-row">
+                <a routerLink="/forgot-password" [queryParams]="forgotPasswordQueryParams">{{ 'AUTH.FORGOT_PASSWORD' | translate }}</a>
+              </div>
+            }
           </div>
 
           @if (error()) {
@@ -114,22 +118,24 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
         </form>
         }
 
-        <div class="auth-actions-foot">
-          <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
-          <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a routerLink="/provider/login" data-testid="login-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a routerLink="/courier/login" data-testid="login-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a routerLink="/customer/login" data-testid="login-customer-login">{{ 'CUSTOMER_AUTH.TITLE' | translate }}</a>
-          <span class="auth-foot-sep" aria-hidden="true">·</span>
-          <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
-          @if (legalTermsUrl() || legalPrivacyUrl()) {
+        @if (!isKitchenApp()) {
+          <div class="auth-actions-foot">
+            <span>{{ 'AUTH.DONT_HAVE_ACCOUNT' | translate }}</span>
+            <a routerLink="/register">{{ 'AUTH.CREATE_ACCOUNT' | translate }}</a>
             <span class="auth-foot-sep" aria-hidden="true">·</span>
-            <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
-          }
-        </div>
+            <a routerLink="/provider/login" data-testid="login-provider-login">{{ 'LANDING.PROVIDER_LOGIN' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
+            <a routerLink="/courier/login" data-testid="login-courier-login">{{ 'LANDING.COURIER_LOGIN' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
+            <a routerLink="/customer/login" data-testid="login-customer-login">{{ 'CUSTOMER_AUTH.TITLE' | translate }}</a>
+            <span class="auth-foot-sep" aria-hidden="true">·</span>
+            <a routerLink="/provider/register" data-testid="login-provider-register">{{ 'LANDING.REGISTER_AS_PROVIDER' | translate }}</a>
+            @if (legalTermsUrl() || legalPrivacyUrl()) {
+              <span class="auth-foot-sep" aria-hidden="true">·</span>
+              <app-legal-links [inline]="true" [termsUrl]="legalTermsUrl()" [privacyUrl]="legalPrivacyUrl()" />
+            }
+          </div>
+        }
       </div>
     </div>
   `,
@@ -365,15 +371,21 @@ export class LoginComponent implements OnInit {
   legalPrivacyUrl = signal<string | null>(null);
   selectedTenant = signal<TenantSummary | null>(null);
   selectedTenantLogoUrl = signal<string | null>(null);
+  isKitchenApp = signal(false);
 
   ngOnInit(): void {
-    this.api.getPublicLegalUrls().subscribe({
-      next: (u) => {
-        this.legalTermsUrl.set(u.terms_of_service_url ?? null);
-        this.legalPrivacyUrl.set(u.privacy_policy_url ?? null);
-      },
-      error: () => {},
-    });
+    this.isKitchenApp.set(
+      typeof navigator !== 'undefined' && /\bScanakiKitchen\//i.test(navigator.userAgent),
+    );
+    if (!this.isKitchenApp()) {
+      this.api.getPublicLegalUrls().subscribe({
+        next: (u) => {
+          this.legalTermsUrl.set(u.terms_of_service_url ?? null);
+          this.legalPrivacyUrl.set(u.privacy_policy_url ?? null);
+        },
+        error: () => {},
+      });
+    }
     this.loadSelectedTenant();
   }
 
@@ -485,6 +497,11 @@ export class LoginComponent implements OnInit {
   private routeAfterLogin(
     user: { role?: string; provider_id?: number | null; tenant_id?: number | null } | null,
   ): void {
+    if (this.isKitchenApp()) {
+      this.loading.set(false);
+      void this.router.navigate(['/kitchen']);
+      return;
+    }
     if (user?.role === 'courier') {
       this.loading.set(false);
       void this.router.navigate(['/courier']);
