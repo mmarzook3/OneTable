@@ -93,8 +93,8 @@ These are not blockers while The Yew Trees remains on the free internal Pilot ti
 | MVP-039 | [ ] | P1 | Joint | Approve the public description, logo and venue branding. | Owner signs off the public menu and booking header on mobile and desktop. |
 | MVP-040 | [x] | P0 | Yew Trees | Confirm the pub ordering-point count. | Production contains 9 indoor tables and 8 outdoor benches under The Yew Trees. |
 | MVP-041 | [ ] | P0 | Yew Trees | Confirm each pub table’s seating capacity. | Every table has an owner-approved capacity; current four-seat assumptions are corrected if needed. |
-| MVP-042 | [ ] | P0 | Yew Trees | Provide Sports Lounge table numbers and capacities. | All approved lounge tables are created, enabled and assigned to the correct location. |
-| MVP-043 | [ ] | P0 | Yew Trees | Provide Premium Building room numbers. | All approved rooms are created as Room ordering points in the Premium Building. |
+| MVP-042 | [ ] | P0 | Yew Trees | Confirm Sports Lounge table capacities. | Eight lounge tables are created and enabled; their provisional four-seat capacities receive owner approval or correction. |
+| MVP-043 | [x] | P0 | Yew Trees | Provide Premium Building room identifiers. | Thirteen Room ordering points are live as temporary identifiers `PB1`–`PB13`; the owner may later replace them with the hotel room numbers without changing plaque tokens. |
 | MVP-044 | [x] | P0 | Yew Trees | Confirm Main Building rollout status. | Main Building is retained inactive with no ordering points until the venue requests it. |
 | MVP-045 | [x] | P0 | Yew Trees | Approve customer-facing location names. | QR/NFC menu header, cart, payment, KDS and report all show approved wording. |
 
@@ -189,11 +189,11 @@ Do not start this section until sandbox acceptance is complete.
 
 - `scanaki.uk`, TLS, Docker services, automated health monitoring and reconciliation are operational.
 - Encrypted VPS backups are running.
-- The Yew Trees has four locations, ten enabled pub tables and the unlimited internal Pilot tier.
+- The Yew Trees has four locations, 38 enabled ordering points and the unlimited internal Pilot tier: 17 pub points, 8 Sports Lounge tables and 13 Premium Building rooms. Main Building remains inactive.
 - Delivery is disabled for the pilot.
 - Stripe sandbox tenant keys and signed webhook are configured.
 - The Yew Trees currently has twenty available products, but no linked product images and no allergen-reviewed products.
-- Sports Lounge, Premium Building and Main Building currently have no ordering points.
+- Premium Building currently uses temporary labels `PB1`–`PB13`; final hotel room numbers remain changeable without replacing QR/NFC plaques.
 - One prototype plaque is assigned to Table 1; NFC is not yet written or verified.
 - The production KDS device records are stale/offline, so unattended customer checkout is safely gated.
 - The smart-plaque request/fulfilment workflow and scoped platform/courier/customer password-recovery UI are deployed to production.
