@@ -38,6 +38,7 @@ class TestPasswordReset(PgClientTestCase):
         )
         self.platform = models.User(
             email="pwreset-platform@amvara.de",
+            recovery_email="pwreset-platform-recovery@amvara.de",
             hashed_password=security.get_password_hash("old-platform-9"),
             role=models.UserRole.platform_operator,
         )
@@ -163,12 +164,20 @@ class TestPasswordReset(PgClientTestCase):
             self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(mock_send.await_count, 2)
 
+        recovery = self.client.post(
+            "/password-reset/request",
+            json={"email": self.platform.recovery_email, "scope": "platform"},
+        )
+        self.assertEqual(recovery.status_code, 200, recovery.text)
+        self.assertEqual(mock_send.await_count, 3)
+        self.assertEqual(mock_send.await_args.args[0], self.platform.recovery_email)
+
         hidden = self.client.post(
             "/password-reset/request",
             json={"email": self.platform.email, "scope": "courier"},
         )
         self.assertEqual(hidden.status_code, 200, hidden.text)
-        self.assertEqual(mock_send.await_count, 2)
+        self.assertEqual(mock_send.await_count, 3)
 
     def test_password_reset_not_configured_translations_defined_for_all_locales(self):
         from app.language_service import SUPPORTED_LANGUAGES

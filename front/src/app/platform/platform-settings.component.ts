@@ -92,7 +92,8 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
           </section>
 
           <section class="settings-card">
-            <div class="section-heading"><div><h2>Super-admin password</h2><p>Change your own platform login password. All current sessions are revoked after the change.</p></div></div>
+            <div class="section-heading"><div><h2>Super-admin account</h2><p>Set the recovery inbox for this username or change your password. All current sessions are revoked after a password change.</p></div></div>
+            <label>Recovery email<input type="email" [(ngModel)]="form.operator_recovery_email" name="operator_recovery_email" maxlength="320" autocomplete="email" placeholder="owner@gmail.com"></label>
             <div class="fields password-change-grid">
               <label>Current password<input type="password" [(ngModel)]="currentPassword" name="current_platform_password" autocomplete="current-password"></label>
               <label>New password<input type="password" [(ngModel)]="newPassword" name="new_platform_password" autocomplete="new-password" minlength="12"></label>
@@ -132,7 +133,7 @@ export class PlatformSettingsComponent implements OnInit {
   load(): void {
     this.loading.set(true); this.error.set('');
     this.api.getPlatformSettings().subscribe({next:(data)=>{this.current.set(data);this.form={
-      company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_auth_required:data.smtp_auth_required,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,
+      operator_recovery_email:data.operator_recovery_email||'',company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_auth_required:data.smtp_auth_required,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,
     };this.testRecipient=data.contact_email||data.support_email||data.email_from||'';this.smtpPassword='';this.clearPassword=false;this.loading.set(false)},error:(err)=>{this.error.set(err?.error?.detail||'Could not load platform settings.');this.loading.set(false)}});
   }
   save(): void {

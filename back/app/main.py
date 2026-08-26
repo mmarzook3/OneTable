@@ -3029,7 +3029,15 @@ def _resolve_user_for_password_reset(
     tenant_id: int | None,
     scope: str | None,
 ) -> models.User | None:
-    statement = select(models.User).where(models.User.email == email)
+    if scope == "platform":
+        statement = select(models.User).where(
+            or_(models.User.email == email, models.User.recovery_email == email),
+            models.User.role == models.UserRole.platform_operator,
+            models.User.tenant_id.is_(None),
+            models.User.provider_id.is_(None),
+        )
+    else:
+        statement = select(models.User).where(models.User.email == email)
     if scope == "provider":
         statement = statement.where(
             models.User.provider_id.is_not(None),
@@ -3039,12 +3047,6 @@ def _resolve_user_for_password_reset(
         statement = statement.where(
             models.User.role == models.UserRole.courier,
             models.User.tenant_id.is_not(None),
-        )
-    elif scope == "platform":
-        statement = statement.where(
-            models.User.role == models.UserRole.platform_operator,
-            models.User.tenant_id.is_(None),
-            models.User.provider_id.is_(None),
         )
     elif tenant_id is not None:
         statement = statement.where(models.User.tenant_id == tenant_id)
@@ -3110,8 +3112,13 @@ async def password_reset_request(
     tenant_for_smtp = None
     if user.tenant_id is not None:
         tenant_for_smtp = session.get(models.Tenant, user.tenant_id)
+    reset_recipient = (
+        user.recovery_email
+        if body.scope == "platform" and user.recovery_email
+        else user.email
+    )
     sent = await email_svc.send_password_reset_email(
-        user.email, reset_url, tenant=tenant_for_smtp, lang=lang
+        reset_recipient, reset_url, tenant=tenant_for_smtp, lang=lang
     )
     if not sent:
         logger.warning(

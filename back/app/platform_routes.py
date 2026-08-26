@@ -254,7 +254,7 @@ def platform_settings_get(
     current_user: Annotated[models.User, Depends(_require_platform_operator)],
     session: Session = Depends(get_session),
 ) -> dict:
-    return platform_settings_payload(session)
+    return platform_settings_payload(session, current_user)
 
 
 @router.put("/settings")
