@@ -400,6 +400,11 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: var(--color-bg);
       display: flex;
       flex-direction: column;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     .kitchen-header {
       display: flex;
@@ -465,7 +470,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: #fff;
       background: #1f2937;
       border-color: #1f2937;
-      font-weight: 750;
+      font-weight: 600;
     }
     .stock-btn:hover { background: #111827; }
     .sound-toggle {
@@ -554,8 +559,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: #111827;
       color: #fff;
       font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 0.06em;
+      font-weight: 600;
+      letter-spacing: 0.04em;
     }
     .order-sequence {
       display: flex;
@@ -597,7 +602,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-id {
       font-size: 1.2rem;
-      font-weight: 800;
+      font-weight: 700;
       color: #f8fafc;
       white-space: nowrap;
     }
@@ -611,16 +616,16 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-table {
       overflow-wrap: anywhere;
-      font-size: clamp(1.35rem, 2.3vw, 1.8rem);
-      line-height: 1.05;
-      font-weight: 850;
-      color: #fbbf24;
+      font-size: clamp(1.35rem, 2vw, 1.625rem);
+      line-height: 1.15;
+      font-weight: 700;
+      color: #f2c66d;
     }
     .order-location {
       color: #bfdbfe;
-      font-size: .72rem;
-      font-weight: 800;
-      letter-spacing: .045em;
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .035em;
       text-transform: uppercase;
       overflow-wrap: anywhere;
     }
@@ -632,8 +637,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: #451a1a;
       color: #fecaca;
       font-size: .78rem;
-      font-weight: 900;
-      letter-spacing: .06em;
+      font-weight: 700;
+      letter-spacing: .04em;
       white-space: nowrap;
     }
     .payment-badge-paid { border-color: #166534; background: #14532d; color: #dcfce7; }
@@ -655,12 +660,18 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
-      font-weight: 700;
+      font-weight: 600;
       color: var(--color-primary);
-      font-size: 1.3rem;
+      font-size: 1.125rem;
     }
     .item-copy { display: grid; min-width: 0; gap: 5px; }
-    .item-name { overflow-wrap: anywhere; font-weight: 800; color: #f8fafc; }
+    .item-name {
+      overflow-wrap: anywhere;
+      color: #f8fafc;
+      font-size: 1.125rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
     .item-notes {
       display: block;
       font-size: .9rem;
@@ -693,8 +704,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       min-height: 56px;
       border-radius: 9px;
       font: inherit;
-      font-size: 1.05rem;
-      font-weight: 900;
+      font-size: 1rem;
+      font-weight: 600;
       white-space: nowrap;
       cursor: pointer;
       touch-action: manipulation;
@@ -709,14 +720,20 @@ const VIEW_CATEGORY: Record<string, string> = {
       border: 1px solid #64748b;
       background: transparent;
       color: #e2e8f0;
-      font-size: .9rem;
+      font-size: .9375rem;
     }
     .order-primary-action:active,.order-details-toggle:active { transform: translateY(1px); }
     .order-details { padding: 12px 16px 16px; border-top: 1px solid #414959; background: #171a21; }
     .order-details dl { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; margin: 0; }
     .order-details dl div { min-width: 0; }
-    .order-details dt { color: #94a3b8; font-size: .7rem; font-weight: 800; text-transform: uppercase; }
-    .order-details dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #f8fafc; font-weight: 700; }
+    .order-details dt {
+      color: #94a3b8;
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    .order-details dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #f8fafc; font-weight: 600; }
     .item-status-summary { display: grid; gap: 5px; margin-top: 12px; color: #cbd5e1; font-size: .78rem; }
     .order-notes {
       margin-top: 12px;
@@ -836,7 +853,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .stock-copy small { margin-top: 4px; color: #6b7280; font-size: .7rem; }
     .stock-card>input { width: 26px; height: 26px; margin: 2px; accent-color: #16834f; cursor: pointer; }
-    .stock-state { grid-column: 2 / 4; color: #167248; font-size: .7rem; font-weight: 800; }
+    .stock-state { grid-column: 2 / 4; color: #167248; font-size: .7rem; font-weight: 700; }
     .stock-card--unavailable .stock-state { color: #9f312b; }
     .stock-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; overflow: hidden; padding: 16px 20px; }
     .stock-loading span { height: 96px; border-radius: 12px; background: #e8ebef; }
@@ -855,7 +872,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .stock-actions>span { color: #6b7280; font-size: .8rem; }
     .stock-actions>div { display: flex; gap: 9px; }
-    .stock-actions button { min-height: 44px; padding: 0 16px; border-radius: 9px; font-weight: 750; }
+    .stock-actions button { min-height: 44px; padding: 0 16px; border-radius: 9px; font-weight: 600; }
     @media (max-width: 700px) {
       .stock-modal { inset: 0; border: 0; border-radius: 0; }
       .stock-grid { grid-template-columns: 1fr; padding: 12px; }
