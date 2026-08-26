@@ -55,6 +55,34 @@ class TestKitchenStationResolve(unittest.TestCase):
             (None, None, "bar"),
         )
 
+    def test_kitchen_all_routes_beverages_to_default_kitchen(self) -> None:
+        self.tenant.kds_routing_mode = "kitchen_all"
+        self.tenant.default_kitchen_station_id = 10
+        self.tenant.default_bar_station_id = 20
+        product = models.Product(
+            id=1, tenant_id=1, name="Cola", price_cents=100, category="Beverages"
+        )
+        self.assertEqual(
+            resolve_order_item_kds(product, self.tenant, self.by_id),
+            (10, "Grill", "kitchen"),
+        )
+
+    def test_kitchen_all_ignores_explicit_bar_station(self) -> None:
+        self.tenant.kds_routing_mode = "kitchen_all"
+        self.tenant.default_kitchen_station_id = 10
+        product = models.Product(
+            id=1,
+            tenant_id=1,
+            name="Cola",
+            price_cents=100,
+            category="Beverages",
+            kitchen_station_id=20,
+        )
+        self.assertEqual(
+            resolve_order_item_kds(product, self.tenant, self.by_id),
+            (10, "Grill", "kitchen"),
+        )
+
     def test_normalize_display_route(self) -> None:
         self.assertEqual(normalize_display_route("KITCHEN"), "kitchen")
         with self.assertRaises(ValueError):

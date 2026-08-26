@@ -15,6 +15,19 @@ def resolve_order_item_kds(
     Returns (kitchen_station_id, kitchen_station_name, kitchen_station_route).
     kitchen_station_route is always 'kitchen' or 'bar' for KDS filtering.
     """
+    if getattr(tenant, "kds_routing_mode", "split") == "kitchen_all":
+        candidate_ids = (
+            product.kitchen_station_id if product else None,
+            location_default_station_id,
+            tenant.default_kitchen_station_id,
+        )
+        for station_id in candidate_ids:
+            if not station_id:
+                continue
+            station = station_by_id.get(station_id)
+            if station and (station.display_route or "kitchen") == "kitchen":
+                return station.id, station.name, "kitchen"
+        return None, None, "kitchen"
     if product and product.kitchen_station_id:
         st = station_by_id.get(product.kitchen_station_id)
         if st:

@@ -4605,8 +4605,18 @@ export class ApiService {
     return this.http.post<SocialPostPublic>(`${this.apiUrl}/tenant/social/posts`, fd);
   }
 
-  getKitchenDisplaySettings(): Observable<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }> {
-    return this.http.get<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>(
+  getKitchenDisplaySettings(): Observable<{
+    yellow_minutes: number;
+    orange_minutes: number;
+    red_minutes: number;
+    routing_mode: 'split' | 'kitchen_all';
+  }> {
+    return this.http.get<{
+      yellow_minutes: number;
+      orange_minutes: number;
+      red_minutes: number;
+      routing_mode: 'split' | 'kitchen_all';
+    }>(
       `${this.apiUrl}/tenant/kitchen-display-settings`
     );
   }
@@ -4615,8 +4625,19 @@ export class ApiService {
     yellow_minutes: number;
     orange_minutes: number;
     red_minutes: number;
-  }): Observable<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }> {
-    return this.http.put<{ yellow_minutes: number; orange_minutes: number; red_minutes: number }>(
+    routing_mode: 'split' | 'kitchen_all';
+  }): Observable<{
+    yellow_minutes: number;
+    orange_minutes: number;
+    red_minutes: number;
+    routing_mode: 'split' | 'kitchen_all';
+  }> {
+    return this.http.put<{
+      yellow_minutes: number;
+      orange_minutes: number;
+      red_minutes: number;
+      routing_mode: 'split' | 'kitchen_all';
+    }>(
       `${this.apiUrl}/tenant/kitchen-display-settings`,
       settings
     );

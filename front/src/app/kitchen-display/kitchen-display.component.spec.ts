@@ -16,12 +16,15 @@ describe('KitchenDisplayComponent', () => {
     orderUpdates$: Subject<unknown>;
     getCurrentUser: jasmine.Spy;
     getKitchenStations: jasmine.Spy;
+    getOperationalLocations: jasmine.Spy;
     getKitchenDisplaySettings: jasmine.Spy;
+    updateKitchenDisplaySettings: jasmine.Spy;
     heartbeatKitchenDevice: jasmine.Spy;
     getOrderingStatus: jasmine.Spy;
     getKitchenStock: jasmine.Spy;
     updateProductAvailability: jasmine.Spy;
     getProductImageUrl: jasmine.Spy;
+    updateOrderItemStatus: jasmine.Spy;
   };
   let mockAudio: { setEnabled: jasmine.Spy; playRestaurantOrderChange: jasmine.Spy };
 
@@ -33,14 +36,19 @@ describe('KitchenDisplayComponent', () => {
       orderUpdates$,
       getCurrentUser: jasmine.createSpy('getCurrentUser').and.returnValue({ id: 1, role: 'kitchen' }),
       getKitchenStations: jasmine.createSpy('getKitchenStations').and.returnValue(of([])),
+      getOperationalLocations: jasmine.createSpy('getOperationalLocations').and.returnValue(of([])),
       getKitchenDisplaySettings: jasmine
         .createSpy('getKitchenDisplaySettings')
-        .and.returnValue(of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15 })),
+        .and.returnValue(of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15, routing_mode: 'split' })),
+      updateKitchenDisplaySettings: jasmine.createSpy('updateKitchenDisplaySettings').and.returnValue(
+        of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15, routing_mode: 'split' }),
+      ),
       heartbeatKitchenDevice: jasmine.createSpy('heartbeatKitchenDevice').and.returnValue(of({ status: 'ok' })),
       getOrderingStatus: jasmine.createSpy('getOrderingStatus').and.returnValue(of({ strict_fifo_kds: true })),
       getKitchenStock: jasmine.createSpy('getKitchenStock').and.returnValue(of([])),
       updateProductAvailability: jasmine.createSpy('updateProductAvailability').and.returnValue(of([])),
       getProductImageUrl: jasmine.createSpy('getProductImageUrl').and.returnValue(null),
+      updateOrderItemStatus: jasmine.createSpy('updateOrderItemStatus').and.returnValue(of({ status: 'ok' })),
     };
     mockAudio = {
       setEnabled: jasmine.createSpy('setEnabled'),
@@ -60,7 +68,8 @@ describe('KitchenDisplayComponent', () => {
           provide: PermissionService,
           useValue: {
             getCurrentUser: () => ({ id: 1, role: 'kitchen' }),
-            hasPermission: (_user: unknown, permission: string) => permission === 'product:availability',
+            hasPermission: (_user: unknown, permission: string) =>
+              ['product:availability', 'order:item_status'].includes(permission),
           },
         },
       ],
@@ -163,6 +172,40 @@ describe('KitchenDisplayComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.activeOrders().length).toBe(1);
     expect(fixture.componentInstance.activeOrders()[0].id).toBe(1);
+  });
+
+  it('should advance all pending ticket items with one Start action', () => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    const order = {
+      id: 91,
+      status: 'paid',
+      table_name: 'T1',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      items: [
+        { id: 901, product_name: 'Pie', quantity: 1, status: 'pending', price_cents: 1200, category: 'Main Course' },
+        { id: 902, product_name: 'Chips', quantity: 1, status: 'pending', price_cents: 400, category: 'Main Course' },
+      ],
+      total_cents: 1600,
+    };
+    fixture.componentInstance.orders.set([order]);
+
+    expect(fixture.componentInstance.getOrderActionLabel(order)).toBe('Start');
+    fixture.componentInstance.advanceOrder(order);
+
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 901, 'preparing');
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 902, 'preparing');
+  });
+
+  it('should hide secondary ticket details until Show more is selected', () => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOrderDetailsOpen(42)).toBeFalse();
+    fixture.componentInstance.toggleOrderDetails(42);
+    expect(fixture.componentInstance.isOrderDetailsOpen(42)).toBeTrue();
+    fixture.componentInstance.toggleOrderDetails(42);
+    expect(fixture.componentInstance.isOrderDetailsOpen(42)).toBeFalse();
   });
 
   it('should toggle sound and persist to localStorage', () => {

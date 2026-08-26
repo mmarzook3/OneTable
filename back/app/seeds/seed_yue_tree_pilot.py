@@ -131,6 +131,7 @@ def run() -> None:
         tenant.require_kds_online = True
         tenant.kds_heartbeat_timeout_seconds = 120
         tenant.strict_fifo_kds = True
+        tenant.kds_routing_mode = "kitchen_all"
         tenant.saas_plan_code = "pilot"
         tenant.saas_included_tables = 10_000
         tenant.saas_extra_tables = 0
