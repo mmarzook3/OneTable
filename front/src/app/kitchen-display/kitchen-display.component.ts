@@ -226,7 +226,13 @@ const VIEW_CATEGORY: Record<string, string> = {
                 </header>
                 <section class="order-destination">
                   @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
-                  <strong class="order-table">{{ order.service_point_label || order.table_name }}</strong>
+                  <div class="order-destination-row">
+                    <strong class="order-table">{{ order.service_point_label || order.table_name }}</strong>
+                    <span class="order-waiting" aria-label="Elapsed wait time">
+                      <span>Waiting</span>
+                      <time>{{ formatWaitingTime(getKitchenStart(order)) }}</time>
+                    </span>
+                  </div>
                 </section>
                 <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
                   <div class="order-timer-bar-track">
@@ -271,7 +277,6 @@ const VIEW_CATEGORY: Record<string, string> = {
                   <section class="order-details">
                     <dl>
                       @if (order.customer_name) { <div><dt>Customer</dt><dd>{{ order.customer_name }}</dd></div> }
-                      <div><dt>Waiting</dt><dd>{{ formatWaitingTime(getKitchenStart(order)) }}</dd></div>
                       <div><dt>Received</dt><dd>{{ formatOrderTime(getKitchenStart(order)) }}</dd></div>
                       <div><dt>Status</dt><dd>{{ getStatusLabel(order.status) }}</dd></div>
                     </dl>
@@ -614,6 +619,13 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: #20242d;
       border-bottom: 1px solid #414959;
     }
+    .order-destination-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      min-width: 0;
+    }
     .order-table {
       overflow-wrap: anywhere;
       font-size: clamp(1.35rem, 2vw, 1.625rem);
@@ -628,6 +640,28 @@ const VIEW_CATEGORY: Record<string, string> = {
       letter-spacing: .035em;
       text-transform: uppercase;
       overflow-wrap: anywhere;
+    }
+    .order-waiting {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: baseline;
+      gap: 6px;
+      padding: 4px 7px;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      background: #171a21;
+      color: #aeb8c7;
+      font-size: .75rem;
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .order-waiting time {
+      color: #f8fafc;
+      font-size: .9375rem;
+      font-weight: 600;
+      font-feature-settings: 'tnum' 1;
+      font-variant-numeric: tabular-nums;
     }
     .payment-badge {
       flex: 0 0 auto;
@@ -748,6 +782,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       word-break: break-word;
     }
     @media (max-width: 520px) {
+      .order-destination-row { align-items: flex-start; flex-direction: column; }
       .order-actions { grid-template-columns: 1fr; }
       .order-details-toggle { width: 100%; }
       .order-details dl { grid-template-columns: 1fr; }
