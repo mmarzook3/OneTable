@@ -241,6 +241,55 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.nativeElement.querySelector('.order-details')).toBeNull();
   });
 
+  it('should show the live clock and active ticket counts in the header', () => {
+    const createdAt = new Date(Date.now() - 60_000).toISOString();
+    mockApi.getOrders.and.returnValue(
+      of([
+        {
+          id: 101,
+          status: 'paid',
+          table_name: 'T1',
+          created_at: createdAt,
+          items: [
+            { id: 1001, product_name: 'Pie', quantity: 1, status: 'pending', price_cents: 1200, category: 'Main Course' },
+          ],
+          total_cents: 1200,
+        },
+        {
+          id: 102,
+          status: 'preparing',
+          table_name: 'T2',
+          created_at: createdAt,
+          items: [
+            { id: 1002, product_name: 'Chips', quantity: 1, status: 'preparing', price_cents: 400, category: 'Main Course' },
+          ],
+          total_cents: 400,
+        },
+        {
+          id: 103,
+          status: 'ready',
+          table_name: 'T3',
+          created_at: createdAt,
+          items: [
+            { id: 1003, product_name: 'Salad', quantity: 1, status: 'ready', price_cents: 700, category: 'Main Course' },
+          ],
+          total_cents: 700,
+        },
+      ]),
+    );
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.activeOrderCount()).toBe(3);
+    expect(fixture.componentInstance.pendingOrderCount()).toBe(1);
+    expect(fixture.componentInstance.preparingOrderCount()).toBe(1);
+    expect(fixture.componentInstance.readyOrderCount()).toBe(1);
+    expect(
+      (fixture.nativeElement.querySelector('[data-testid="kds-current-time"]') as HTMLElement)
+        .textContent?.trim(),
+    ).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+  });
+
   it('should toggle sound and persist to localStorage', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();

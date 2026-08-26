@@ -120,6 +120,28 @@ const VIEW_CATEGORY: Record<string, string> = {
           {{ 'KITCHEN_DISPLAY.BACK_TO_ORDERS' | translate }}
         </a>
         <h1 class="kitchen-title">{{ pageTitle() }}</h1>
+        <section class="kds-overview" aria-label="Kitchen service summary">
+          <div class="kds-overview-item kds-clock">
+            <span class="kds-overview-label">Local time</span>
+            <time class="kds-clock-value" data-testid="kds-current-time">{{ currentClockTime() }}</time>
+          </div>
+          <div class="kds-overview-item">
+            <span class="kds-overview-label">Active</span>
+            <strong class="kds-overview-value" data-testid="kds-active-count">{{ activeOrderCount() }}</strong>
+          </div>
+          <div class="kds-overview-item">
+            <span class="kds-overview-label">Pending</span>
+            <strong class="kds-overview-value" data-testid="kds-pending-count">{{ pendingOrderCount() }}</strong>
+          </div>
+          <div class="kds-overview-item">
+            <span class="kds-overview-label">Preparing</span>
+            <strong class="kds-overview-value" data-testid="kds-preparing-count">{{ preparingOrderCount() }}</strong>
+          </div>
+          <div class="kds-overview-item kds-ready-summary">
+            <span class="kds-overview-label">Ready</span>
+            <strong class="kds-overview-value" data-testid="kds-ready-count">{{ readyOrderCount() }}</strong>
+          </div>
+        </section>
         <div class="header-actions">
           @if (operationalLocations().length > 1) {
             <label class="station-filter">
@@ -412,10 +434,12 @@ const VIEW_CATEGORY: Record<string, string> = {
       -moz-osx-font-smoothing: grayscale;
     }
     .kitchen-header {
-      display: flex;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        'back overview title'
+        'actions actions actions';
       align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
       gap: var(--space-4);
       padding: var(--space-4) var(--space-6);
       background: var(--color-surface);
@@ -430,6 +454,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       text-align: center;
     }
     .back-link {
+      grid-area: back;
       display: inline-flex;
       align-items: center;
       gap: var(--space-2);
@@ -440,17 +465,56 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .back-link:hover { text-decoration: underline; }
     .kitchen-title {
+      grid-area: title;
+      justify-self: end;
       font-size: clamp(1.5rem, 4vw, 2.25rem);
       font-weight: 700;
       color: var(--color-text);
       margin: 0;
     }
     .header-actions {
+      grid-area: actions;
       display: flex;
       align-items: center;
       gap: var(--space-5);
       flex-wrap: wrap;
     }
+    .kds-overview {
+      grid-area: overview;
+      justify-self: center;
+      display: grid;
+      grid-template-columns: minmax(118px, auto) repeat(4, minmax(68px, auto));
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: #fafaf9;
+    }
+    .kds-overview-item {
+      display: grid;
+      align-content: center;
+      min-height: 54px;
+      padding: 7px 13px;
+      border-left: 1px solid var(--color-border);
+      text-align: center;
+    }
+    .kds-overview-item:first-child { border-left: 0; }
+    .kds-overview-label {
+      color: var(--color-text-muted);
+      font-size: .7rem;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .kds-overview-value,
+    .kds-clock-value {
+      color: var(--color-text);
+      font-weight: 700;
+      font-feature-settings: 'tnum' 1;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+    }
+    .kds-overview-value { font-size: 1.25rem; }
+    .kds-clock-value { font-size: 1.35rem; letter-spacing: -.02em; }
+    .kds-ready-summary .kds-overview-value { color: #15803d; }
     .stock-btn,
     .timer-settings-btn,
     .fullscreen-btn {
@@ -786,6 +850,27 @@ const VIEW_CATEGORY: Record<string, string> = {
       .order-actions { grid-template-columns: 1fr; }
       .order-details-toggle { width: 100%; }
       .order-details dl { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 1100px) {
+      .kitchen-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'back title'
+          'overview overview'
+          'actions actions';
+      }
+      .kds-overview { justify-self: stretch; }
+      .kds-overview-item { padding-inline: 10px; }
+    }
+    @media (max-width: 640px) {
+      .kitchen-header { padding: 14px 16px; }
+      .kds-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .kds-clock { grid-column: 1 / -1; border-left: 0; border-bottom: 1px solid var(--color-border); }
+      .kds-overview-item { min-height: 48px; padding: 6px 8px; }
+      .kds-overview-item:nth-child(2) { border-left: 0; }
+      .kds-clock-value { font-size: 1.25rem; }
+      .kds-overview-value { font-size: 1.125rem; }
+      .header-actions { gap: 10px; }
     }
     .stock-notice {
       padding: 10px 24px;
@@ -1162,6 +1247,26 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       return ta - tb;
     });
   });
+
+  activeOrderCount = computed(() => this.activeOrders().length);
+  pendingOrderCount = computed(
+    () => this.activeOrders().filter((order) => this.getOrderActionTarget(order) === 'preparing').length,
+  );
+  preparingOrderCount = computed(
+    () => this.activeOrders().filter((order) => this.getOrderActionTarget(order) === 'ready').length,
+  );
+  readyOrderCount = computed(
+    () => this.activeOrders().filter((order) => this.getOrderActionTarget(order) === 'delivered').length,
+  );
+  currentClockTime = computed(() =>
+    new Date(this.now()).toLocaleTimeString('en-GB', {
+      timeZone: 'Europe/London',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }),
+  );
 
   lastRefreshRelative = computed(() => {
     const at = this.lastRefreshAt();
