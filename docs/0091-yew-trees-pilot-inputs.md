@@ -56,8 +56,10 @@ Do not store Google app passwords, Stripe secrets or bank information in this do
 - Premium Building: 13 rooms
 - Main Building: no ordering points; location retained inactive
 - Total expected plaques/ordering points: **38**
+- Indoor table capacity: 4
 - Outdoor bench capacity: 4
-- Indoor table, Sports Lounge and room capacities: provisional until tenant admin confirms
+- Sports Lounge table capacity: 4
+- Premium Building room capacity: 2
 
 Stable point codes use `I1..I9`, `O1..O8`, `S1..S8` and `PB1..PB13`. Premium Building customer labels are temporarily `PB1` through `PB13` and may later be replaced with the hotel’s actual room numbers.
 
@@ -82,7 +84,7 @@ Premium Building uses location menu overrides so the venue can set different pri
 - Sunday: 12:00–22:30
 - Ordering initially follows opening hours for every active location
 - Reservations initially follow opening hours
-- Average reservation duration: TBP (recommended 90 minutes)
+- Average reservation duration: 90 minutes
 - Scanaki may draft Terms, Privacy, refund, order-cancellation and reservation-cancellation policies for review
 
 ## Staff and hardware
@@ -99,7 +101,7 @@ Premium Building uses location menu overrides so the venue can set different pri
 
 - Business verification: completed
 - Payout bank account: configured
-- Recommended statement descriptor: `YEW TREES PUB` (venue approval required)
+- Approved statement descriptor: `YEW TREES PUB`
 - Desired live activation: 1 September
 - Refund authority: Yew Trees manager
 
