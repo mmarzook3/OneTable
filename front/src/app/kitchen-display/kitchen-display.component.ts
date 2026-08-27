@@ -29,8 +29,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
 const HEARTBEAT_INTERVAL_MS = 30000;
-const ORDER_HOLD_MS = 2000;
-const ORDER_STATUS_COOLDOWN_MS = 5000;
+const DEFAULT_ORDER_HOLD_SECONDS = 1;
+const DEFAULT_ORDER_COOLDOWN_SECONDS = 2;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
 const DEVICE_KEY_STORAGE_KEY = 'one-table-kds-device-key';
 const STATION_STORAGE_PREFIX = 'one-table-kds-station';
@@ -58,6 +58,8 @@ type KitchenDisplaySettings = {
   orange_minutes: number;
   red_minutes: number;
   routing_mode: KdsRoutingMode;
+  action_hold_seconds: number;
+  action_cooldown_seconds: number;
 };
 
 function getFullscreenElement(): Element | null {
@@ -303,8 +305,9 @@ const VIEW_CATEGORY: Record<string, string> = {
                       class="order-primary-action"
                       [class]="getOrderActionClass(order)"
                       [class.order-hold-active]="isOrderHoldActive(order.id)"
+                      [style.--hold-duration]="orderHoldDurationMs() + 'ms'"
                       [disabled]="isOrderInteractionDisabled(order.id)"
-                      [attr.aria-label]="'Press and hold for 2 seconds to ' + getOrderActionLabel(order)"
+                      [attr.aria-label]="'Press and hold for ' + actionHoldSeconds() + ' second' + (actionHoldSeconds() === 1 ? '' : 's') + ' to ' + getOrderActionLabel(order)"
                       [attr.data-testid]="'kitchen-order-action-' + order.id"
                       (pointerdown)="startOrderHold($event, order)"
                       (pointerup)="cancelOrderHold(order.id)"
@@ -422,7 +425,7 @@ const VIEW_CATEGORY: Record<string, string> = {
         <div class="modal-backdrop" (click)="closeTimerSettingsModal()"></div>
         <div class="modal timer-settings-modal" role="dialog" aria-labelledby="timer-settings-title" appFocusFirstInput>
           <h2 id="timer-settings-title" class="modal-title">Display settings</h2>
-          <p class="modal-desc">Set order routing and wait-time colours.</p>
+          <p class="modal-desc">Set order routing, action safety delays and wait-time colours.</p>
           <label class="routing-mode-control">
             <span>Order display routing</span>
             <select [ngModel]="timerSettingsForm().routing_mode" (ngModelChange)="updateTimerFormRouting($event)">
@@ -431,6 +434,22 @@ const VIEW_CATEGORY: Record<string, string> = {
             </select>
             <small>Use one combined kitchen queue or send drinks separately to Bar.</small>
           </label>
+          <section class="action-delay-settings" aria-labelledby="action-delay-title">
+            <h3 id="action-delay-title">Action safety delays</h3>
+            <div class="timer-settings-form action-delay-form">
+              <label>
+                <span>Press-and-hold duration</span>
+                <input type="number" min="1" max="5" step="1" [ngModel]="timerSettingsForm().action_hold_seconds" (ngModelChange)="updateTimerFormHoldSeconds($event)" />
+                <small>seconds</small>
+              </label>
+              <label>
+                <span>Delay before next status</span>
+                <input type="number" min="0" max="30" step="1" [ngModel]="timerSettingsForm().action_cooldown_seconds" (ngModelChange)="updateTimerFormCooldownSeconds($event)" />
+                <small>seconds</small>
+              </label>
+            </div>
+            <p>Prevents accidental taps and immediately advancing the same ticket twice.</p>
+          </section>
           <div class="timer-settings-form">
             <label>
               <span>{{ 'KITCHEN_DISPLAY.TIMER_YELLOW_MINUTES' | translate }}</span>
@@ -999,7 +1018,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       width: 0;
       background: rgba(255, 255, 255, .28);
       pointer-events: none;
-      animation: kitchen-hold-fill 2s linear forwards;
+      animation: kitchen-hold-fill var(--hold-duration, 1000ms) linear forwards;
     }
     .order-primary-action.order-hold-active {
       box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55);
@@ -1240,6 +1259,17 @@ const VIEW_CATEGORY: Record<string, string> = {
       font: inherit;
     }
     .routing-mode-control small { color: var(--color-text-muted); font-size: .78rem; font-weight: 500; }
+    .action-delay-settings {
+      margin-bottom: 18px;
+      padding: 14px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+    }
+    .action-delay-settings h3 { margin: 0 0 12px; font-size: .95rem; }
+    .action-delay-settings p { margin: 10px 0 0; color: var(--color-text-muted); font-size: .75rem; }
+    .action-delay-form { margin-bottom: 0 !important; }
+    .action-delay-form small { color: var(--color-text-muted); }
     .timer-settings-form {
       display: flex;
       flex-direction: column;
@@ -1495,6 +1525,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     orange_minutes: 10,
     red_minutes: 15,
     routing_mode: 'split',
+    action_hold_seconds: DEFAULT_ORDER_HOLD_SECONDS,
+    action_cooldown_seconds: DEFAULT_ORDER_COOLDOWN_SECONDS,
   });
   timerSettingsModalOpen = signal(false);
   timerSettingsForm = signal<KitchenDisplaySettings>({
@@ -1502,7 +1534,29 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     orange_minutes: 10,
     red_minutes: 15,
     routing_mode: 'split',
+    action_hold_seconds: DEFAULT_ORDER_HOLD_SECONDS,
+    action_cooldown_seconds: DEFAULT_ORDER_COOLDOWN_SECONDS,
   });
+  actionHoldSeconds = computed(() =>
+    Math.max(
+      1,
+      Math.min(
+        5,
+        Number(this.timerSettings().action_hold_seconds ?? DEFAULT_ORDER_HOLD_SECONDS) ||
+          DEFAULT_ORDER_HOLD_SECONDS,
+      ),
+    ),
+  );
+  actionCooldownSeconds = computed(() =>
+    Math.max(
+      0,
+      Math.min(
+        30,
+        Number(this.timerSettings().action_cooldown_seconds ?? DEFAULT_ORDER_COOLDOWN_SECONDS),
+      ),
+    ),
+  );
+  orderHoldDurationMs = computed(() => this.actionHoldSeconds() * 1000);
   private tickIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
   private deviceKey = '';
@@ -2021,6 +2075,16 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     }));
   }
 
+  updateTimerFormHoldSeconds(value: number): void {
+    const normalized = Math.max(1, Math.min(5, Math.round(Number(value) || 1)));
+    this.timerSettingsForm.update((form) => ({ ...form, action_hold_seconds: normalized }));
+  }
+
+  updateTimerFormCooldownSeconds(value: number): void {
+    const normalized = Math.max(0, Math.min(30, Math.round(Number(value) || 0)));
+    this.timerSettingsForm.update((form) => ({ ...form, action_cooldown_seconds: normalized }));
+  }
+
   saveTimerSettings(): void {
     const form = this.timerSettingsForm();
     this.api.updateKitchenDisplaySettings(form).subscribe({
@@ -2416,7 +2480,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.isOrderActionBusy(order.id)) return 'Updating...';
     const cooldown = this.orderCooldownSeconds(order.id);
     if (cooldown > 0) return `Wait ${cooldown}s`;
-    if (this.isOrderHoldActive(order.id)) return 'Keep holding... 2s';
+    if (this.isOrderHoldActive(order.id)) return `Keep holding... ${this.actionHoldSeconds()}s`;
     return this.getOrderActionLabel(order);
   }
 
@@ -2464,7 +2528,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.orderHold.set(null);
       this.orderHoldTimeoutId = null;
       this.advanceOrder(order);
-    }, ORDER_HOLD_MS);
+    }, this.orderHoldDurationMs());
   }
 
   cancelOrderHold(orderId: number): void {
@@ -2516,7 +2580,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private completeOrderStatusFeedback(orderId: number): void {
     this.orderCooldownUntil.update((current) => ({
       ...current,
-      [orderId]: Date.now() + ORDER_STATUS_COOLDOWN_MS,
+      [orderId]: Date.now() + this.actionCooldownSeconds() * 1000,
     }));
     if (this.soundEnabled()) this.audio.playKitchenStatusConfirmed();
     this.vibrate([90, 45, 150]);

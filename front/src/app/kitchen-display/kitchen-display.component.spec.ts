@@ -46,9 +46,23 @@ describe('KitchenDisplayComponent', () => {
       getOperationalLocations: jasmine.createSpy('getOperationalLocations').and.returnValue(of([])),
       getKitchenDisplaySettings: jasmine
         .createSpy('getKitchenDisplaySettings')
-        .and.returnValue(of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15, routing_mode: 'split' })),
+        .and.returnValue(of({
+          yellow_minutes: 5,
+          orange_minutes: 10,
+          red_minutes: 15,
+          routing_mode: 'split',
+          action_hold_seconds: 1,
+          action_cooldown_seconds: 2,
+        })),
       updateKitchenDisplaySettings: jasmine.createSpy('updateKitchenDisplaySettings').and.returnValue(
-        of({ yellow_minutes: 5, orange_minutes: 10, red_minutes: 15, routing_mode: 'split' }),
+        of({
+          yellow_minutes: 5,
+          orange_minutes: 10,
+          red_minutes: 15,
+          routing_mode: 'split',
+          action_hold_seconds: 1,
+          action_cooldown_seconds: 2,
+        }),
       ),
       heartbeatKitchenDevice: jasmine.createSpy('heartbeatKitchenDevice').and.returnValue(of({ status: 'ok' })),
       getOrderingStatus: jasmine.createSpy('getOrderingStatus').and.returnValue(of({ strict_fifo_kds: true })),
@@ -209,7 +223,7 @@ describe('KitchenDisplayComponent', () => {
     expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 902, 'preparing');
   });
 
-  it('should require a two-second hold and enforce a five-second cooldown', fakeAsync(() => {
+  it('should require a one-second hold and enforce a two-second cooldown', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
     const order = {
@@ -232,16 +246,16 @@ describe('KitchenDisplayComponent', () => {
     } as unknown as PointerEvent;
 
     fixture.componentInstance.startOrderHold(event, order);
-    tick(1999);
+    tick(999);
     expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalledWith(93, 930, 'preparing');
     tick(1);
     expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(93, 930, 'preparing');
     expect(mockAudio.playKitchenStatusConfirmed).toHaveBeenCalled();
-    expect(fixture.componentInstance.orderCooldownSeconds(93)).toBe(5);
+    expect(fixture.componentInstance.orderCooldownSeconds(93)).toBe(2);
 
     mockApi.updateOrderItemStatus.calls.reset();
     fixture.componentInstance.startOrderHold(event, order);
-    tick(2000);
+    tick(1000);
     expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
     fixture.destroy();
   }));

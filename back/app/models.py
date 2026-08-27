@@ -247,6 +247,8 @@ class Tenant(SQLModel, table=True):
     kitchen_display_timer_yellow_minutes: int | None = Field(default=5)
     kitchen_display_timer_orange_minutes: int | None = Field(default=10)
     kitchen_display_timer_red_minutes: int | None = Field(default=15)
+    kitchen_action_hold_seconds: int = Field(default=1, ge=1, le=5)
+    kitchen_action_cooldown_seconds: int = Field(default=2, ge=0, le=30)
     # split = category/station routing; kitchen_all = every item appears in Kitchen.
     kds_routing_mode: str = Field(default="split", max_length=24)
 
