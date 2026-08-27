@@ -442,7 +442,6 @@ const VIEW_CATEGORY: Record<string, string> = {
           aria-modal="true"
           aria-labelledby="order-history-title"
           data-testid="kitchen-all-orders-modal"
-          appFocusFirstInput
         >
           <header class="order-history-header">
             <div>
