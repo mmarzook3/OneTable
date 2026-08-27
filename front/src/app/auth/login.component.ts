@@ -7,17 +7,17 @@ import { ApiService, type TenantSummary } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LegalLinksComponent } from '../shared/legal-links.component';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, FormsModule, RouterLink, TranslateModule, LanguagePickerComponent, LegalLinksComponent],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink, TranslateModule, LanguagePickerComponent, LegalLinksComponent, ScanakiBrandComponent],
   template: `
     <div class="auth-page">
       <div class="auth-card">
         <div class="auth-brand" aria-label="Scanaki">
-          <span class="auth-brand-mark" aria-hidden="true"></span>
-          <span class="auth-brand-name">Scanaki</span>
+          <app-scanaki-brand [size]="38"></app-scanaki-brand>
         </div>
         <div class="auth-header">
           <div class="auth-header-row">
@@ -180,19 +180,7 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
       margin-bottom: 1.6rem;
       color: var(--color-text);
     }
-    .auth-brand-mark {
-      width: 38px;
-      height: 38px;
-      flex: 0 0 38px;
-      border-radius: 11px;
-      background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
-      box-shadow: 0 8px 22px rgba(211, 82, 51, .28);
-    }
-    .auth-brand-name {
-      font-size: 1.35rem;
-      font-weight: 700;
-      letter-spacing: -.025em;
-    }
+    .auth-brand app-scanaki-brand { font-size: 1.35rem; }
 
     .input-with-toggle {
       position: relative;

@@ -3,17 +3,18 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiService, RestaurantOnboardingState } from '../services/api.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 type StarterItem = { name: string; priceCents: number; enabled: boolean };
 
 @Component({
   selector: 'app-restaurant-onboarding',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, TranslateModule],
+  imports: [ReactiveFormsModule, RouterLink, TranslateModule, ScanakiBrandComponent],
   template: `
     <main class="onboarding-shell">
       <header class="onboarding-header">
-        <a routerLink="/" class="brand" aria-label="Scanaki">Scanaki</a>
+        <a routerLink="/" class="brand" aria-label="Scanaki"><app-scanaki-brand [size]="32"></app-scanaki-brand></a>
         <div class="save-state">
           <span class="save-dot" aria-hidden="true"></span>
           {{ 'RESTAURANT_ONBOARDING.SAVED_AUTOMATICALLY' | translate }}

@@ -16,13 +16,14 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { extractScanakiGuestRoute } from './guest-qr-route';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [RouterLink, TranslateModule, LanguagePickerComponent, QRCodeComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, QRCodeComponent, LandingSiteFooterComponent, ScanakiBrandComponent],
   template: `
     <div class="landing-page">
       <div class="landing-hero__bg" aria-hidden="true">
@@ -33,8 +34,7 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
 
       <nav class="landing-nav" aria-label="Main" (keydown.escape)="closeMobileNav()">
         <a routerLink="/" class="landing-nav__brand">
-          <span class="landing-nav__mark" aria-hidden="true"></span>
-          <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
+          <app-scanaki-brand [size]="28"></app-scanaki-brand>
         </a>
         <button
           type="button"
@@ -393,14 +393,6 @@ const LANDING_GUEST_QR_READER_ID = 'landing-guest-qr-reader';
       font-size: 1.125rem;
       letter-spacing: -0.02em;
       text-decoration: none;
-    }
-
-    .landing-nav__mark {
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
-      box-shadow: 0 8px 24px rgba(211, 82, 51, 0.35);
     }
 
     .landing-nav__links {

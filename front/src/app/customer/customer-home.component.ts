@@ -3,11 +3,12 @@ import { Router, RouterLink } from '@angular/router';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiService, CustomerInfo, CustomerOrderSummary } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-customer-home',
   standalone: true,
-  imports: [RouterLink, TranslateModule],
+  imports: [RouterLink, TranslateModule, ScanakiBrandComponent],
   template: `
     <div class="page" data-testid="customer-home">
       <header class="page-header">
@@ -75,7 +76,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
       </section>
 
       <p class="foot">
-        <a routerLink="/">Scanaki</a>
+        <a routerLink="/"><app-scanaki-brand [size]="24"></app-scanaki-brand></a>
       </p>
     </div>
   `,

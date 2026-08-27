@@ -50,13 +50,6 @@
   text-decoration: none;
 }
 
-.user-manual-nav__mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
-}
-
 .user-manual-nav__links {
   display: none;
   align-items: center;

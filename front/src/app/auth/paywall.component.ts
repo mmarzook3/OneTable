@@ -5,17 +5,18 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiService, type SaasSubscription } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-paywall',
   standalone: true,
-  imports: [TranslateModule, RouterLink, LanguagePickerComponent],
+  imports: [TranslateModule, RouterLink, LanguagePickerComponent, ScanakiBrandComponent],
   template: `
     <div class="paywall-page" data-testid="paywall-page">
       <div class="paywall-card">
         <div class="paywall-header">
           <div>
-            <p class="brand">Scanaki</p>
+            <app-scanaki-brand class="brand" [size]="36"></app-scanaki-brand>
             <h1>{{ 'PAYWALL.TITLE' | translate }}</h1>
             <p class="lead">{{ 'PAYWALL.LEAD' | translate }}</p>
           </div>
@@ -113,7 +114,8 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
         margin-bottom: var(--space-6);
       }
       .brand {
-        font-family: Georgia, 'Times New Roman', serif;
+        display: flex;
+        font-family: inherit;
         font-size: 1.5rem;
         font-weight: 700;
         color: var(--color-text);

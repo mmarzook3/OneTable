@@ -3,19 +3,19 @@ import { RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-about-page',
   standalone: true,
-  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent, ScanakiBrandComponent],
   template: `
     <div class="about-page" data-testid="about-page">
       <div class="about-page__bg" aria-hidden="true"></div>
 
       <nav class="about-nav" aria-label="Main">
         <a routerLink="/" class="about-nav__brand">
-          <span class="about-nav__mark" aria-hidden="true"></span>
-          <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
+          <app-scanaki-brand [size]="28"></app-scanaki-brand>
         </a>
         <div class="about-nav__links">
           <a routerLink="/features" class="about-nav__link">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
@@ -111,13 +111,6 @@ import { LandingSiteFooterComponent } from '../shared/landing-site-footer.compon
         font-weight: 700;
         font-size: 1.125rem;
         text-decoration: none;
-      }
-
-      .about-nav__mark {
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
       }
 
       .about-nav__links {

@@ -12,13 +12,14 @@ import { TablesAreaPreferenceService } from '../services/tables-area-preference.
 import { StaffLayoutService } from '../services/staff-layout.service';
 import { ConnectivityService } from '../services/connectivity.service';
 import { OfflineOrderQueueService } from '../services/offline-order-queue.service';
+import { ScanakiBrandComponent } from './scanaki-brand.component';
 
 type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
 
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, LanguagePickerComponent, TranslateModule],
+  imports: [RouterLink, RouterLinkActive, LanguagePickerComponent, TranslateModule, ScanakiBrandComponent],
   template: `
     <div class="layout" [class.sidebar-open]="sidebarOpen()" [class.layout--nav-collapsed]="staffLayout.sidebarCollapsed()">
       <header class="mobile-header">
@@ -28,7 +29,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
           <span></span>
         </button>
         <div class="mobile-brand" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-          <span class="header-title">Scanaki</span>
+          <app-scanaki-brand [size]="26"></app-scanaki-brand>
           @if (tenantOrgName()) {
             <span class="header-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{
               tenantOrgName()
@@ -40,7 +41,7 @@ type NavGroupKey = 'operations' | 'planning' | 'catalog' | 'admin';
       <aside class="sidebar">
         <div class="sidebar-header">
           <div class="logo-container" [attr.title]="brandTitle()" [attr.aria-label]="brandTitle()">
-            <span class="logo">Scanaki</span>
+            <app-scanaki-brand class="logo" [size]="34"></app-scanaki-brand>
             <span class="version">{{ version }} <span class="commit-hash">{{ commitHash }}</span></span>
             @if (tenantOrgName()) {
               <span class="sidebar-org-name" [attr.title]="tenantOrgName()!" [attr.aria-label]="tenantOrgName()!">{{

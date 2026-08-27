@@ -1,20 +1,20 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Meta, Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 const APK_URL = '/downloads/scanaki-kitchen-0.3.0.apk';
 
 @Component({
   selector: 'app-kitchen-app-download',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, ScanakiBrandComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="download-page">
       <header class="download-header">
         <a routerLink="/" class="brand-link" aria-label="Scanaki home">
-          <img src="/favicon.svg" alt="" width="40" height="40" />
-          <span>Scanaki</span>
+          <app-scanaki-brand [size]="40"></app-scanaki-brand>
         </a>
         <a href="mailto:support@scanaki.uk" class="support-link">Need help?</a>
       </header>
@@ -22,7 +22,7 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.0.apk';
       <main>
         <section class="download-intro" aria-labelledby="download-title">
           <div class="app-identity">
-            <img src="/favicon.svg" alt="Scanaki Kitchen" width="88" height="88" />
+            <app-scanaki-brand [size]="88" [showName]="false"></app-scanaki-brand>
             <div>
               <span class="pilot-label">Official pilot app</span>
               <h1 id="download-title">Scanaki Kitchen</h1>
@@ -106,7 +106,6 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.0.apk';
       font-weight: 700;
       text-decoration: none;
     }
-    .brand-link img { border-radius: 10px; }
     .support-link { color: #b84025; font-weight: 600; text-decoration: none; }
     main {
       display: grid;
@@ -118,7 +117,7 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.0.apk';
     }
     .download-intro { align-self: start; }
     .app-identity { display: flex; align-items: center; gap: 22px; }
-    .app-identity img { border-radius: 22px; box-shadow: 0 14px 34px rgba(133, 53, 34, .18); }
+    .app-identity app-scanaki-brand { filter: drop-shadow(0 14px 17px rgba(133, 53, 34, .18)); }
     .pilot-label {
       display: block;
       margin-bottom: 8px;
@@ -192,7 +191,6 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.0.apk';
       .download-header { width: min(100% - 28px, 1120px); }
       main { grid-template-columns: 1fr; gap: 48px; width: min(100% - 32px, 620px); padding-top: 44px; }
       .app-identity { align-items: flex-start; gap: 16px; }
-      .app-identity img { width: 68px; height: 68px; border-radius: 17px; }
       h1 { font-size: clamp(2.15rem, 12vw, 3.3rem); }
       .intro-copy { margin-top: 26px; font-size: 1.05rem; }
       .download-button { width: 100%; }

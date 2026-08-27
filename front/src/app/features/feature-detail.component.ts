@@ -6,19 +6,19 @@ import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 import { SeoService } from '../services/seo.service';
 import { featureDetailKey, getFeatureLanding, type FeatureLanding } from './feature-landings';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-feature-detail',
   standalone: true,
-  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent, ScanakiBrandComponent],
   template: `
     <div class="feature-detail-page">
       <div class="feature-detail-page__bg" aria-hidden="true"></div>
 
       <nav class="feature-detail-nav" aria-label="Main">
         <a routerLink="/" class="feature-detail-nav__brand">
-          <span class="feature-detail-nav__mark" aria-hidden="true"></span>
-          <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
+          <app-scanaki-brand [size]="28"></app-scanaki-brand>
         </a>
         <div class="feature-detail-nav__links">
           <a routerLink="/features" class="feature-detail-nav__link feature-detail-nav__link--active">{{
@@ -151,13 +151,6 @@ import { featureDetailKey, getFeatureLanding, type FeatureLanding } from './feat
         font-weight: 700;
         font-size: 1.125rem;
         text-decoration: none;
-      }
-
-      .feature-detail-nav__mark {
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
       }
 
       .feature-detail-nav__links {

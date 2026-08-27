@@ -1,8 +1,7 @@
 <div class="user-manual-page" data-testid="user-manual-page">
   <nav class="user-manual-nav" aria-label="Main">
     <a routerLink="/" class="user-manual-nav__brand">
-      <span class="user-manual-nav__mark" aria-hidden="true"></span>
-      <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
+      <app-scanaki-brand [size]="28"></app-scanaki-brand>
     </a>
     <div class="user-manual-nav__links">
       <a routerLink="/features" class="user-manual-nav__link">{{ 'LANDING.NAV_FEATURES' | translate }}</a>

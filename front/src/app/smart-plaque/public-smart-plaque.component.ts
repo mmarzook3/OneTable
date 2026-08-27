@@ -2,15 +2,16 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../services/api.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-public-smart-plaque',
   standalone: true,
-  imports: [TranslateModule],
+  imports: [TranslateModule, ScanakiBrandComponent],
   template: `
     <main class="resolve-page">
       <section class="resolve-card" aria-live="polite">
-        <div class="brand-mark" aria-hidden="true">1</div>
+        <app-scanaki-brand class="brand-mark" [size]="44" [showName]="false"></app-scanaki-brand>
         @if (loading()) {
           <div class="spinner" aria-hidden="true"></div>
           <h1>{{ 'SMART_PLAQUES.OPENING_MENU' | translate }}</h1>
@@ -29,7 +30,7 @@ import { ApiService } from '../services/api.service';
     :host { display: block; min-height: 100vh; }
     .resolve-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, #eef4ff, #f7f8fb 55%); font-family: Inter, system-ui, sans-serif; }
     .resolve-card { width: min(100%, 420px); padding: 40px 30px; text-align: center; background: #fff; border: 1px solid #dde3ee; border-radius: 22px; box-shadow: 0 18px 55px rgba(24,39,75,.1); color: #17223b; }
-    .brand-mark { display: grid; place-items: center; width: 44px; height: 44px; margin: 0 auto 28px; border-radius: 13px; background: #2457d6; color: #fff; font-weight: 800; font-size: 20px; }
+    .brand-mark { display: flex; justify-content: center; margin: 0 auto 28px; }
     h1 { margin: 16px 0 8px; font-size: 1.45rem; letter-spacing: -.025em; }
     p { margin: 0 auto 24px; max-width: 330px; color: #63708a; line-height: 1.55; }
     small { display: block; margin-top: 30px; color: #8a94a8; }
