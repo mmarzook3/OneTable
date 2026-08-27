@@ -229,6 +229,8 @@ describe('KitchenDisplayComponent', () => {
     expect(ticketScroll.querySelectorAll('.order-item').length).toBe(15);
     expect(ticketScroll.contains(ticketActions)).toBeFalse();
     expect(getComputedStyle(ticketScroll).overflowY).toBe('auto');
+    expect(getComputedStyle(ticketScroll).touchAction).toBe('auto');
+    expect(getComputedStyle(ticketScroll).overscrollBehaviorX).toBe('auto');
     expect(getComputedStyle(orderGrid).overflowY).toBe('hidden');
   });
 
