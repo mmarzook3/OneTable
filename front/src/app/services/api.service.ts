@@ -4629,12 +4629,16 @@ export class ApiService {
     orange_minutes: number;
     red_minutes: number;
     routing_mode: 'split' | 'kitchen_all';
+    action_hold_seconds: number;
+    action_cooldown_seconds: number;
   }> {
     return this.http.get<{
       yellow_minutes: number;
       orange_minutes: number;
       red_minutes: number;
       routing_mode: 'split' | 'kitchen_all';
+      action_hold_seconds: number;
+      action_cooldown_seconds: number;
     }>(
       `${this.apiUrl}/tenant/kitchen-display-settings`
     );
@@ -4645,17 +4649,23 @@ export class ApiService {
     orange_minutes: number;
     red_minutes: number;
     routing_mode: 'split' | 'kitchen_all';
+    action_hold_seconds: number;
+    action_cooldown_seconds: number;
   }): Observable<{
     yellow_minutes: number;
     orange_minutes: number;
     red_minutes: number;
     routing_mode: 'split' | 'kitchen_all';
+    action_hold_seconds: number;
+    action_cooldown_seconds: number;
   }> {
     return this.http.put<{
       yellow_minutes: number;
       orange_minutes: number;
       red_minutes: number;
       routing_mode: 'split' | 'kitchen_all';
+      action_hold_seconds: number;
+      action_cooldown_seconds: number;
     }>(
       `${this.apiUrl}/tenant/kitchen-display-settings`,
       settings

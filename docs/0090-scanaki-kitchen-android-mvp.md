@@ -24,8 +24,8 @@ Scanaki Kitchen `0.3.0-debug` is a native Android application shell for the exis
 16. Exposes Kitchen online/offline, online device count, last heartbeat and timeout in the platform tenant screen.
 17. Flushes remembered-session cookies after full page loads, single-page route changes and successful native heartbeats so abrupt app termination does not lose the session.
 18. Allows Kitchen feedback vibration for new orders and successful status changes.
-19. Requires a two-second animated press-and-hold before advancing a ticket.
-20. Locks the next ticket transition for five seconds after a successful change.
+19. Requires an animated press-and-hold before advancing a ticket; the tenant default is one second and is configurable in Display settings.
+20. Locks the next ticket transition after a successful change; the tenant default is two seconds and is configurable in Display settings.
 
 ## HONOR acceptance test
 

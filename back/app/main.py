@@ -5064,7 +5064,7 @@ def get_kitchen_display_settings(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Get kitchen/bar display timer thresholds (minutes). Used for wait-time card colors."""
+    """Get Kitchen display timing, routing and accidental-tap protection settings."""
     tenant = session.exec(
         select(models.Tenant).where(models.Tenant.id == current_user.tenant_id)
     ).first()
@@ -5075,6 +5075,8 @@ def get_kitchen_display_settings(
         "orange_minutes": tenant.kitchen_display_timer_orange_minutes if tenant.kitchen_display_timer_orange_minutes is not None else 10,
         "red_minutes": tenant.kitchen_display_timer_red_minutes if tenant.kitchen_display_timer_red_minutes is not None else 15,
         "routing_mode": tenant.kds_routing_mode or "split",
+        "action_hold_seconds": tenant.kitchen_action_hold_seconds if tenant.kitchen_action_hold_seconds is not None else 1,
+        "action_cooldown_seconds": tenant.kitchen_action_cooldown_seconds if tenant.kitchen_action_cooldown_seconds is not None else 2,
     }
 
 
@@ -5084,7 +5086,7 @@ def update_kitchen_display_settings(
     current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Update KDS timer thresholds and kitchen/bar routing mode."""
+    """Update KDS wait colours, routing and action safety delays."""
     tenant = session.exec(
         select(models.Tenant).where(models.Tenant.id == current_user.tenant_id)
     ).first()
@@ -5094,6 +5096,8 @@ def update_kitchen_display_settings(
     orange = body.get("orange_minutes")
     red = body.get("red_minutes")
     routing_mode = body.get("routing_mode")
+    hold_seconds = body.get("action_hold_seconds")
+    cooldown_seconds = body.get("action_cooldown_seconds")
     if yellow is not None:
         tenant.kitchen_display_timer_yellow_minutes = max(0, int(yellow))
     if orange is not None:
@@ -5105,6 +5109,22 @@ def update_kitchen_display_settings(
         if normalized_routing not in {"split", "kitchen_all"}:
             raise HTTPException(status_code=400, detail="Invalid KDS routing mode")
         tenant.kds_routing_mode = normalized_routing
+    if hold_seconds is not None:
+        try:
+            normalized_hold = int(hold_seconds)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Hold duration must be a whole number") from exc
+        if normalized_hold < 1 or normalized_hold > 5:
+            raise HTTPException(status_code=400, detail="Hold duration must be between 1 and 5 seconds")
+        tenant.kitchen_action_hold_seconds = normalized_hold
+    if cooldown_seconds is not None:
+        try:
+            normalized_cooldown = int(cooldown_seconds)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Next-status delay must be a whole number") from exc
+        if normalized_cooldown < 0 or normalized_cooldown > 30:
+            raise HTTPException(status_code=400, detail="Next-status delay must be between 0 and 30 seconds")
+        tenant.kitchen_action_cooldown_seconds = normalized_cooldown
     session.add(tenant)
     session.commit()
     session.refresh(tenant)
@@ -5113,6 +5133,8 @@ def update_kitchen_display_settings(
         "orange_minutes": tenant.kitchen_display_timer_orange_minutes or 10,
         "red_minutes": tenant.kitchen_display_timer_red_minutes or 15,
         "routing_mode": tenant.kds_routing_mode or "split",
+        "action_hold_seconds": tenant.kitchen_action_hold_seconds if tenant.kitchen_action_hold_seconds is not None else 1,
+        "action_cooldown_seconds": tenant.kitchen_action_cooldown_seconds if tenant.kitchen_action_cooldown_seconds is not None else 2,
     }
 
 
