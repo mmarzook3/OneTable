@@ -199,6 +199,39 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.activeOrders()[0].id).toBe(1);
   });
 
+  it('should keep a long ticket inside its own scroll region', () => {
+    const items = Array.from({ length: 15 }, (_, index) => ({
+      id: 1000 + index,
+      product_name: `Kitchen item ${index + 1}`,
+      quantity: 1,
+      status: 'pending',
+      price_cents: 500,
+      category: 'Main Course',
+    }));
+    mockApi.getOrders.and.returnValue(of([{
+      id: 67,
+      status: 'paid',
+      table_name: 'Indoor Table 1',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      items,
+      total_cents: 7500,
+    }]));
+
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    const ticketScroll = fixture.nativeElement.querySelector('.order-card-scroll') as HTMLElement;
+    const ticketActions = fixture.nativeElement.querySelector('.order-actions') as HTMLElement;
+    const orderGrid = fixture.nativeElement.querySelector('.order-grid') as HTMLElement;
+
+    expect(ticketScroll).withContext('long-ticket scroll region').not.toBeNull();
+    expect(ticketScroll.querySelectorAll('.order-item').length).toBe(15);
+    expect(ticketScroll.contains(ticketActions)).toBeFalse();
+    expect(getComputedStyle(ticketScroll).overflowY).toBe('auto');
+    expect(getComputedStyle(orderGrid).overflowY).toBe('hidden');
+  });
+
   it('should advance all pending ticket items with one Start action', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
