@@ -108,6 +108,17 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
             }
           </div>
 
+          <label class="remember-session">
+            <input type="checkbox" formControlName="remember_me" name="remember_me">
+            <span>
+              <strong>Remember me on this device</strong>
+              <small>
+                Keep me signed in for up to {{ rememberSessionDays() }} days.
+                Sign out after {{ rememberInactivityDays() }} days without use.
+              </small>
+            </span>
+          </label>
+
           @if (error()) {
             <div class="error-banner">{{ error() }}</div>
           }
@@ -357,6 +368,28 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
       color: var(--color-error);
       font-size: 0.8125rem;
     }
+    .remember-session {
+      display: flex;
+      align-items: flex-start;
+      gap: .7rem;
+      margin: 0 0 var(--space-5);
+      padding: .8rem .9rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text);
+      cursor: pointer;
+    }
+    .remember-session input {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      margin-top: 1px;
+      accent-color: var(--color-primary);
+    }
+    .remember-session span { display: grid; gap: 3px; }
+    .remember-session strong { font-size: .9rem; font-weight: 600; }
+    .remember-session small { color: var(--color-text-muted); font-size: .75rem; line-height: 1.35; }
   `]
 })
 export class LoginComponent implements OnInit {
@@ -372,11 +405,23 @@ export class LoginComponent implements OnInit {
   selectedTenant = signal<TenantSummary | null>(null);
   selectedTenantLogoUrl = signal<string | null>(null);
   isKitchenApp = signal(false);
+  rememberSessionDays = signal(10);
+  rememberInactivityDays = signal(5);
 
   ngOnInit(): void {
     this.isKitchenApp.set(
       typeof navigator !== 'undefined' && /\bScanakiKitchen\//i.test(navigator.userAgent),
     );
+    if (this.isKitchenApp()) {
+      this.form.patchValue({ remember_me: true }, { emitEvent: false });
+    }
+    this.api.getPlatformPublicSettings().subscribe({
+      next: (settings) => {
+        this.rememberSessionDays.set(settings.remember_session_days || 10);
+        this.rememberInactivityDays.set(settings.remember_inactivity_days || 5);
+      },
+      error: () => {},
+    });
     if (!this.isKitchenApp()) {
       this.api.getPublicLegalUrls().subscribe({
         next: (u) => {
@@ -397,7 +442,8 @@ export class LoginComponent implements OnInit {
 
   form = this.fb.group({
     username: ['', [Validators.required, Validators.email]],
-    password: ['', Validators.required]
+    password: ['', Validators.required],
+    remember_me: [false],
   });
   showPassword = signal(false);
 
@@ -450,9 +496,16 @@ export class LoginComponent implements OnInit {
 
     const username = this.form.get('username')?.value ?? '';
     const password = this.form.get('password')?.value ?? '';
+    const rememberMe = this.form.get('remember_me')?.value === true;
     const tenantId = this.route.snapshot.queryParams['tenant'];
     const id = tenantId != null ? parseInt(tenantId, 10) : undefined;
-    this.api.login(username, password, isNaN(id as number) ? undefined : id).subscribe({
+    this.api.login(
+      username,
+      password,
+      isNaN(id as number) ? undefined : id,
+      undefined,
+      rememberMe,
+    ).subscribe({
       next: () => {
         this.api.checkAuth().subscribe((user) => this.routeAfterLogin(user));
       },

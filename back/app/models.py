@@ -433,6 +433,8 @@ class PlatformSettings(SQLModel, table=True):
     smtp_last_tested_at: datetime | None = None
     smtp_last_test_success: bool | None = None
     smtp_last_test_message: str | None = Field(default=None, max_length=500)
+    remember_session_days: int = Field(default=10, ge=1, le=90)
+    remember_inactivity_days: int = Field(default=5, ge=1, le=30)
     updated_by_user_id: int | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -708,6 +710,8 @@ class PlatformSettingsUpdate(SQLModel):
     clear_smtp_password: bool = False
     email_from: str | None = Field(default=None, max_length=320)
     email_from_name: str | None = Field(default=None, max_length=200)
+    remember_session_days: int = Field(default=10, ge=1, le=90)
+    remember_inactivity_days: int = Field(default=5, ge=1, le=30)
 
 
 class PlatformSmtpTestRequest(SQLModel):

@@ -38,6 +38,24 @@ import { ApiService, PlatformSettings, PlatformSettingsUpdate } from '../service
           </section>
 
           <section class="settings-card">
+            <div class="section-heading">
+              <div>
+                <h2>Remembered staff sign-in</h2>
+                <p>Controls secure “Remember me” sessions for the Kitchen app and staff login.</p>
+              </div>
+            </div>
+            <div class="fields two-cols">
+              <label>Maximum remembered session (days)
+                <input type="number" min="1" max="90" [(ngModel)]="form.remember_session_days" name="remember_session_days" required>
+              </label>
+              <label>Sign out after inactivity (days)
+                <input type="number" min="1" max="30" [(ngModel)]="form.remember_inactivity_days" name="remember_inactivity_days" required>
+              </label>
+            </div>
+            <p class="notice">Scanaki stores a secure rotating session token, never the staff member’s password. Inactivity must be shorter than or equal to the maximum session.</p>
+          </section>
+
+          <section class="settings-card">
             <div class="section-heading"><div><h2>Legal links</h2><p>Shown across public authentication and marketing pages.</p></div></div>
             <label>Terms and conditions URL<input type="url" [(ngModel)]="form.terms_url" name="terms_url" placeholder="https://scanaki.uk/terms"></label>
             <label>Privacy policy URL<input type="url" [(ngModel)]="form.privacy_url" name="privacy_url" placeholder="https://scanaki.uk/privacy"></label>
@@ -127,13 +145,19 @@ export class PlatformSettingsComponent implements OnInit {
   error = signal(''); message = signal(''); current = signal<PlatformSettings | null>(null);
   showPassword = signal(false); smtpPassword = ''; clearPassword = false; testRecipient = '';
   changingPassword = signal(false); currentPassword = ''; newPassword = ''; confirmPassword = '';
-  form: PlatformSettingsUpdate = { smtp_use_tls: true, smtp_auth_required: true, clear_smtp_password: false };
+  form: PlatformSettingsUpdate = {
+    smtp_use_tls: true,
+    smtp_auth_required: true,
+    clear_smtp_password: false,
+    remember_session_days: 10,
+    remember_inactivity_days: 5,
+  };
 
   ngOnInit(): void { this.load(); }
   load(): void {
     this.loading.set(true); this.error.set('');
     this.api.getPlatformSettings().subscribe({next:(data)=>{this.current.set(data);this.form={
-      operator_recovery_email:data.operator_recovery_email||'',company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_auth_required:data.smtp_auth_required,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,
+      operator_recovery_email:data.operator_recovery_email||'',company_legal_name:data.company_legal_name||'',support_email:data.support_email||'',contact_email:data.contact_email||'',phone:data.phone||'',address:data.address||'',website_url:data.website_url||'',company_number:data.company_number||'',vat_number:data.vat_number||'',terms_url:data.terms_url||'',privacy_url:data.privacy_url||'',smtp_host:data.smtp_host||'',smtp_port:data.smtp_port||587,smtp_use_tls:data.smtp_use_tls,smtp_auth_required:data.smtp_auth_required,smtp_user:data.smtp_user||'',email_from:data.email_from||'',email_from_name:data.email_from_name||'',clear_smtp_password:false,remember_session_days:data.remember_session_days||10,remember_inactivity_days:data.remember_inactivity_days||5,
     };this.testRecipient=data.contact_email||data.support_email||data.email_from||'';this.smtpPassword='';this.clearPassword=false;this.loading.set(false)},error:(err)=>{this.error.set(err?.error?.detail||'Could not load platform settings.');this.loading.set(false)}});
   }
   save(): void {
