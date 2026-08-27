@@ -52,6 +52,7 @@ public final class MainActivity extends Activity {
         "https://scanaki.uk/api/tenant/kitchen-devices/heartbeat";
     private static final String DEVICE_KEY_STORAGE = "native_kds_device_key";
     private static final long HEARTBEAT_INTERVAL_SECONDS = 10;
+    private static final long FRONTEND_UPDATE_CHECK_INTERVAL_MS = 60_000;
     private static final Set<String> ALLOWED_HOSTS = Set.of("scanaki.uk", "www.scanaki.uk");
 
     private WebView webView;
@@ -63,6 +64,8 @@ public final class MainActivity extends Activity {
     private String deviceKey;
     private boolean showingOfflinePage;
     private boolean networkWasLost;
+    private boolean hasResumedOnce;
+    private long lastFrontendUpdateCheckAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -378,6 +381,7 @@ public final class MainActivity extends Activity {
         String cookies = CookieManager.getInstance().getCookie("https://scanaki.uk/");
         if (cookies == null || !cookies.contains("access_token=")) {
             hideHeartbeatFailure();
+            requestFrontendUpdateCheck();
             return;
         }
         HttpURLConnection connection = null;
@@ -422,6 +426,7 @@ public final class MainActivity extends Activity {
             if (status >= 200 && status < 300) {
                 CookieManager.getInstance().flush();
                 hideHeartbeatFailure();
+                requestFrontendUpdateCheck();
             } else if (status == 401 || status == 403) {
                 hideHeartbeatFailure();
             } else {
@@ -442,6 +447,29 @@ public final class MainActivity extends Activity {
 
     private void hideHeartbeatFailure() {
         runOnUiThread(() -> connectionBanner.setVisibility(View.GONE));
+    }
+
+    private synchronized void requestFrontendUpdateCheck() {
+        long now = System.currentTimeMillis();
+        if (now - lastFrontendUpdateCheckAt < FRONTEND_UPDATE_CHECK_INTERVAL_MS) {
+            return;
+        }
+        lastFrontendUpdateCheckAt = now;
+        runOnUiThread(() -> {
+            if (webView == null || showingOfflinePage) {
+                return;
+            }
+            webView.evaluateJavascript(
+                "(async()=>{try{" +
+                "const html=await fetch('/?scanaki_update_check='+Date.now()," +
+                "{cache:'no-store',credentials:'same-origin'}).then(r=>r.text());" +
+                "const next=(html.match(/<script[^>]+src=[\"']([^\"']*main-[^\"']+\\.js)/i)||[])[1]||'';" +
+                "const current=Array.from(document.scripts).map(s=>s.src).find(src=>/main-[^/]+\\.js/.test(src))||'';" +
+                "if(next&&current&&!current.endsWith(next)){window.location.reload();return 'reloaded';}" +
+                "return 'current';}catch(e){return 'error';}})()",
+                null
+            );
+        });
     }
 
     private void enterImmersiveMode() {
@@ -497,6 +525,10 @@ public final class MainActivity extends Activity {
         super.onResume();
         enterImmersiveMode();
         webView.onResume();
+        if (hasResumedOnce && hasInternetConnection() && !showingOfflinePage) {
+            webView.reload();
+        }
+        hasResumedOnce = true;
         startNativeHeartbeat();
     }
 
