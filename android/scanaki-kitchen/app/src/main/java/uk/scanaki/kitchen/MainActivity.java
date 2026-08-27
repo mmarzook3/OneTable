@@ -167,6 +167,9 @@ public final class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 Uri uri = Uri.parse(url);
                 if (isAllowedUri(uri)) {
+                    // Persist HttpOnly access/refresh cookies immediately. Android may
+                    // terminate a kiosk-style app without delivering onPause first.
+                    CookieManager.getInstance().flush();
                     synchroniseDeviceKey(view);
                 }
                 if (isAllowedUri(uri) && shouldReturnToKitchen(uri.getPath())) {
