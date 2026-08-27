@@ -1,0 +1,43 @@
+{
+  "code": "YT-IN-01",
+  "label": "INDOOR TABLE 1",
+  "url": "https://scanaki.uk/p/lzq3ovWCgJ1IYUnD",
+  "dimensions_mm": {
+    "width": 80.0,
+    "height": 110.0,
+    "base": 2.0,
+    "raised_text_qr": 0.1,
+    "total": 2.1
+  },
+  "screw_holes": {
+    "count": 2,
+    "through_diameter_mm": 4.0,
+    "countersink_diameter_mm": 8.0,
+    "countersink_depth_mm": 1.0
+  },
+  "nfc_recess": {
+    "diameter_mm": 27.0,
+    "depth_mm": 0.8
+  },
+  "grid": {
+    "nx": 320,
+    "ny": 440,
+    "nz": 21,
+    "qr_modules_including_quiet_zone": 45,
+    "qr_module_mm": 1.25
+  },
+  "triangle_count": 650112,
+  "file_size_bytes": 32505684,
+  "qr_decoded": "https://scanaki.uk/p/lzq3ovWCgJ1IYUnD",
+  "mesh_validation": {
+    "extents_mm": [
+      80.0,
+      110.0,
+      2.1
+    ],
+    "watertight": true,
+    "winding_consistent": true,
+    "connected_components": 1,
+    "volume_mm3": 17030.75
+  }
+}
