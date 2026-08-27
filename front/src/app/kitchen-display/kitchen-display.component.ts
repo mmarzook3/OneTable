@@ -1124,11 +1124,12 @@ const VIEW_CATEGORY: Record<string, string> = {
       min-height: 0;
       overflow-x: hidden;
       overflow-y: auto;
-      overscroll-behavior: contain;
+      overscroll-behavior-x: auto;
+      overscroll-behavior-y: contain;
       scrollbar-color: rgba(226, 232, 240, .62) rgba(15, 23, 42, .3);
       scrollbar-gutter: stable;
       scrollbar-width: thin;
-      touch-action: pan-y;
+      touch-action: auto;
       -webkit-overflow-scrolling: touch;
     }
     .order-card-scroll:focus-visible {
