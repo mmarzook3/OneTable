@@ -2,6 +2,18 @@ plugins {
     id 'com.android.application'
 }
 
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file('signing/keystore.properties')
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+
+def releaseStoreFilePath = System.getenv('SCANAKI_ANDROID_KEYSTORE') ?: signingProperties.getProperty('storeFile')
+def releaseStorePassword = System.getenv('SCANAKI_ANDROID_STORE_PASSWORD') ?: signingProperties.getProperty('storePassword')
+def releaseKeyAlias = System.getenv('SCANAKI_ANDROID_KEY_ALIAS') ?: signingProperties.getProperty('keyAlias')
+def releaseKeyPassword = System.getenv('SCANAKI_ANDROID_KEY_PASSWORD') ?: signingProperties.getProperty('keyPassword')
+def releaseSigningReady = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace 'uk.scanaki.kitchen'
     compileSdk 36
@@ -14,12 +26,26 @@ android {
         versionName '0.3.0'
     }
 
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile rootProject.file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix '.debug'
             versionNameSuffix '-debug'
         }
         release {
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -33,5 +59,14 @@ android {
 
     buildFeatures {
         buildConfig true
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    def requestsReleasePackage = graph.allTasks.any {
+        it.name == 'assembleRelease' || it.name == 'bundleRelease'
+    }
+    if (requestsReleasePackage && !releaseSigningReady) {
+        throw new GradleException('Release signing credentials are required for Scanaki Kitchen release builds.')
     }
 }
