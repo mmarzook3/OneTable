@@ -255,7 +255,11 @@ class TestPlatformSettings(PgClientTestCase):
             data={"username": self.operator.email.upper(), "password": "local-test-password"},
         )
         self.assertEqual(response.status_code, 200, response.text)
-        me = self.client.get("/platform/me", cookies=response.cookies)
+        access_token = response.cookies.get("access_token")
+        me = self.client.get(
+            "/platform/me",
+            headers={"Cookie": f"access_token={access_token}"},
+        )
         self.assertEqual(me.status_code, 200, me.text)
         self.assertEqual(me.json()["email"], self.operator.email)
 

@@ -68,6 +68,10 @@ class TestRememberedStaffSessions(PgClientTestCase):
         self.assertIn("session_started_at", first_payload)
         self.assertIn("iat", first_payload)
 
+        # Production cookies are Secure; inject the signed value explicitly because
+        # TestClient uses an http:// test origin and correctly refuses to resend it.
+        self.client.cookies.clear()
+        self.client.cookies.set("refresh_token", first_token)
         refreshed = self.client.post("/refresh")
         self.assertEqual(refreshed.status_code, 200, refreshed.text)
         rotated_token = refreshed.cookies.get("refresh_token")
@@ -112,4 +116,3 @@ class TestRememberedStaffSessions(PgClientTestCase):
             if value.startswith("refresh_token=")
         )
         self.assertNotIn("Max-Age=", refresh_cookie)
-
