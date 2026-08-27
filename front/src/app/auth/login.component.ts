@@ -15,6 +15,10 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
   template: `
     <div class="auth-page">
       <div class="auth-card">
+        <div class="auth-brand" aria-label="Scanaki">
+          <span class="auth-brand-mark" aria-hidden="true"></span>
+          <span class="auth-brand-name">Scanaki</span>
+        </div>
         <div class="auth-header">
           <div class="auth-header-row">
             <div>
@@ -167,6 +171,27 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-lg);
       padding: var(--space-8);
+    }
+
+    .auth-brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 1.6rem;
+      color: var(--color-text);
+    }
+    .auth-brand-mark {
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
+      box-shadow: 0 8px 22px rgba(211, 82, 51, .28);
+    }
+    .auth-brand-name {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -.025em;
     }
 
     .input-with-toggle {
