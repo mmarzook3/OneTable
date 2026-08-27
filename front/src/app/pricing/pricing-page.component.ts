@@ -5,6 +5,7 @@ import { TranslateModule } from '@ngx-translate/core';
 import { ApiService, type SaasPlanTier, type SaasSubscription } from '../services/api.service';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 interface PriceParts {
   formatted: string;
@@ -16,15 +17,14 @@ interface PriceParts {
 @Component({
   selector: 'app-pricing-page',
   standalone: true,
-  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent, ScanakiBrandComponent],
   template: `
     <div class="pricing-page" data-testid="pricing-page">
       <div class="pricing-page__bg" aria-hidden="true"></div>
 
       <nav class="pricing-nav" aria-label="Main">
         <a routerLink="/" class="pricing-nav__brand">
-          <span class="pricing-nav__mark" aria-hidden="true"></span>
-          <span>{{ 'LANDING.BRAND_NAME' | translate }}</span>
+          <app-scanaki-brand [size]="28"></app-scanaki-brand>
         </a>
         <div class="pricing-nav__links">
           <a routerLink="/features" class="pricing-nav__link">{{ 'LANDING.NAV_FEATURES' | translate }}</a>
@@ -174,13 +174,6 @@ interface PriceParts {
         font-weight: 700;
         font-size: 1.125rem;
         text-decoration: none;
-      }
-
-      .pricing-nav__mark {
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #ff8a65 0%, #d35233 55%, #9333ea 100%);
       }
 
       .pricing-nav__links {

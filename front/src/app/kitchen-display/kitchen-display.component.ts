@@ -26,6 +26,7 @@ import { PermissionService } from '../services/permission.service';
 import { forkJoin, Subscription } from 'rxjs';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 const REFRESH_INTERVAL_MS = 15000;
 const HEARTBEAT_INTERVAL_MS = 30000;
@@ -115,7 +116,7 @@ const VIEW_CATEGORY: Record<string, string> = {
   selector: 'app-kitchen-display',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TranslateModule, FormsModule, FocusFirstInputDirective],
+  imports: [RouterLink, TranslateModule, FormsModule, FocusFirstInputDirective, ScanakiBrandComponent],
   template: `
     <div class="kitchen-view" #kitchenRoot>
       <header class="kitchen-header">
@@ -126,6 +127,7 @@ const VIEW_CATEGORY: Record<string, string> = {
           {{ 'KITCHEN_DISPLAY.BACK_TO_ORDERS' | translate }}
         </a>
         <div class="kitchen-title-actions">
+          <app-scanaki-brand [size]="34" [showName]="false"></app-scanaki-brand>
           <h1 class="kitchen-title">{{ pageTitle() }}</h1>
           <button
             type="button"

@@ -8,12 +8,13 @@ import { catchError, of, switchMap, tap } from 'rxjs';
 import { LanguagePickerComponent } from '../shared/language-picker.component';
 import { LandingSiteFooterComponent } from '../shared/landing-site-footer.component';
 import { LanguageCode, LanguageService } from '../services/language.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 /** Public marketing shell for the user manual (locale HTML under /manual-usuario/content/). */
 @Component({
   selector: 'app-user-manual-page',
   standalone: true,
-  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent],
+  imports: [RouterLink, TranslateModule, LanguagePickerComponent, LandingSiteFooterComponent, ScanakiBrandComponent],
   templateUrl: './user-manual-page.component.html',
   styleUrl: './user-manual-page.component.css',
   // Styles must reach [innerHTML] locale content; all rules are scoped under .user-manual-page.

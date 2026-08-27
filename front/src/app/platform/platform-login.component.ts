@@ -4,14 +4,16 @@ import { Router, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-platform-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, TranslateModule],
+  imports: [ReactiveFormsModule, RouterLink, TranslateModule, ScanakiBrandComponent],
   template: `
     <div class="auth-page">
       <div class="auth-card">
+        <app-scanaki-brand class="auth-global-brand" [size]="42"></app-scanaki-brand>
         <div class="auth-header">
           <h1>{{ 'PLATFORM_AUTH.TITLE' | translate }}</h1>
           <p>{{ 'PLATFORM_AUTH.SUBTITLE' | translate }}</p>
@@ -82,6 +84,7 @@ import { ApiErrorMessageService } from '../services/api-error-message.service';
       box-shadow: var(--shadow-lg);
       padding: var(--space-8);
     }
+    .auth-global-brand { display: flex; justify-content: center; margin-bottom: var(--space-6); font-size: 1.2rem; }
     .auth-header {
       text-align: center;
       margin-bottom: var(--space-6);

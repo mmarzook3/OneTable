@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-  <!-- 2x2 grid of hollow squares in white for development -->
-  <rect x="3" y="3" width="7" height="7" fill="none" stroke="#FFFFFF" stroke-width="2" rx="0.5"/>
-  <rect x="14" y="3" width="7" height="7" fill="none" stroke="#FFFFFF" stroke-width="2" rx="0.5"/>
-  <rect x="14" y="14" width="7" height="7" fill="none" stroke="#FFFFFF" stroke-width="2" rx="0.5"/>
-  <rect x="3" y="14" width="7" height="7" fill="none" stroke="#FFFFFF" stroke-width="2" rx="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="scanaki-logo-title">
+  <title id="scanaki-logo-title">Scanaki</title>
+  <defs>
+    <linearGradient id="scanaki-gradient" x1="8" y1="6" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a65"/>
+      <stop offset="0.55" stop-color="#d35233"/>
+      <stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#scanaki-gradient)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="16.25" fill="none" stroke="#fff" stroke-opacity="0.16" stroke-width="1.5"/>
 </svg>

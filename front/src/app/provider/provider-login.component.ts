@@ -5,14 +5,16 @@ import { TranslateModule } from '@ngx-translate/core';
 import { ApiService } from '../services/api.service';
 import { ApiErrorMessageService } from '../services/api-error-message.service';
 import { LegalLinksComponent } from '../shared/legal-links.component';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 @Component({
   selector: 'app-provider-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, TranslateModule, LegalLinksComponent],
+  imports: [ReactiveFormsModule, RouterLink, TranslateModule, LegalLinksComponent, ScanakiBrandComponent],
   template: `
     <div class="auth-page">
       <div class="auth-card">
+        <app-scanaki-brand class="auth-global-brand" [size]="42"></app-scanaki-brand>
         <div class="auth-header">
           <h1>Provider portal</h1>
           <p>Sign in to manage your catalog</p>
@@ -90,6 +92,7 @@ import { LegalLinksComponent } from '../shared/legal-links.component';
       box-shadow: var(--shadow-lg);
       padding: var(--space-8);
     }
+    .auth-global-brand { display: flex; justify-content: center; margin-bottom: var(--space-6); font-size: 1.2rem; }
     .auth-header {
       text-align: center;
       margin-bottom: var(--space-6);

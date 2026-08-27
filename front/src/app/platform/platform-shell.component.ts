@@ -3,6 +3,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ApiService, PlatformInfo } from '../services/api.service';
+import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 interface PlatformNavItem {
   label: string;
@@ -14,14 +15,14 @@ interface PlatformNavItem {
 @Component({
   selector: 'app-platform-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ScanakiBrandComponent],
   template: `
     <div class="crm-shell" [class.crm-shell--nav-open]="navOpen()">
       <button type="button" class="crm-scrim" aria-label="Close navigation" (click)="closeNav()"></button>
 
       <aside class="crm-sidebar" aria-label="Platform navigation">
         <a routerLink="/platform" class="crm-brand" (click)="closeNav()">
-          <span class="crm-brand__mark" aria-hidden="true">S</span>
+          <app-scanaki-brand [size]="34" [showName]="false"></app-scanaki-brand>
           <span><strong>Scanaki</strong><small>Control centre</small></span>
         </a>
 
@@ -102,7 +103,7 @@ interface PlatformNavItem {
       min-height:100dvh;background:var(--crm-bg);color:var(--crm-text)
     }
     .crm-sidebar{position:fixed;inset:0 auto 0 0;z-index:30;width:252px;display:flex;flex-direction:column;padding:20px 14px;background:var(--crm-sidebar);color:#f7f7f8;border-right:1px solid #2e3035}
-    .crm-brand{display:flex;align-items:center;gap:11px;padding:4px 8px 22px;color:#fff;text-decoration:none}.crm-brand:hover{text-decoration:none}.crm-brand__mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--crm-accent);color:#fff;font-weight:800}.crm-brand>span:last-child{display:grid;line-height:1.2}.crm-brand strong{font-size:15px}.crm-brand small{margin-top:3px;color:#9ca1ab;font-size:11px}
+    .crm-brand{display:flex;align-items:center;gap:11px;padding:4px 8px 22px;color:#fff;text-decoration:none}.crm-brand:hover{text-decoration:none}.crm-brand>span:last-child{display:grid;line-height:1.2}.crm-brand strong{font-size:15px}.crm-brand small{margin-top:3px;color:#9ca1ab;font-size:11px}
     .crm-nav{display:grid;gap:20px;overflow-y:auto;padding:4px}.crm-nav section{display:grid;gap:4px}.crm-nav__label{margin:0 8px 5px;color:#787e89;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.crm-nav__item{position:relative;display:flex;align-items:center;gap:10px;min-height:42px;padding:7px 9px;border-radius:9px;color:#bfc3ca;text-decoration:none;font-size:13px;font-weight:600;transition:background .15s ease,color .15s ease}.crm-nav__item:hover{background:#222429;color:#fff;text-decoration:none}.crm-nav__item--active,.crm-nav__item--context{background:#2a2c31;color:#fff}.crm-nav__item--active::before,.crm-nav__item--context::before{content:'';position:absolute;left:-4px;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--crm-accent)}.crm-nav__key{display:grid;place-items:center;width:26px;height:26px;border:1px solid #3c3f46;border-radius:7px;color:#aeb3bc;font-size:9px;font-weight:800;letter-spacing:.03em}.crm-nav__item--active .crm-nav__key,.crm-nav__item--context .crm-nav__key{border-color:#6d4438;background:#382a27;color:#f3b09b}
     .crm-sidebar__bottom{display:grid;gap:12px;margin-top:auto;padding:14px 4px 0;border-top:1px solid #2d2f34}.crm-create{display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:9px;background:var(--crm-accent);color:#fff;text-decoration:none;font-size:12px;font-weight:750}.crm-create:hover{background:#b95034;text-decoration:none}.crm-user{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;align-items:center;padding:8px 5px}.crm-user__avatar{display:grid;place-items:center;width:31px;height:31px;border-radius:9px;background:#303238;color:#fff;font-size:10px;font-weight:800}.crm-user__identity{display:grid;min-width:0;line-height:1.2}.crm-user__identity strong{overflow:hidden;color:#f2f3f5;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.crm-user__identity small{margin-top:3px;color:#858b95;font-size:9px}.crm-user button{grid-column:2;width:max-content;padding:0;border:0;background:transparent;color:#9ba0aa;font-size:10px;text-align:left}.crm-user button:hover{color:#fff}
     .crm-main{min-height:100dvh;margin-left:252px}.crm-topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;height:64px;padding:0 28px;border-bottom:1px solid var(--crm-border);background:rgba(255,255,255,.94);backdrop-filter:blur(12px)}.crm-topbar__start{display:flex;align-items:center;gap:13px}.crm-topbar__start>div{display:grid;line-height:1.15}.crm-topbar__start small{color:var(--crm-muted);font-size:10px}.crm-topbar__start strong{margin-top:3px;font-size:14px}.crm-menu-button{display:none;min-height:36px;padding:0 10px;border:1px solid var(--crm-border);border-radius:8px;background:#fff;color:var(--crm-text);font-weight:700}.crm-topbar__actions{display:flex;align-items:center;gap:8px}.crm-site-link,.crm-topbar__create{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 12px;border-radius:8px;text-decoration:none;font-size:11px;font-weight:700;white-space:nowrap}.crm-site-link{border:1px solid var(--crm-border);background:#fff;color:#4a4f58}.crm-topbar__create{border:1px solid var(--crm-accent);background:var(--crm-accent);color:#fff}.crm-site-link:hover,.crm-topbar__create:hover{text-decoration:none}.crm-content{min-width:0;padding:0 26px 40px}.crm-scrim{display:none}
