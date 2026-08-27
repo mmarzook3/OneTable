@@ -18,6 +18,13 @@ export const routes: Routes = [
   { path: 'pricing', loadComponent: () => import('./pricing/pricing-page.component').then(m => m.PricingPageComponent) },
   { path: 'about', loadComponent: () => import('./about/about-page.component').then(m => m.AboutPageComponent) },
   {
+    path: 'kitchen-app',
+    loadComponent: () =>
+      import('./kitchen-app-download/kitchen-app-download.component').then(
+        (m) => m.KitchenAppDownloadComponent,
+      ),
+  },
+  {
     path: 'manual-usuario',
     loadComponent: () => import('./user-manual/user-manual-page.component').then((m) => m.UserManualPageComponent),
   },

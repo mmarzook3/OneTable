@@ -40,6 +40,7 @@ import { ApiService, PlatformPublicSettings } from '../services/api.service';
             <span class="landing-footer__group-label">{{ 'LANDING.FOOTER_SUPPORT' | translate }}</span>
             <a routerLink="/about" data-testid="landing-about">{{ 'LANDING.NAV_ABOUT' | translate }}</a>
             <a routerLink="/manual-usuario" data-testid="landing-user-manual">{{ 'LANDING.USER_MANUAL' | translate }}</a>
+            <a routerLink="/kitchen-app" data-testid="landing-kitchen-app">Kitchen Android app</a>
             <a [href]="platform()?.terms_url || '/terms'" data-testid="landing-terms">{{ 'LEGAL.TERMS_OF_SERVICE' | translate }}</a>
             <a [href]="platform()?.privacy_url || '/privacy'" data-testid="landing-privacy">{{ 'LEGAL.PRIVACY_POLICY' | translate }}</a>
             @if (platform()?.support_email) {
