@@ -834,7 +834,6 @@ const VIEW_CATEGORY: Record<string, string> = {
       align-items: start;
       min-width: 0;
       min-height: 0;
-      height: 100%;
       padding: 0 2px 14px;
       overflow-x: auto;
       overflow-y: auto;
