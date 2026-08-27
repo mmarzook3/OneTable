@@ -49,6 +49,8 @@ type FullscreenDocument = Document & {
 };
 
 type KdsRoutingMode = 'split' | 'kitchen_all';
+type KitchenOrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
+type KitchenOrderHistoryStatus = KitchenOrderStatus | 'cancelled';
 type KitchenDisplaySettings = {
   yellow_minutes: number;
   orange_minutes: number;
@@ -119,7 +121,20 @@ const VIEW_CATEGORY: Record<string, string> = {
           </svg>
           {{ 'KITCHEN_DISPLAY.BACK_TO_ORDERS' | translate }}
         </a>
-        <h1 class="kitchen-title">{{ pageTitle() }}</h1>
+        <div class="kitchen-title-actions">
+          <h1 class="kitchen-title">{{ pageTitle() }}</h1>
+          <button
+            type="button"
+            class="all-orders-btn"
+            data-testid="kitchen-all-orders-button"
+            (click)="openAllOrdersModal()"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+            All orders
+          </button>
+        </div>
         <section class="kds-overview" aria-label="Kitchen service summary">
           <div class="kds-overview-item kds-clock">
             <span class="kds-overview-label">Local time</span>
@@ -419,6 +434,125 @@ const VIEW_CATEGORY: Record<string, string> = {
           </div>
         </div>
       }
+      @if (allOrdersModalOpen()) {
+        <div class="modal-backdrop history-backdrop" (click)="closeAllOrdersModal()"></div>
+        <section
+          class="order-history-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-history-title"
+          data-testid="kitchen-all-orders-modal"
+          appFocusFirstInput
+        >
+          <header class="order-history-header">
+            <div>
+              <h2 id="order-history-title">All orders</h2>
+              <p>Review active and completed orders, then correct a Kitchen status if needed.</p>
+            </div>
+            <button type="button" class="history-close" (click)="closeAllOrdersModal()" aria-label="Close all orders">Close</button>
+          </header>
+
+          <div class="order-history-toolbar">
+            <label>
+              <span>Search</span>
+              <input
+                [ngModel]="orderHistorySearch()"
+                (ngModelChange)="orderHistorySearch.set($event)"
+                placeholder="Order, table, location or item"
+                data-testid="kitchen-order-history-search"
+              >
+            </label>
+            <label>
+              <span>Status</span>
+              <select [ngModel]="orderHistoryStatusFilter()" (ngModelChange)="orderHistoryStatusFilter.set($event)">
+                <option value="all">All statuses</option>
+                <option value="pending">New</option>
+                <option value="preparing">Preparing</option>
+                <option value="ready">Ready</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <div class="history-result-count">
+              <strong>{{ filteredAllOrders().length }}</strong>
+              <span>order{{ filteredAllOrders().length === 1 ? '' : 's' }}</span>
+            </div>
+          </div>
+
+          @if (orderHistoryNotice()) {
+            <p class="history-notice" role="status">{{ orderHistoryNotice() }}</p>
+          }
+          @if (orderHistoryError()) {
+            <p class="history-error" role="alert">{{ orderHistoryError() }}</p>
+          }
+
+          <div class="order-history-list">
+            @if (filteredAllOrders().length === 0) {
+              <div class="history-empty">
+                <h3>No orders found</h3>
+                <p>Try a different search or status.</p>
+              </div>
+            } @else {
+              @for (order of filteredAllOrders(); track order.id) {
+                <article class="history-order-row" [attr.data-order-id]="order.id">
+                  <div class="history-order-main">
+                    <div class="history-order-heading">
+                      <strong>#{{ order.id }}</strong>
+                      <span class="history-status status-chip-{{ getProductionStatus(order) }}">
+                        {{ getProductionStatusLabel(order) }}
+                      </span>
+                      <span class="history-payment" [class.history-payment-paid]="isOrderPaid(order)">
+                        {{ isOrderPaid(order) ? 'Paid' : 'Not paid' }}
+                      </span>
+                    </div>
+                    <div class="history-destination">
+                      <strong>{{ order.service_point_label || order.table_name }}</strong>
+                      @if (order.location_name) { <span>{{ order.location_name }}</span> }
+                    </div>
+                    <p class="history-items">{{ getOrderItemsSummary(order) }}</p>
+                    <time [title]="formatExactTime(getKitchenStart(order))">{{ formatOrderTime(getKitchenStart(order)) }}</time>
+                  </div>
+
+                  @if (getProductionStatus(order) === 'cancelled') {
+                    <div class="history-cancelled-note">Cancelled orders are read-only</div>
+                  } @else {
+                    <div class="history-status-control">
+                      <label>
+                        <span>Change Kitchen status</span>
+                        <select
+                          [ngModel]="getProductionStatus(order)"
+                          (ngModelChange)="requestOrderStatusChange(order, $event)"
+                          [disabled]="isOrderActionBusy(order.id)"
+                          [attr.data-testid]="'kitchen-order-status-select-' + order.id"
+                        >
+                          <option value="pending">New</option>
+                          <option value="preparing">Preparing</option>
+                          <option value="ready">Ready</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </label>
+                      @if (isOrderStatusChangePending(order.id)) {
+                        <div class="history-confirm" role="alert">
+                          <span>Move order #{{ order.id }} to <strong>{{ pendingOrderStatusLabel() }}</strong>?</span>
+                          <div>
+                            <button type="button" class="history-cancel" (click)="cancelOrderStatusChange()">Cancel</button>
+                            <button
+                              type="button"
+                              class="history-confirm-btn"
+                              data-testid="kitchen-confirm-status-change"
+                              (click)="confirmOrderStatusChange(order)"
+                            >Confirm</button>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </article>
+              }
+            }
+          </div>
+        </section>
+      }
     </div>
   `,
   styles: [`
@@ -465,13 +599,35 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .back-link:hover { text-decoration: underline; }
     .kitchen-title {
-      grid-area: title;
-      justify-self: end;
       font-size: clamp(1.5rem, 4vw, 2.25rem);
       font-weight: 700;
       color: var(--color-text);
       margin: 0;
     }
+    .kitchen-title-actions {
+      grid-area: title;
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .all-orders-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 14px;
+      border: 1px solid #d4d4d8;
+      border-radius: 10px;
+      background: #fff;
+      color: #27272a;
+      font: inherit;
+      font-size: .9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .all-orders-btn:hover { border-color: #a1a1aa; background: #fafafa; }
     .header-actions {
       grid-area: actions;
       display: flex;
@@ -864,6 +1020,8 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     @media (max-width: 640px) {
       .kitchen-header { padding: 14px 16px; }
+      .kitchen-title-actions { align-items: flex-end; flex-direction: column; gap: 7px; }
+      .all-orders-btn { min-height: 40px; padding-inline: 11px; }
       .kds-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .kds-clock { grid-column: 1 / -1; border-left: 0; border-bottom: 1px solid var(--color-border); }
       .kds-overview-item { min-height: 48px; padding: 6px 8px; }
@@ -1083,6 +1241,166 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: var(--color-text);
       border: 1px solid var(--color-border);
     }
+    .history-backdrop { background: rgba(3, 7, 18, .72); }
+    .order-history-modal {
+      position: fixed;
+      inset: 3vh 3vw;
+      z-index: 1001;
+      display: grid;
+      grid-template-rows: auto auto auto minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid #d8dde5;
+      border-radius: 16px;
+      background: #f6f7f9;
+      color: #1f2937;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .38);
+    }
+    .order-history-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .order-history-header h2 { margin: 0; font-size: 1.4rem; }
+    .order-history-header p { margin: 4px 0 0; color: #6b7280; font-size: .88rem; }
+    .history-close {
+      min-height: 40px;
+      padding: 0 13px;
+      border: 1px solid #d8dde5;
+      border-radius: 9px;
+      background: #fff;
+      color: #374151;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .order-history-toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(170px, 230px) auto;
+      align-items: end;
+      gap: 14px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #dfe3e8;
+      background: #fff;
+    }
+    .order-history-toolbar label { display: grid; gap: 5px; color: #6b7280; font-size: .72rem; font-weight: 600; }
+    .order-history-toolbar input,
+    .order-history-toolbar select,
+    .history-status-control select {
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid #ccd2da;
+      border-radius: 9px;
+      background: #fff;
+      color: #111827;
+      font: inherit;
+    }
+    .order-history-toolbar input:focus,
+    .order-history-toolbar select:focus,
+    .history-status-control select:focus {
+      border-color: #d35233;
+      outline: 3px solid rgba(211, 82, 51, .14);
+    }
+    .history-result-count { display: grid; min-width: 76px; padding-bottom: 3px; text-align: right; }
+    .history-result-count strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+    .history-result-count span { color: #6b7280; font-size: .72rem; }
+    .history-notice,
+    .history-error { margin: 10px 20px 0; padding: 10px 12px; border-radius: 8px; font-size: .85rem; font-weight: 600; }
+    .history-notice { background: #dcfce7; color: #166534; }
+    .history-error { background: #fee2e2; color: #991b1b; }
+    .order-history-list {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      overflow: auto;
+      padding: 14px 20px 20px;
+    }
+    .history-order-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
+      gap: 18px;
+      padding: 14px 16px;
+      border: 1px solid #dfe3e8;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+    }
+    .history-order-main { display: grid; min-width: 0; gap: 6px; }
+    .history-order-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .history-order-heading>strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+    .history-status,
+    .history-payment {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #f4f4f5;
+      color: #52525b;
+      font-size: .7rem;
+      font-weight: 600;
+    }
+    .status-chip-pending { background: #fef3c7; color: #92400e; }
+    .status-chip-preparing { background: #dbeafe; color: #1d4ed8; }
+    .status-chip-ready { background: #dcfce7; color: #166534; }
+    .status-chip-completed { background: #e5e7eb; color: #374151; }
+    .status-chip-cancelled { background: #fee2e2; color: #991b1b; }
+    .history-payment { background: #fee2e2; color: #991b1b; }
+    .history-payment-paid { background: #dcfce7; color: #166534; }
+    .history-destination { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+    .history-destination strong { color: #111827; font-size: .95rem; }
+    .history-destination span { color: #6b7280; font-size: .78rem; }
+    .history-items {
+      display: -webkit-box;
+      overflow: hidden;
+      margin: 0;
+      color: #374151;
+      font-size: .83rem;
+      line-height: 1.35;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .history-order-main time { color: #6b7280; font-size: .72rem; }
+    .history-status-control { display: grid; align-content: center; gap: 9px; }
+    .history-status-control>label { display: grid; gap: 5px; color: #6b7280; font-size: .72rem; font-weight: 600; }
+    .history-status-control select { width: 100%; }
+    .history-confirm {
+      display: grid;
+      gap: 9px;
+      padding: 10px;
+      border: 1px solid #f5b6a7;
+      border-radius: 9px;
+      background: #fff7ed;
+      color: #7c2d12;
+      font-size: .78rem;
+    }
+    .history-confirm>div { display: flex; justify-content: flex-end; gap: 7px; }
+    .history-confirm button {
+      min-height: 36px;
+      padding: 0 11px;
+      border-radius: 8px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .history-cancel { border: 1px solid #d8dde5; background: #fff; color: #374151; }
+    .history-confirm-btn { border: 1px solid #c84a2e; background: #c84a2e; color: #fff; }
+    .history-cancelled-note { align-self: center; color: #7f1d1d; font-size: .78rem; font-weight: 600; text-align: right; }
+    .history-empty { padding: 70px 20px; color: #6b7280; text-align: center; }
+    .history-empty h3 { margin: 0; color: #374151; }
+    .history-empty p { margin: 5px 0 0; }
+    @media (max-width: 760px) {
+      .order-history-modal { inset: 0; border: 0; border-radius: 0; }
+      .order-history-toolbar { grid-template-columns: 1fr; padding: 10px 12px; }
+      .history-result-count { min-width: 0; text-align: left; }
+      .order-history-list { padding: 12px; }
+      .history-order-row { grid-template-columns: 1fr; gap: 12px; }
+      .order-history-header { padding-inline: 12px; }
+      .history-cancelled-note { text-align: left; }
+    }
   `],
 })
 export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -1149,6 +1467,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   strictFifo = signal(true);
   expandedOrderDetails = signal<Set<number>>(new Set());
   orderActionBusy = signal<Set<number>>(new Set());
+  allOrdersModalOpen = signal(false);
+  orderHistorySearch = signal('');
+  orderHistoryStatusFilter = signal<'all' | KitchenOrderHistoryStatus>('all');
+  pendingOrderStatusChange = signal<{ orderId: number; status: KitchenOrderStatus } | null>(null);
+  orderHistoryNotice = signal('');
+  orderHistoryError = signal('');
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
@@ -1258,6 +1582,34 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   readyOrderCount = computed(
     () => this.activeOrders().filter((order) => this.getOrderActionTarget(order) === 'delivered').length,
   );
+  filteredAllOrders = computed(() => {
+    const query = this.orderHistorySearch().trim().toLowerCase();
+    const statusFilter = this.orderHistoryStatusFilter();
+    return [...this.orders()]
+      .filter((order) => {
+        const productionStatus = this.getProductionStatus(order);
+        if (statusFilter !== 'all' && productionStatus !== statusFilter) return false;
+        if (!query) return true;
+        const itemNames = (order.items || []).map((item) => item.product_name).join(' ');
+        const searchable = [
+          order.id,
+          order.table_name,
+          order.service_point_label,
+          order.location_name,
+          order.customer_name,
+          itemNames,
+        ]
+          .filter((value) => value != null)
+          .join(' ')
+          .toLowerCase();
+        return searchable.includes(query);
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.kitchen_released_at || a.created_at).getTime();
+        const bTime = new Date(b.kitchen_released_at || b.created_at).getTime();
+        return bTime - aTime;
+      });
+  });
   currentClockTime = computed(() =>
     new Date(this.now()).toLocaleTimeString('en-GB', {
       timeZone: 'Europe/London',
@@ -1734,6 +2086,113 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
         }
       },
     });
+  }
+
+  openAllOrdersModal(): void {
+    this.allOrdersModalOpen.set(true);
+    this.orderHistorySearch.set('');
+    this.orderHistoryStatusFilter.set('all');
+    this.pendingOrderStatusChange.set(null);
+    this.orderHistoryNotice.set('');
+    this.orderHistoryError.set('');
+    this.loadOrders({ background: true });
+  }
+
+  closeAllOrdersModal(): void {
+    this.allOrdersModalOpen.set(false);
+    this.pendingOrderStatusChange.set(null);
+    this.orderHistoryNotice.set('');
+    this.orderHistoryError.set('');
+  }
+
+  getProductionStatus(order: Order): KitchenOrderHistoryStatus {
+    if (order.status === 'cancelled') return 'cancelled';
+    const statuses = (order.items || [])
+      .filter(
+        (item) =>
+          !item.removed_by_customer &&
+          item.status !== 'cancelled',
+      )
+      .map((item) => item.status || 'pending');
+    if (statuses.includes('pending')) return 'pending';
+    if (statuses.includes('preparing')) return 'preparing';
+    if (statuses.includes('ready')) return 'ready';
+    if (statuses.length > 0 && statuses.every((status) => status === 'delivered')) return 'completed';
+    if (order.status === 'completed') return 'completed';
+    if (order.status === 'ready') return 'ready';
+    if (order.status === 'preparing') return 'preparing';
+    return 'pending';
+  }
+
+  getProductionStatusLabel(order: Order): string {
+    return this.kitchenOrderStatusLabel(this.getProductionStatus(order));
+  }
+
+  getOrderItemsSummary(order: Order): string {
+    const items = (order.items || [])
+      .filter((item) => !item.removed_by_customer && item.status !== 'cancelled')
+      .map((item) => `${item.quantity}× ${item.product_name}`);
+    return items.length ? items.join(' · ') : 'No active items';
+  }
+
+  requestOrderStatusChange(order: Order, status: KitchenOrderStatus): void {
+    if (!['pending', 'preparing', 'ready', 'completed'].includes(status)) return;
+    if (this.getProductionStatus(order) === status) {
+      this.pendingOrderStatusChange.set(null);
+      return;
+    }
+    this.orderHistoryNotice.set('');
+    this.orderHistoryError.set('');
+    this.pendingOrderStatusChange.set({ orderId: order.id, status });
+  }
+
+  isOrderStatusChangePending(orderId: number): boolean {
+    return this.pendingOrderStatusChange()?.orderId === orderId;
+  }
+
+  pendingOrderStatusLabel(): string {
+    const pending = this.pendingOrderStatusChange();
+    return pending ? this.kitchenOrderStatusLabel(pending.status) : '';
+  }
+
+  cancelOrderStatusChange(): void {
+    this.pendingOrderStatusChange.set(null);
+  }
+
+  confirmOrderStatusChange(order: Order): void {
+    const pending = this.pendingOrderStatusChange();
+    if (!pending || pending.orderId !== order.id || this.isOrderActionBusy(order.id)) return;
+    const itemStatus = pending.status === 'completed' ? 'delivered' : pending.status;
+    const label = this.kitchenOrderStatusLabel(pending.status);
+    this.orderActionBusy.update((current) => new Set(current).add(order.id));
+    this.orderHistoryError.set('');
+    this.api.updateOrderKitchenStatus(order.id, itemStatus).subscribe({
+      next: () => {
+        this.pendingOrderStatusChange.set(null);
+        this.orderHistoryNotice.set(`Order #${order.id} moved to ${label}. Payment status was not changed.`);
+        this.finishOrderAction(order.id);
+      },
+      error: (err) => {
+        this.pendingOrderStatusChange.set(null);
+        this.orderHistoryError.set(err?.error?.detail || `Could not update order #${order.id}.`);
+        this.orderActionBusy.update((current) => {
+          const next = new Set(current);
+          next.delete(order.id);
+          return next;
+        });
+      },
+    });
+  }
+
+  private kitchenOrderStatusLabel(status: KitchenOrderHistoryStatus): string {
+    const labels: Record<KitchenOrderHistoryStatus, string> = {
+      pending: 'New',
+      preparing: 'Preparing',
+      ready: 'Ready',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    };
+    return labels[status];
   }
 
   private flushPendingBackgroundRefresh(): void {

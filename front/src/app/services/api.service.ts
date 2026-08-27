@@ -3712,6 +3712,10 @@ export class ApiService {
     return this.http.put(`${this.apiUrl}/orders/${orderId}/status`, { status });
   }
 
+  updateOrderKitchenStatus(orderId: number, status: string): Observable<any> {
+    return this.http.put(`${this.apiUrl}/orders/${orderId}/kitchen-status`, { status });
+  }
+
   updateOrderItemStatus(orderId: number, itemId: number, status: string, userId?: number): Observable<any> {
     return this.http.put(`${this.apiUrl}/orders/${orderId}/items/${itemId}/status`, {
       status,

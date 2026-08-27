@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from pg_client_mixin import PgClientTestCase
 from sqlmodel import select
@@ -155,6 +155,76 @@ class TestPaidOrderLeavesActive(PgClientTestCase):
         self.session.refresh(order)
         self.assertEqual(order.status, models.OrderStatus.completed)
         self.assertIsNotNone(order.paid_at)
+
+    def test_kitchen_can_restore_completed_order_to_new_and_complete_again(self) -> None:
+        kitchen = models.User(
+            email="kitchen-status-correction@test.local",
+            hashed_password=get_password_hash("secret"),
+            full_name="Kitchen Status Correction",
+            tenant_id=self.owner.tenant_id,
+            role=models.UserRole.kitchen,
+        )
+        self.session.add(kitchen)
+        self.session.commit()
+        self.session.refresh(kitchen)
+
+        order = self._order_with_item(item_status=models.OrderItemStatus.delivered)
+        order.status = models.OrderStatus.completed
+        order.paid_at = datetime.now(timezone.utc)
+        self.session.add(order)
+        self.session.commit()
+        item = self.session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+        ).one()
+        item.prepared_by_user_id = self.owner.id
+        item.delivered_by_user_id = self.owner.id
+        self.session.add(item)
+        self.session.commit()
+
+        h = _bearer_headers(kitchen)
+        restored = self.client.put(
+            f"/orders/{order.id}/kitchen-status",
+            json={"status": "pending"},
+            headers=h,
+        )
+        self.assertEqual(restored.status_code, 200, restored.text)
+        self.assertEqual(restored.json().get("updated_items"), 1)
+        self.assertEqual(restored.json().get("order_status"), "paid")
+
+        self.session.refresh(order)
+        self.session.refresh(item)
+        self.assertEqual(order.status, models.OrderStatus.paid)
+        self.assertIsNotNone(order.paid_at)
+        self.assertEqual(item.status, models.OrderItemStatus.pending)
+        self.assertIsNone(item.prepared_by_user_id)
+        self.assertIsNone(item.delivered_by_user_id)
+
+        completed = self.client.put(
+            f"/orders/{order.id}/kitchen-status",
+            json={"status": "delivered"},
+            headers=h,
+        )
+        self.assertEqual(completed.status_code, 200, completed.text)
+        self.assertEqual(completed.json().get("order_status"), "completed")
+        self.session.refresh(order)
+        self.session.refresh(item)
+        self.assertEqual(order.status, models.OrderStatus.completed)
+        self.assertEqual(item.status, models.OrderItemStatus.delivered)
+        self.assertEqual(item.delivered_by_user_id, kitchen.id)
+
+    def test_cancelled_order_cannot_be_restored_from_kitchen(self) -> None:
+        order = self._order_with_item(item_status=models.OrderItemStatus.cancelled)
+        order.status = models.OrderStatus.cancelled
+        self.session.add(order)
+        self.session.commit()
+
+        response = self.client.put(
+            f"/orders/{order.id}/kitchen-status",
+            json={"status": "pending"},
+            headers=_bearer_headers(self.owner),
+        )
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertIn("Cancelled orders", response.json().get("detail", ""))
 
 
 if __name__ == "__main__":

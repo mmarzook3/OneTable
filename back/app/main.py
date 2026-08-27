@@ -16151,8 +16151,15 @@ def update_order_item_status(
     item.status_updated_at = datetime.now(timezone.utc)
     
     # Track who prepared/delivered
-    if status_update.status == models.OrderItemStatus.ready:
+    if status_update.status in (
+        models.OrderItemStatus.pending,
+        models.OrderItemStatus.preparing,
+    ):
+        item.prepared_by_user_id = None
+        item.delivered_by_user_id = None
+    elif status_update.status == models.OrderItemStatus.ready:
         item.prepared_by_user_id = status_update.user_id or current_user.id
+        item.delivered_by_user_id = None
     elif status_update.status == models.OrderItemStatus.delivered:
         item.delivered_by_user_id = status_update.user_id or current_user.id
     
@@ -16183,6 +16190,107 @@ def update_order_item_status(
         "item_id": item.id,
         "item_status": item.status.value,
         "order_status": order.status.value
+    }
+
+
+@app.put("/orders/{order_id}/kitchen-status")
+def update_order_kitchen_status(
+    order_id: int,
+    status_update: models.OrderItemStatusUpdate,
+    current_user: Annotated[
+        models.User,
+        Depends(require_permission(Permission.ORDER_ITEM_STATUS)),
+    ],
+    session: Session = Depends(get_session),
+) -> dict:
+    """Atomically correct every active line on an order to one Kitchen status."""
+    allowed = {
+        models.OrderItemStatus.pending,
+        models.OrderItemStatus.preparing,
+        models.OrderItemStatus.ready,
+        models.OrderItemStatus.delivered,
+    }
+    if status_update.status not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Kitchen status must be pending, preparing, ready, or delivered",
+        )
+
+    order = session.exec(
+        select(models.Order).where(
+            models.Order.id == order_id,
+            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.deleted_at.is_(None),
+        )
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status == models.OrderStatus.cancelled:
+        raise HTTPException(status_code=400, detail="Cancelled orders cannot be restored from Kitchen")
+
+    items = session.exec(
+        select(models.OrderItem).where(models.OrderItem.order_id == order_id)
+    ).all()
+    active_items = [
+        item
+        for item in items
+        if not item.removed_by_customer
+        and item.removed_by_user_id is None
+        and item.status != models.OrderItemStatus.cancelled
+    ]
+    if not active_items:
+        raise HTTPException(status_code=400, detail="Order has no active items")
+
+    previous_statuses = sorted(
+        {
+            item.status.value if hasattr(item.status, "value") else str(item.status)
+            for item in active_items
+        }
+    )
+    changed_at = datetime.now(timezone.utc)
+    actor_id = status_update.user_id or current_user.id
+    for item in active_items:
+        item.status = status_update.status
+        item.status_updated_at = changed_at
+        if status_update.status in (
+            models.OrderItemStatus.pending,
+            models.OrderItemStatus.preparing,
+        ):
+            item.prepared_by_user_id = None
+            item.delivered_by_user_id = None
+        elif status_update.status == models.OrderItemStatus.ready:
+            item.prepared_by_user_id = actor_id
+            item.delivered_by_user_id = None
+        else:
+            item.delivered_by_user_id = actor_id
+        session.add(item)
+
+    recompute_order_status_preserving_payment(order, list(items))
+    session.add(order)
+    session.commit()
+
+    table = session.exec(
+        select(models.Table).where(models.Table.id == order.table_id)
+    ).first()
+    publish_order_update(
+        current_user.tenant_id,
+        {
+            "type": "kitchen_status_corrected",
+            "order_id": order.id,
+            "previous_item_statuses": previous_statuses,
+            "new_item_status": status_update.status.value,
+            "status": order.status.value,
+            "table_name": table.name if table else "Unknown",
+        },
+        table_id=order.table_id,
+    )
+
+    return {
+        "status": "updated",
+        "order_id": order.id,
+        "item_status": status_update.status.value,
+        "order_status": order.status.value,
+        "updated_items": len(active_items),
     }
 
 
