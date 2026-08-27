@@ -61,7 +61,7 @@ app/build/outputs/apk/release/app-release.apk
 The public pilot download copy is stored at:
 
 ```text
-front/public/downloads/scanaki-kitchen-0.3.1.apk
+front/public/downloads/scanaki-kitchen-0.3.2.apk
 ```
 
 Back up the private signing directory securely. Every future APK using the package name

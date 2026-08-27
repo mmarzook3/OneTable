@@ -2,17 +2,17 @@
 <resources>
     <string name="app_name">Scanaki Kitchen</string>
     <string name="blocked_link">This link is not available inside Scanaki Kitchen.</string>
-    <string name="heartbeat_failed">Scanaki heartbeat failed. Retrying every 10 seconds.</string>
+    <string name="heartbeat_failed">Network connection interrupted. Scanaki is trying Wi-Fi and mobile data.</string>
     <string name="offline_html"><![CDATA[
 <!doctype html>
 <html lang="en">
 <head>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;background:#090b10;color:#f8fafc;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}.panel{max-width:520px}h1{margin:0 0 12px;font-size:30px}p{margin:0 0 24px;color:#cbd5e1;font-size:17px;line-height:1.5}button{min-height:52px;padding:0 24px;border:0;border-radius:9px;background:#d35233;color:white;font-family:inherit;font-size:17px;font-weight:600}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;background:#090b10;color:#f8fafc;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}.panel{max-width:560px}h1{margin:0 0 12px;font-size:30px}p{margin:0 0 24px;color:#cbd5e1;font-size:17px;line-height:1.5}.actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}button{min-height:52px;padding:0 24px;border:1px solid #475569;border-radius:9px;background:#151923;color:white;font-family:inherit;font-size:17px;font-weight:600}.primary{border-color:#d35233;background:#d35233}
   </style>
 </head>
-<body><main class="panel"><h1>Kitchen connection lost</h1><p>Check Wi-Fi or mobile data. Scanaki will reconnect automatically when the connection returns.</p><button onclick="location.href='https://scanaki.uk/kitchen'">Try again</button></main></body>
+<body><main class="panel"><h1>Kitchen connection lost</h1><p>Scanaki tried Wi-Fi and mobile data but could not reach the service. Check the connection, then try again.</p><div class="actions"><button onclick="location.href='scanaki://network-settings'">Open network settings</button><button class="primary" onclick="location.href='scanaki://retry'">Try again</button></div></main></body>
 </html>
     ]]></string>
 </resources>

@@ -3,7 +3,7 @@ import { Meta, Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
-const APK_URL = '/downloads/scanaki-kitchen-0.3.1.apk';
+const APK_URL = '/downloads/scanaki-kitchen-0.3.2.apk';
 
 @Component({
   selector: 'app-kitchen-app-download',
@@ -36,12 +36,12 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.1.apk';
           <a
             class="download-button"
             [href]="apkUrl"
-            download="scanaki-kitchen-0.3.1.apk"
+            download="scanaki-kitchen-0.3.2.apk"
             data-testid="kitchen-apk-download"
           >
             Download for Android
           </a>
-          <p class="release-meta">Version 0.3.1 · Android 9 or newer</p>
+          <p class="release-meta">Version 0.3.2 · Android 9 or newer</p>
         </section>
 
         <section class="install-guide" aria-labelledby="install-title">
