@@ -34,6 +34,11 @@ NFC_RECESS_DIAMETER_MM = 27.0
 NFC_RECESS_DEPTH_MM = 0.8
 NFC_RECESS_CENTRE_Y_MM = -2.0
 SCREW_CENTRES_MM = ((-33.0, 45.0), (33.0, -45.0))
+MAGNET_DIAMETER_MM = 6.0
+MAGNET_DEPTH_MM = 3.0
+MAGNET_CENTRES_MM = ((-32.0, 47.0), (32.0, 47.0), (-32.0, -47.0), (32.0, -47.0))
+MOUNT_STYLE = "screws"
+SCAN_LINE = "SCAN OR TAP"
 QR_CENTRE_Y_MM = -2.0
 QR_MODULE_CELLS = 5
 
@@ -44,7 +49,43 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--label", default="INDOOR TABLE 1", help="Bottom plaque label")
     parser.add_argument("--code", default="YT-IN-01", help="File/print identifier")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--base-mm", type=float, default=BASE_MM)
+    parser.add_argument("--relief-mm", type=float, default=RELIEF_MM)
+    parser.add_argument("--scan-line", default=SCAN_LINE)
+    parser.add_argument("--mount", choices=("screws", "magnets"), default=MOUNT_STYLE)
+    parser.add_argument("--nfc-diameter-mm", type=float, default=NFC_RECESS_DIAMETER_MM)
+    parser.add_argument("--nfc-depth-mm", type=float, default=NFC_RECESS_DEPTH_MM)
+    parser.add_argument("--magnet-diameter-mm", type=float, default=MAGNET_DIAMETER_MM)
+    parser.add_argument("--magnet-depth-mm", type=float, default=MAGNET_DEPTH_MM)
     return parser.parse_args()
+
+
+def configure(args: argparse.Namespace) -> None:
+    global BASE_MM, RELIEF_MM, SCAN_LINE, MOUNT_STYLE
+    global NFC_RECESS_DIAMETER_MM, NFC_RECESS_DEPTH_MM
+    global MAGNET_DIAMETER_MM, MAGNET_DEPTH_MM
+
+    BASE_MM = args.base_mm
+    RELIEF_MM = args.relief_mm
+    SCAN_LINE = args.scan_line
+    MOUNT_STYLE = args.mount
+    NFC_RECESS_DIAMETER_MM = args.nfc_diameter_mm
+    NFC_RECESS_DEPTH_MM = args.nfc_depth_mm
+    MAGNET_DIAMETER_MM = args.magnet_diameter_mm
+    MAGNET_DEPTH_MM = args.magnet_depth_mm
+
+    for value, name in (
+        (BASE_MM, "base"),
+        (RELIEF_MM, "relief"),
+        (NFC_RECESS_DEPTH_MM, "NFC recess depth"),
+        (MAGNET_DEPTH_MM, "magnet depth"),
+    ):
+        if value <= 0 or not math.isclose(value / Z_PITCH_MM, round(value / Z_PITCH_MM)):
+            raise ValueError(f"{name} must be a positive multiple of {Z_PITCH_MM} mm")
+    if NFC_RECESS_DEPTH_MM >= BASE_MM:
+        raise ValueError("NFC recess must leave material behind the front face")
+    if MOUNT_STYLE == "magnets" and MAGNET_DEPTH_MM >= BASE_MM:
+        raise ValueError("Magnet pockets must leave material behind the front face")
 
 
 def rounded_rectangle_mask(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -129,7 +170,7 @@ def relief_mask(url: str, bottom_label: str, nx: int, ny: int) -> tuple[np.ndarr
     draw = ImageDraw.Draw(mask_image)
 
     draw_centred_text(draw, "THE YEW TREES", nx / 2 + 10, 28, 25, 220)
-    draw_centred_text(draw, "SCAN OR TAP", nx / 2 + 8, 57, 23, 205)
+    draw_centred_text(draw, SCAN_LINE, nx / 2 + 8, 57, 23, 205)
     draw_centred_text(draw, bottom_label, nx / 2 - 12, ny - 28, 21, 220)
 
     # Reinforce raster text so diagonal antialias pixels cannot meet only at a
@@ -227,23 +268,31 @@ def occupancy(url: str, bottom_label: str) -> tuple[np.ndarray, dict[str, float 
                 nfc_radius = NFC_RECESS_DIAMETER_MM / 2
                 nfc_void = xx**2 + (yy - NFC_RECESS_CENTRE_Y_MM) ** 2 < nfc_radius**2
                 layer_mask &= ~nfc_void
-            for hole_x, hole_y in SCREW_CENTRES_MM:
-                radius = THROUGH_HOLE_DIAMETER_MM / 2
-                chamfer_start = BASE_MM - COUNTERSINK_DEPTH_MM
-                if zc > chamfer_start:
-                    fraction = min(1.0, (zc - chamfer_start) / COUNTERSINK_DEPTH_MM)
-                    radius += fraction * (
-                        COUNTERSINK_DIAMETER_MM / 2 - THROUGH_HOLE_DIAMETER_MM / 2
+            if MOUNT_STYLE == "screws":
+                for hole_x, hole_y in SCREW_CENTRES_MM:
+                    radius = THROUGH_HOLE_DIAMETER_MM / 2
+                    chamfer_start = BASE_MM - COUNTERSINK_DEPTH_MM
+                    if zc > chamfer_start:
+                        fraction = min(1.0, (zc - chamfer_start) / COUNTERSINK_DEPTH_MM)
+                        radius += fraction * (
+                            COUNTERSINK_DIAMETER_MM / 2 - THROUGH_HOLE_DIAMETER_MM / 2
+                        )
+                    layer_mask &= (xx - hole_x) ** 2 + (yy - hole_y) ** 2 >= radius**2
+            elif zc < MAGNET_DEPTH_MM:
+                magnet_radius = MAGNET_DIAMETER_MM / 2
+                for magnet_x, magnet_y in MAGNET_CENTRES_MM:
+                    layer_mask &= (
+                        (xx - magnet_x) ** 2 + (yy - magnet_y) ** 2 >= magnet_radius**2
                     )
-                layer_mask &= (xx - hole_x) ** 2 + (yy - hole_y) ** 2 >= radius**2
             solid[:, :, layer] = layer_mask
         else:
             layer_mask = plate & raised
-            for hole_x, hole_y in SCREW_CENTRES_MM:
-                layer_mask &= (
-                    (xx - hole_x) ** 2 + (yy - hole_y) ** 2
-                    >= (COUNTERSINK_DIAMETER_MM / 2) ** 2
-                )
+            if MOUNT_STYLE == "screws":
+                for hole_x, hole_y in SCREW_CENTRES_MM:
+                    layer_mask &= (
+                        (xx - hole_x) ** 2 + (yy - hole_y) ** 2
+                        >= (COUNTERSINK_DIAMETER_MM / 2) ** 2
+                    )
             solid[:, :, layer] = layer_mask
 
     return solid, {
@@ -363,13 +412,14 @@ def render_preview(path: Path, solid: np.ndarray, code: str, url: str) -> None:
     canvas.paste(plate, (60, 60))
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle((58, 58, 62 + nx * scale, 62 + ny * scale), radius=30, outline="#2b2b28", width=4)
-    for hole_x, hole_y in SCREW_CENTRES_MM:
-        cx = 60 + int((hole_x + WIDTH_MM / 2) / XY_PITCH_MM * scale)
-        cy = 60 + int((HEIGHT_MM / 2 - hole_y) / XY_PITCH_MM * scale)
-        outer = int(COUNTERSINK_DIAMETER_MM / 2 / XY_PITCH_MM * scale)
-        inner = int(THROUGH_HOLE_DIAMETER_MM / 2 / XY_PITCH_MM * scale)
-        draw.ellipse((cx - outer, cy - outer, cx + outer, cy + outer), outline="#746c5d", width=3)
-        draw.ellipse((cx - inner, cy - inner, cx + inner, cy + inner), fill="#eeeae0", outline="#222", width=2)
+    if MOUNT_STYLE == "screws":
+        for hole_x, hole_y in SCREW_CENTRES_MM:
+            cx = 60 + int((hole_x + WIDTH_MM / 2) / XY_PITCH_MM * scale)
+            cy = 60 + int((HEIGHT_MM / 2 - hole_y) / XY_PITCH_MM * scale)
+            outer = int(COUNTERSINK_DIAMETER_MM / 2 / XY_PITCH_MM * scale)
+            inner = int(THROUGH_HOLE_DIAMETER_MM / 2 / XY_PITCH_MM * scale)
+            draw.ellipse((cx - outer, cy - outer, cx + outer, cy + outer), outline="#746c5d", width=3)
+            draw.ellipse((cx - inner, cy - inner, cx + inner, cy + inner), fill="#eeeae0", outline="#222", width=2)
     title_font = fitted_font("Prototype", 30, nx * scale)
     small_font = fitted_font(code, 22, nx * scale)
     draw.text((60, 14), "Scanaki plaque prototype", fill="#171716", font=title_font)
@@ -405,22 +455,34 @@ def render_construction_preview(path: Path, code: str) -> None:
         outline="#2b2b28",
         width=4,
     )
-    for hole_x, hole_y in SCREW_CENTRES_MM:
-        cx = left + int((hole_x + WIDTH_MM / 2) * scale)
-        cy = top + int((HEIGHT_MM / 2 - hole_y) * scale)
-        outer = int(COUNTERSINK_DIAMETER_MM / 2 * scale)
-        inner = int(THROUGH_HOLE_DIAMETER_MM / 2 * scale)
-        draw.ellipse(
-            (cx - outer, cy - outer, cx + outer, cy + outer),
-            outline="#746c5d",
-            width=3,
-        )
-        draw.ellipse(
-            (cx - inner, cy - inner, cx + inner, cy + inner),
-            fill="#eeeae0",
-            outline="#222",
-            width=2,
-        )
+    if MOUNT_STYLE == "screws":
+        for hole_x, hole_y in SCREW_CENTRES_MM:
+            cx = left + int((hole_x + WIDTH_MM / 2) * scale)
+            cy = top + int((HEIGHT_MM / 2 - hole_y) * scale)
+            outer = int(COUNTERSINK_DIAMETER_MM / 2 * scale)
+            inner = int(THROUGH_HOLE_DIAMETER_MM / 2 * scale)
+            draw.ellipse(
+                (cx - outer, cy - outer, cx + outer, cy + outer),
+                outline="#746c5d",
+                width=3,
+            )
+            draw.ellipse(
+                (cx - inner, cy - inner, cx + inner, cy + inner),
+                fill="#eeeae0",
+                outline="#222",
+                width=2,
+            )
+    else:
+        magnet_radius = int(MAGNET_DIAMETER_MM / 2 * scale)
+        for magnet_x, magnet_y in MAGNET_CENTRES_MM:
+            cx = left + int((magnet_x + WIDTH_MM / 2) * scale)
+            cy = top + int((HEIGHT_MM / 2 - magnet_y) * scale)
+            draw.ellipse(
+                (cx - magnet_radius, cy - magnet_radius, cx + magnet_radius, cy + magnet_radius),
+                fill="#706b63",
+                outline="#242321",
+                width=2,
+            )
 
     nfc_cx = left + plate_width // 2
     nfc_cy = top + int((HEIGHT_MM / 2 - NFC_RECESS_CENTRE_Y_MM) * scale)
@@ -452,16 +514,22 @@ def render_construction_preview(path: Path, code: str) -> None:
     draw.line((base_right + 14, base_top, base_right + 14, base_bottom), fill="#9a3f2c", width=3)
     draw.line((base_right + 7, base_top, base_right + 21, base_top), fill="#9a3f2c", width=3)
     draw.line((base_right + 7, base_bottom, base_right + 21, base_bottom), fill="#9a3f2c", width=3)
-    draw.text((base_right + 30, (base_top + base_bottom) / 2), "2.0 mm base", fill="#6d2c20", font=small_font, anchor="lm")
+    draw.text(
+        (base_right + 30, (base_top + base_bottom) / 2),
+        f"{BASE_MM:.1f} mm base",
+        fill="#6d2c20",
+        font=small_font,
+        anchor="lm",
+    )
     draw.line((base_left + 80, relief_top, base_left + 80, base_top), fill="#9a3f2c", width=3)
     draw.text((base_left + 92, relief_top - 3), "0.1 mm relief", fill="#6d2c20", font=small_font, anchor="ls")
-    draw.text(
-        (margin, base_bottom + 38),
+    mount_description = (
         f"2 × Ø{THROUGH_HOLE_DIAMETER_MM:.0f} mm through holes • "
-        f"Ø{COUNTERSINK_DIAMETER_MM:.0f} mm × {COUNTERSINK_DEPTH_MM:.0f} mm countersinks",
-        fill="#403c36",
-        font=small_font,
+        f"Ø{COUNTERSINK_DIAMETER_MM:.0f} mm × {COUNTERSINK_DEPTH_MM:.0f} mm countersinks"
+        if MOUNT_STYLE == "screws"
+        else f"4 rear magnet pockets • Ø{MAGNET_DIAMETER_MM:.0f} mm × {MAGNET_DEPTH_MM:.1f} mm deep"
     )
+    draw.text((margin, base_bottom + 38), mount_description, fill="#403c36", font=small_font)
     canvas.save(path, quality=94)
 
 
@@ -491,6 +559,7 @@ def validate_stl(path: Path) -> dict[str, object]:
 
 def main() -> None:
     args = parse_args()
+    configure(args)
     if not args.url.startswith("https://scanaki.uk/p/"):
         raise ValueError("Use a permanent https://scanaki.uk/p/... URL")
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -514,12 +583,7 @@ def main() -> None:
             "raised_text_qr": RELIEF_MM,
             "total": BASE_MM + RELIEF_MM,
         },
-        "screw_holes": {
-            "count": len(SCREW_CENTRES_MM),
-            "through_diameter_mm": THROUGH_HOLE_DIAMETER_MM,
-            "countersink_diameter_mm": COUNTERSINK_DIAMETER_MM,
-            "countersink_depth_mm": COUNTERSINK_DEPTH_MM,
-        },
+        "mount_style": MOUNT_STYLE,
         "nfc_recess": {
             "diameter_mm": NFC_RECESS_DIAMETER_MM,
             "depth_mm": NFC_RECESS_DEPTH_MM,
@@ -530,6 +594,20 @@ def main() -> None:
         "qr_decoded": args.url,
         "mesh_validation": validation,
     }
+    if MOUNT_STYLE == "screws":
+        report["screw_holes"] = {
+            "count": len(SCREW_CENTRES_MM),
+            "through_diameter_mm": THROUGH_HOLE_DIAMETER_MM,
+            "countersink_diameter_mm": COUNTERSINK_DIAMETER_MM,
+            "countersink_depth_mm": COUNTERSINK_DEPTH_MM,
+        }
+    else:
+        report["magnet_pockets"] = {
+            "count": len(MAGNET_CENTRES_MM),
+            "diameter_mm": MAGNET_DIAMETER_MM,
+            "depth_mm": MAGNET_DEPTH_MM,
+            "front_skin_mm": BASE_MM - MAGNET_DEPTH_MM,
+        }
     (args.output_dir / f"{args.code}-validation.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
     )
