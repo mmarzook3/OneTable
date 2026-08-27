@@ -2449,9 +2449,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.beginOrderHold(order);
   }
 
-  startKeyboardOrderHold(event: KeyboardEvent, order: Order): void {
-    if (event.repeat || this.isOrderInteractionDisabled(order.id)) return;
-    event.preventDefault();
+  startKeyboardOrderHold(event: Event, order: Order): void {
+    const keyboardEvent = event as KeyboardEvent;
+    if (keyboardEvent.repeat || this.isOrderInteractionDisabled(order.id)) return;
+    keyboardEvent.preventDefault();
     this.beginOrderHold(order);
   }
 
