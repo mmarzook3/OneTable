@@ -303,6 +303,45 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.nativeElement.querySelector('.order-details')).toBeNull();
   });
 
+  it('should show customer requests and food modifiers without opening ticket details', () => {
+    mockApi.getOrders.and.returnValue(
+      of([
+        {
+          id: 94,
+          status: 'paid',
+          table_name: 'T4',
+          notes: 'Please bring everything together.',
+          created_at: new Date().toISOString(),
+          paid_at: new Date().toISOString(),
+          items: [
+            {
+              id: 940,
+              product_name: 'Burger',
+              quantity: 1,
+              status: 'pending',
+              price_cents: 1200,
+              category: 'Main Course',
+              customization_summary: 'No onions, extra cheese',
+              notes: 'Cut in half',
+            },
+          ],
+          total_cents: 1200,
+        },
+      ]),
+    );
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.order-details')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.customer-request')?.textContent).toContain(
+      'Please bring everything together.',
+    );
+    expect(fixture.nativeElement.querySelector('.item-customization')?.textContent).toContain(
+      'No onions, extra cheese',
+    );
+    expect(fixture.nativeElement.querySelector('.item-notes')?.textContent).toContain('Cut in half');
+  });
+
   it('should show the live clock and active ticket counts in the header', () => {
     const createdAt = new Date(Date.now() - 60_000).toISOString();
     mockApi.getOrders.and.returnValue(
