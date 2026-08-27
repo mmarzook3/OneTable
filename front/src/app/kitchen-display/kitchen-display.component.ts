@@ -291,35 +291,57 @@ const VIEW_CATEGORY: Record<string, string> = {
                     <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
                   </div>
                 </div>
-                <ul class="order-items">
-                  @for (item of getSortedItems(order.items); track item.id) {
-                    @if (!item.removed_by_customer) {
-                      <li class="order-item">
-                        <span class="item-qty">{{ item.quantity }}×</span>
-                        <span class="item-copy">
-                          <strong class="item-name">{{ item.product_name }}</strong>
-                          @if (hasCustomization(item)) {
-                            <small class="item-customization">
-                              <strong>Modifiers:</strong> {{ formatCustomizationItem(item) }}
-                            </small>
-                          }
-                          @if (item.notes) {
-                            <small class="item-notes"><strong>{{ 'KITCHEN_DISPLAY.ITEM_COMMENT' | translate }}:</strong> {{ item.notes }}</small>
-                          }
-                        </span>
-                      </li>
+                <div
+                  class="order-card-scroll"
+                  tabindex="0"
+                  [attr.aria-label]="'Items and requests for order ' + order.id"
+                >
+                  <ul class="order-items">
+                    @for (item of getSortedItems(order.items); track item.id) {
+                      @if (!item.removed_by_customer) {
+                        <li class="order-item">
+                          <span class="item-qty">{{ item.quantity }}×</span>
+                          <span class="item-copy">
+                            <strong class="item-name">{{ item.product_name }}</strong>
+                            @if (hasCustomization(item)) {
+                              <small class="item-customization">
+                                <strong>Modifiers:</strong> {{ formatCustomizationItem(item) }}
+                              </small>
+                            }
+                            @if (item.notes) {
+                              <small class="item-notes"><strong>{{ 'KITCHEN_DISPLAY.ITEM_COMMENT' | translate }}:</strong> {{ item.notes }}</small>
+                            }
+                          </span>
+                        </li>
+                      }
                     }
+                  </ul>
+                  @if (cleanKitchenNotes(order.notes); as visibleNotes) {
+                    <section
+                      class="customer-request"
+                      [attr.data-testid]="'kitchen-customer-request-' + order.id"
+                    >
+                      <strong class="customer-request-label">Customer request</strong>
+                      <p>{{ visibleNotes }}</p>
+                    </section>
                   }
-                </ul>
-                @if (cleanKitchenNotes(order.notes); as visibleNotes) {
-                  <section
-                    class="customer-request"
-                    [attr.data-testid]="'kitchen-customer-request-' + order.id"
-                  >
-                    <strong class="customer-request-label">Customer request</strong>
-                    <p>{{ visibleNotes }}</p>
-                  </section>
-                }
+                  @if (isOrderDetailsOpen(order.id)) {
+                    <section class="order-details">
+                      <dl>
+                        @if (order.customer_name) { <div><dt>Customer</dt><dd>{{ order.customer_name }}</dd></div> }
+                        <div><dt>Received</dt><dd>{{ formatOrderTime(getKitchenStart(order)) }}</dd></div>
+                        <div><dt>Status</dt><dd>{{ getStatusLabel(order.status) }}</dd></div>
+                      </dl>
+                      <div class="item-status-summary">
+                        @for (item of getSortedItems(order.items); track item.id) {
+                          @if (!item.removed_by_customer) {
+                            <span>{{ item.product_name }}: {{ getItemStatusLabel(item.status || 'pending') }}</span>
+                          }
+                        }
+                      </div>
+                    </section>
+                  }
+                </div>
                 <footer class="order-actions">
                   @if (getOrderActionTarget(order)) {
                     <button
@@ -352,22 +374,6 @@ const VIEW_CATEGORY: Record<string, string> = {
                     {{ isOrderDetailsOpen(order.id) ? 'Show less' : 'Show more' }}
                   </button>
                 </footer>
-                @if (isOrderDetailsOpen(order.id)) {
-                  <section class="order-details">
-                    <dl>
-                      @if (order.customer_name) { <div><dt>Customer</dt><dd>{{ order.customer_name }}</dd></div> }
-                      <div><dt>Received</dt><dd>{{ formatOrderTime(getKitchenStart(order)) }}</dd></div>
-                      <div><dt>Status</dt><dd>{{ getStatusLabel(order.status) }}</dd></div>
-                    </dl>
-                    <div class="item-status-summary">
-                      @for (item of getSortedItems(order.items); track item.id) {
-                        @if (!item.removed_by_customer) {
-                          <span>{{ item.product_name }}: {{ getItemStatusLabel(item.status || 'pending') }}</span>
-                        }
-                      }
-                    </div>
-                  </section>
-                }
               </article>
             }
           </div>
@@ -641,10 +647,14 @@ const VIEW_CATEGORY: Record<string, string> = {
   `,
   styles: [`
     .kitchen-view {
+      position: fixed;
+      inset: 0;
+      width: 100%;
       height: 100vh;
       height: 100dvh;
       min-height: 0;
       overflow: hidden;
+      overscroll-behavior: none;
       background: var(--color-bg);
       display: flex;
       flex-direction: column;
@@ -845,12 +855,12 @@ const VIEW_CATEGORY: Record<string, string> = {
       display: flex;
       flex-wrap: nowrap;
       gap: 16px;
-      align-items: start;
+      align-items: stretch;
       min-width: 0;
       min-height: 0;
       padding: 0 2px 14px;
       overflow-x: auto;
-      overflow-y: auto;
+      overflow-y: hidden;
       overscroll-behavior: contain;
       scroll-behavior: smooth;
       scroll-snap-type: x proximity;
@@ -860,9 +870,12 @@ const VIEW_CATEGORY: Record<string, string> = {
       --ticket-background: #3a3020;
       --ticket-panel: #302719;
       --ticket-border: #8a6829;
-      display: grid;
+      display: flex;
+      flex-direction: column;
       flex: 0 0 clamp(320px, 31vw, 430px);
+      height: 100%;
       min-width: 320px;
+      min-height: 0;
       scroll-snap-align: start;
       background: var(--ticket-background);
       border: 2px solid var(--ticket-border);
@@ -1001,6 +1014,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       gap: 10px;
     }
     .order-timer-bar-wrap {
+      flex: 0 0 auto;
       padding: 0 16px 12px;
       background: var(--ticket-panel);
     }
@@ -1025,6 +1039,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-card.timer-orange { border-left-color: #f97316; }
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
+      flex: 0 0 auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -1039,6 +1054,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       white-space: nowrap;
     }
     .order-destination {
+      flex: 0 0 auto;
       display: grid;
       min-width: 0;
       gap: 4px;
@@ -1103,6 +1119,30 @@ const VIEW_CATEGORY: Record<string, string> = {
       white-space: nowrap;
     }
     .payment-badge-paid { border-color: #166534; background: #14532d; color: #dcfce7; }
+    .order-card-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-color: rgba(226, 232, 240, .62) rgba(15, 23, 42, .3);
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+    }
+    .order-card-scroll:focus-visible {
+      outline: 2px solid #93c5fd;
+      outline-offset: -3px;
+    }
+    .order-card-scroll::-webkit-scrollbar { width: 9px; }
+    .order-card-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, .3); }
+    .order-card-scroll::-webkit-scrollbar-thumb {
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background: rgba(226, 232, 240, .62);
+      background-clip: padding-box;
+    }
     .order-items {
       list-style: none;
       margin: 0;
@@ -1184,6 +1224,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       word-break: break-word;
     }
     .order-actions {
+      flex: 0 0 auto;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 10px;
