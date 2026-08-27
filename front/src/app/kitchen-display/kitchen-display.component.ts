@@ -165,7 +165,7 @@ const VIEW_CATEGORY: Record<string, string> = {
           @if (operationalLocations().length > 1) {
             <label class="station-filter">
               <span class="station-filter-label">Location</span>
-              <select class="station-filter-select" [ngModel]="locationSelection()" (ngModelChange)="locationSelection.set($event)">
+              <select class="station-filter-select" [ngModel]="locationSelection()" (ngModelChange)="onLocationSelectChange($event)">
                 <option [ngValue]="'all'">All locations</option>
                 @for (location of operationalLocations(); track location.id) {
                   <option [ngValue]="location.id">{{ location.display_name }}</option>
@@ -250,7 +250,12 @@ const VIEW_CATEGORY: Record<string, string> = {
             <p>{{ 'KITCHEN_DISPLAY.NO_ACTIVE_ORDERS_DESC' | translate }}</p>
           </div>
         } @else {
-          <div class="order-grid">
+          <div
+            class="order-grid"
+            #orderScroller
+            data-testid="kitchen-order-scroller"
+            (scroll)="scheduleOrderNavigationUpdate()"
+          >
             @for (order of activeOrders(); track order.id; let position = $index) {
               <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
                 <header class="order-header">
@@ -352,6 +357,36 @@ const VIEW_CATEGORY: Record<string, string> = {
               </article>
             }
           </div>
+          <nav class="order-navigation" aria-label="Order ticket navigation" data-testid="kitchen-order-navigation">
+            <button
+              type="button"
+              class="order-navigation-button"
+              data-testid="kitchen-orders-left"
+              [disabled]="ordersToLeft() === 0"
+              [attr.aria-label]="ordersToLeft() + ' order' + (ordersToLeft() === 1 ? '' : 's') + ' to the left'"
+              (click)="scrollOrders(-1)"
+            >
+              <span class="order-navigation-arrow" aria-hidden="true">&#8592;</span>
+              <span><strong>{{ ordersToLeft() }}</strong> left</span>
+            </button>
+            <div class="order-navigation-position" aria-live="polite">
+              <strong data-testid="kitchen-visible-order-range">
+                {{ visibleOrderStart() }}&ndash;{{ visibleOrderEnd() }}
+              </strong>
+              <span>of {{ activeOrders().length }} orders</span>
+            </div>
+            <button
+              type="button"
+              class="order-navigation-button order-navigation-button-next"
+              data-testid="kitchen-orders-right"
+              [disabled]="ordersToRight() === 0"
+              [attr.aria-label]="ordersToRight() + ' order' + (ordersToRight() === 1 ? '' : 's') + ' to the right'"
+              (click)="scrollOrders(1)"
+            >
+              <span><strong>{{ ordersToRight() }}</strong> right</span>
+              <span class="order-navigation-arrow" aria-hidden="true">&#8594;</span>
+            </button>
+          </nav>
         }
       </main>
       @if (stockModalOpen()) {
@@ -592,7 +627,10 @@ const VIEW_CATEGORY: Record<string, string> = {
   `,
   styles: [`
     .kitchen-view {
-      min-height: 100vh;
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
       background: var(--color-bg);
       display: flex;
       flex-direction: column;
@@ -603,6 +641,10 @@ const VIEW_CATEGORY: Record<string, string> = {
       -moz-osx-font-smoothing: grayscale;
     }
     .kitchen-header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      flex: 0 0 auto;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
       grid-template-areas:
@@ -616,6 +658,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       box-shadow: var(--shadow-sm);
     }
     .kds-connection-banner {
+      flex: 0 0 auto;
       padding: 12px 24px;
       background: #7f1d1d;
       color: #fff;
@@ -767,8 +810,11 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .kitchen-main {
       flex: 1;
-      padding: var(--space-5) var(--space-6);
-      overflow: auto;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      padding: var(--space-5) var(--space-6) 0;
+      overflow: hidden;
       background: #090b10;
     }
     .empty-state {
@@ -782,20 +828,103 @@ const VIEW_CATEGORY: Record<string, string> = {
     .empty-state h2 { margin: 0 0 var(--space-2); font-size: 1.5rem; color: var(--color-text); }
     .empty-state p { margin: 0; color: var(--color-text-muted); }
     .order-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+      display: flex;
+      flex-wrap: nowrap;
       gap: 16px;
       align-items: start;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      padding: 0 2px 14px;
+      overflow-x: auto;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      scroll-snap-type: x proximity;
+      scrollbar-gutter: stable;
     }
     .order-card {
       display: grid;
-      min-width: 0;
+      flex: 0 0 clamp(320px, 31vw, 430px);
+      min-width: 320px;
+      scroll-snap-align: start;
       background: #292e39;
       border: 2px solid #414959;
       border-left: 6px solid var(--color-warning);
       border-radius: 12px;
       overflow: hidden;
       box-shadow: var(--shadow-md);
+    }
+    .order-navigation {
+      z-index: 15;
+      display: grid;
+      grid-template-columns: minmax(132px, 1fr) auto minmax(132px, 1fr);
+      align-items: center;
+      gap: 16px;
+      min-height: 68px;
+      margin-inline: calc(var(--space-6) * -1);
+      padding: 10px var(--space-6);
+      border-top: 1px solid #343b48;
+      background: #11151d;
+      box-shadow: 0 -10px 24px rgba(0, 0, 0, .22);
+      color: #f8fafc;
+    }
+    .order-navigation-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: start;
+      gap: 10px;
+      min-width: 132px;
+      min-height: 46px;
+      padding: 0 16px;
+      border: 1px solid #4b5563;
+      border-radius: 10px;
+      background: #242a35;
+      color: #f8fafc;
+      font: inherit;
+      font-size: .9rem;
+      font-weight: 500;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .order-navigation-button-next { justify-self: end; }
+    .order-navigation-button:hover:not(:disabled) {
+      border-color: #64748b;
+      background: #303745;
+    }
+    .order-navigation-button:focus-visible {
+      outline: 3px solid rgba(96, 165, 250, .8);
+      outline-offset: 2px;
+    }
+    .order-navigation-button:disabled {
+      border-color: #2d3440;
+      color: #6b7280;
+      background: #181c24;
+      cursor: default;
+    }
+    .order-navigation-button strong {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .order-navigation-arrow {
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+    .order-navigation-position {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 6px;
+      color: #aeb8c7;
+      white-space: nowrap;
+    }
+    .order-navigation-position strong {
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
     .order-card.status-preparing { border-left-color: #3B82F6; }
     .order-card.status-ready { border-left-color: var(--color-success); }
@@ -1088,6 +1217,19 @@ const VIEW_CATEGORY: Record<string, string> = {
       .kds-clock-value { font-size: 1.25rem; }
       .kds-overview-value { font-size: 1.125rem; }
       .header-actions { gap: 10px; }
+      .kitchen-main { padding-inline: 12px; }
+      .order-card {
+        flex-basis: min(86vw, 380px);
+        min-width: min(86vw, 320px);
+      }
+      .order-navigation {
+        grid-template-columns: minmax(100px, 1fr) auto minmax(100px, 1fr);
+        gap: 8px;
+        margin-inline: -12px;
+        padding-inline: 12px;
+      }
+      .order-navigation-button { min-width: 0; padding-inline: 10px; }
+      .order-navigation-position { align-items: center; flex-direction: column; gap: 0; font-size: .75rem; }
     }
     .stock-notice {
       padding: 10px 24px;
@@ -1475,6 +1617,7 @@ const VIEW_CATEGORY: Record<string, string> = {
 })
 export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('kitchenRoot', { read: ElementRef }) kitchenRootRef?: ElementRef<HTMLElement>;
+  @ViewChild('orderScroller', { read: ElementRef }) orderScrollerRef?: ElementRef<HTMLElement>;
 
   private api = inject(ApiService);
   private audio = inject(AudioService);
@@ -1494,6 +1637,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private knownActiveOrderIds = new Set<number>();
   private orderAlertsReady = false;
   private lastOrderAlertAt = 0;
+  private orderNavigationFrameId: number | null = null;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -1573,6 +1717,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   pendingOrderStatusChange = signal<{ orderId: number; status: KitchenOrderStatus } | null>(null);
   orderHistoryNotice = signal('');
   orderHistoryError = signal('');
+  ordersToLeft = signal(0);
+  ordersToRight = signal(0);
+  visibleOrderStart = signal(0);
+  visibleOrderEnd = signal(0);
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
@@ -1804,11 +1952,13 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.addEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.addEventListener('MSFullscreenChange', this.onFullscreenChange);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
+    window.addEventListener('resize', this.onWindowResize);
   }
 
   ngAfterViewInit(): void {
     this.syncFullscreenState();
     void this.requestScreenWakeLock();
+    this.scheduleOrderNavigationUpdate();
   }
 
   ngOnDestroy(): void {
@@ -1838,6 +1988,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     document.removeEventListener('mozfullscreenchange', this.onFullscreenChange);
     document.removeEventListener('MSFullscreenChange', this.onFullscreenChange);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('resize', this.onWindowResize);
+    if (this.orderNavigationFrameId != null) {
+      window.cancelAnimationFrame(this.orderNavigationFrameId);
+      this.orderNavigationFrameId = null;
+    }
     void this.releaseScreenWakeLock();
     void this.exitFullscreenIfActive();
   }
@@ -1854,7 +2009,77 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       replaceUrl: true,
     });
     this.sendHeartbeat();
+    this.resetOrderScroller();
   }
+
+  onLocationSelectChange(value: number | 'all'): void {
+    this.locationSelection.set(value);
+    this.resetOrderScroller();
+  }
+
+  scheduleOrderNavigationUpdate(): void {
+    if (this.orderNavigationFrameId != null) return;
+    this.orderNavigationFrameId = window.requestAnimationFrame(() => {
+      this.orderNavigationFrameId = null;
+      this.updateOrderNavigation();
+    });
+  }
+
+  updateOrderNavigation(): void {
+    const scroller = this.orderScrollerRef?.nativeElement;
+    if (!scroller) {
+      this.ordersToLeft.set(0);
+      this.ordersToRight.set(0);
+      this.visibleOrderStart.set(0);
+      this.visibleOrderEnd.set(0);
+      return;
+    }
+
+    const cards = Array.from(scroller.querySelectorAll<HTMLElement>('.order-card'));
+    if (cards.length === 0) {
+      this.ordersToLeft.set(0);
+      this.ordersToRight.set(0);
+      this.visibleOrderStart.set(0);
+      this.visibleOrderEnd.set(0);
+      return;
+    }
+
+    const viewport = scroller.getBoundingClientRect();
+    const tolerance = 8;
+    const rects = cards.map((card) => card.getBoundingClientRect());
+    const visibleIndexes = rects
+      .map((rect, index) => ({ rect, index }))
+      .filter(({ rect }) => rect.right > viewport.left + tolerance && rect.left < viewport.right - tolerance)
+      .map(({ index }) => index);
+
+    const firstVisible = visibleIndexes[0] ?? 0;
+    const lastVisible = visibleIndexes[visibleIndexes.length - 1] ?? firstVisible;
+    this.ordersToLeft.set(rects.filter((rect) => rect.left < viewport.left - tolerance).length);
+    this.ordersToRight.set(rects.filter((rect) => rect.right > viewport.right + tolerance).length);
+    this.visibleOrderStart.set(firstVisible + 1);
+    this.visibleOrderEnd.set(lastVisible + 1);
+  }
+
+  scrollOrders(direction: -1 | 1): void {
+    const scroller = this.orderScrollerRef?.nativeElement;
+    if (!scroller) return;
+    const firstCard = scroller.querySelector<HTMLElement>('.order-card');
+    const cardStep = (firstCard?.getBoundingClientRect().width ?? 320) + 16;
+    const pageStep = Math.max(cardStep, scroller.clientWidth * 0.72);
+    scroller.scrollBy({ left: direction * pageStep, behavior: 'smooth' });
+  }
+
+  private resetOrderScroller(): void {
+    window.requestAnimationFrame(() => {
+      const scroller = this.orderScrollerRef?.nativeElement;
+      if (scroller) scroller.scrollLeft = 0;
+      this.scheduleOrderNavigationUpdate();
+    });
+  }
+
+  private onWindowResize = (): void => {
+    this.scheduleOrderNavigationUpdate();
+  };
 
   stockScopeLabel(): string {
     const selection = this.stationSelection();
@@ -2185,6 +2410,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.api.getOrders(false, true).subscribe({
       next: (list) => {
         this.orders.set(list);
+        this.scheduleOrderNavigationUpdate();
         const activeIds = new Set(this.activeOrders().map((order) => order.id));
         if (
           this.orderAlertsReady &&

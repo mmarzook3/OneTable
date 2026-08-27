@@ -352,6 +352,36 @@ describe('KitchenDisplayComponent', () => {
     ).toMatch(/^\d{2}:\d{2}:\d{2}$/);
   });
 
+  it('should report off-screen tickets and scroll the order lane with the footer arrows', () => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const rect = (left: number, right: number) =>
+      ({ left, right, width: right - left } as DOMRect);
+    const cards = [rect(0, 320), rect(336, 656), rect(672, 992), rect(1008, 1328)].map(
+      (cardRect) => ({ getBoundingClientRect: () => cardRect }),
+    );
+    const scrollBy = jasmine.createSpy('scrollBy');
+    const scroller = {
+      clientWidth: 700,
+      scrollBy,
+      getBoundingClientRect: () => rect(0, 700),
+      querySelectorAll: () => cards,
+      querySelector: () => cards[0],
+    };
+    component.orderScrollerRef = { nativeElement: scroller } as never;
+
+    component.updateOrderNavigation();
+
+    expect(component.ordersToLeft()).toBe(0);
+    expect(component.ordersToRight()).toBe(2);
+    expect(component.visibleOrderStart()).toBe(1);
+    expect(component.visibleOrderEnd()).toBe(3);
+
+    component.scrollOrders(1);
+    expect(scrollBy).toHaveBeenCalledWith({ left: 504, behavior: 'smooth' });
+  });
+
   it('should toggle sound and persist to localStorage', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
