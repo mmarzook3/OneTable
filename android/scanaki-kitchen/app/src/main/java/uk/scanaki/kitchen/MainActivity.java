@@ -3,13 +3,17 @@ package uk.scanaki.kitchen;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -53,6 +57,7 @@ public final class MainActivity extends Activity {
     private static final String DEVICE_KEY_STORAGE = "native_kds_device_key";
     private static final long HEARTBEAT_INTERVAL_SECONDS = 10;
     private static final long FRONTEND_UPDATE_CHECK_INTERVAL_MS = 60_000;
+    private static final int CELLULAR_REQUEST_TIMEOUT_MS = 8_000;
     private static final Set<String> ALLOWED_HOSTS = Set.of("scanaki.uk", "www.scanaki.uk");
 
     private WebView webView;
@@ -60,11 +65,16 @@ public final class MainActivity extends Activity {
     private TextView connectionBanner;
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
+    private ConnectivityManager.NetworkCallback cellularFallbackCallback;
+    private Network cellularFallbackNetwork;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ScheduledExecutorService heartbeatExecutor;
     private String deviceKey;
     private boolean showingOfflinePage;
     private boolean networkWasLost;
     private boolean hasResumedOnce;
+    private boolean cellularFallbackRequested;
+    private boolean internetPanelShownForOutage;
     private long lastFrontendUpdateCheckAt;
 
     @Override
@@ -158,6 +168,15 @@ public final class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                if ("scanaki".equalsIgnoreCase(uri.getScheme())) {
+                    if ("network-settings".equalsIgnoreCase(uri.getHost())) {
+                        internetPanelShownForOutage = false;
+                        openInternetConnectivityPanel();
+                    } else if ("retry".equalsIgnoreCase(uri.getHost())) {
+                        attemptNetworkRecovery();
+                    }
+                    return true;
+                }
                 if (isAllowedUri(uri)) {
                     showingOfflinePage = false;
                     return false;
@@ -197,7 +216,7 @@ public final class MainActivity extends Activity {
                 WebResourceError error
             ) {
                 if (request.isForMainFrame()) {
-                    showOfflinePage();
+                    attemptNetworkRecovery();
                 }
             }
 
@@ -263,39 +282,204 @@ public final class MainActivity extends Activity {
         networkCallback = new ConnectivityManager.NetworkCallback() {
             @Override
             public void onAvailable(Network network) {
+                handlePotentialNetworkRecovery(network);
+            }
+
+            @Override
+            public void onCapabilitiesChanged(
+                Network network,
+                NetworkCapabilities capabilities
+            ) {
+                if (isValidatedInternet(capabilities)) {
+                    handlePotentialNetworkRecovery(network);
+                }
+            }
+
+            @Override
+            public void onLost(Network network) {
                 runOnUiThread(() -> {
-                    if (networkWasLost || showingOfflinePage) {
-                        networkWasLost = false;
-                        showingOfflinePage = false;
-                        webView.loadUrl(KDS_URL);
-                    }
-                    requestImmediateHeartbeat();
+                    mainHandler.postDelayed(() -> {
+                        if (!hasInternetConnection()) {
+                            attemptNetworkRecovery();
+                        }
+                    }, 750);
+                });
+            }
+        };
+        connectivityManager.registerNetworkCallback(request, networkCallback);
+        if (!hasInternetConnection()) {
+            attemptNetworkRecovery();
+        }
+    }
+
+    private void handlePotentialNetworkRecovery(Network network) {
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+        if (!isValidatedInternet(capabilities)) {
+            return;
+        }
+        runOnUiThread(() -> {
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                releaseCellularFallback();
+            }
+            internetPanelShownForOutage = false;
+            boolean shouldReload = networkWasLost || showingOfflinePage;
+            networkWasLost = false;
+            showingOfflinePage = false;
+            hideHeartbeatFailure();
+            if (shouldReload) {
+                webView.loadUrl(KDS_URL);
+            }
+            requestImmediateHeartbeat();
+        });
+    }
+
+    private void attemptNetworkRecovery() {
+        if (hasInternetConnection()) {
+            handlePotentialNetworkRecovery(getUsableNetwork());
+            return;
+        }
+
+        networkWasLost = true;
+        showHeartbeatFailure();
+        if (!isWifiEnabled()) {
+            showOfflinePage();
+            openInternetConnectivityPanel();
+            return;
+        }
+
+        requestCellularFallback();
+    }
+
+    private boolean isWifiEnabled() {
+        WifiManager wifiManager = (WifiManager) getApplicationContext()
+            .getSystemService(Context.WIFI_SERVICE);
+        return wifiManager != null && wifiManager.isWifiEnabled();
+    }
+
+    private void requestCellularFallback() {
+        if (cellularFallbackRequested || cellularFallbackNetwork != null) {
+            return;
+        }
+        cellularFallbackRequested = true;
+        NetworkRequest request = new NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build();
+        cellularFallbackCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                useCellularFallbackIfValidated(network);
+            }
+
+            @Override
+            public void onCapabilitiesChanged(
+                Network network,
+                NetworkCapabilities capabilities
+            ) {
+                if (isValidatedInternet(capabilities)) {
+                    useCellularFallbackIfValidated(network);
+                }
+            }
+
+            @Override
+            public void onUnavailable() {
+                runOnUiThread(() -> {
+                    cellularFallbackRequested = false;
+                    cellularFallbackCallback = null;
+                    showOfflinePage();
+                    openInternetConnectivityPanel();
                 });
             }
 
             @Override
             public void onLost(Network network) {
                 runOnUiThread(() -> {
-                    if (!hasInternetConnection()) {
-                        networkWasLost = true;
-                        showOfflinePage();
-                    }
+                    releaseCellularFallback();
+                    attemptNetworkRecovery();
                 });
             }
         };
-        connectivityManager.registerNetworkCallback(request, networkCallback);
-        if (!hasInternetConnection()) {
-            networkWasLost = true;
+        try {
+            connectivityManager.requestNetwork(
+                request,
+                cellularFallbackCallback,
+                CELLULAR_REQUEST_TIMEOUT_MS
+            );
+        } catch (RuntimeException ignored) {
+            cellularFallbackRequested = false;
+            cellularFallbackCallback = null;
             showOfflinePage();
+            openInternetConnectivityPanel();
+        }
+    }
+
+    private void useCellularFallbackIfValidated(Network network) {
+        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+        if (!isValidatedInternet(capabilities)) {
+            return;
+        }
+        cellularFallbackNetwork = network;
+        connectivityManager.bindProcessToNetwork(network);
+        handlePotentialNetworkRecovery(network);
+    }
+
+    private void releaseCellularFallback() {
+        if (cellularFallbackNetwork != null) {
+            connectivityManager.bindProcessToNetwork(null);
+            cellularFallbackNetwork = null;
+        }
+        if (cellularFallbackCallback != null) {
+            try {
+                connectivityManager.unregisterNetworkCallback(cellularFallbackCallback);
+            } catch (IllegalArgumentException ignored) {
+                // A timed-out request is already unregistered by Android.
+            }
+            cellularFallbackCallback = null;
+        }
+        cellularFallbackRequested = false;
+    }
+
+    private void openInternetConnectivityPanel() {
+        if (internetPanelShownForOutage) {
+            return;
+        }
+        internetPanelShownForOutage = true;
+        Intent intent = new Intent(
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                ? Settings.Panel.ACTION_INTERNET_CONNECTIVITY
+                : Settings.ACTION_WIRELESS_SETTINGS
+        );
+        try {
+            startActivity(intent);
+        } catch (RuntimeException ignored) {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
         }
     }
 
     private boolean hasInternetConnection() {
+        return getUsableNetwork() != null;
+    }
+
+    private Network getUsableNetwork() {
+        if (connectivityManager == null) {
+            return null;
+        }
+        if (cellularFallbackNetwork != null) {
+            NetworkCapabilities cellularCapabilities = connectivityManager
+                .getNetworkCapabilities(cellularFallbackNetwork);
+            if (isValidatedInternet(cellularCapabilities)) {
+                return cellularFallbackNetwork;
+            }
+        }
         Network network = connectivityManager.getActiveNetwork();
         if (network == null) {
-            return false;
+            return null;
         }
         NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+        return isValidatedInternet(capabilities) ? network : null;
+    }
+
+    private boolean isValidatedInternet(NetworkCapabilities capabilities) {
         return capabilities != null
             && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
@@ -530,6 +714,9 @@ public final class MainActivity extends Activity {
         }
         hasResumedOnce = true;
         startNativeHeartbeat();
+        if (!hasInternetConnection()) {
+            attemptNetworkRecovery();
+        }
     }
 
     @Override
@@ -547,6 +734,7 @@ public final class MainActivity extends Activity {
         if (networkCallback != null) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
         }
+        releaseCellularFallback();
         webView.stopLoading();
         webView.destroy();
         super.onDestroy();
