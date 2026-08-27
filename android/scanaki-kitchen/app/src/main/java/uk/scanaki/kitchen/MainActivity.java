@@ -178,6 +178,16 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+                super.doUpdateVisitedHistory(view, url, isReload);
+                Uri uri = Uri.parse(url);
+                if (isAllowedUri(uri)) {
+                    // Angular login changes routes without a full page load.
+                    CookieManager.getInstance().flush();
+                }
+            }
+
+            @Override
             public void onReceivedError(
                 WebView view,
                 WebResourceRequest request,
@@ -410,6 +420,7 @@ public final class MainActivity extends Activity {
                 }
             }
             if (status >= 200 && status < 300) {
+                CookieManager.getInstance().flush();
                 hideHeartbeatFailure();
             } else if (status == 401 || status == 403) {
                 hideHeartbeatFailure();
