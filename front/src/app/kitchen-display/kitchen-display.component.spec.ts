@@ -352,6 +352,48 @@ describe('KitchenDisplayComponent', () => {
     ).toMatch(/^\d{2}:\d{2}:\d{2}$/);
   });
 
+  it('should colour the full ticket surface from the live production status', () => {
+    const createdAt = new Date().toISOString();
+    mockApi.getOrders.and.returnValue(
+      of(
+        (['pending', 'preparing', 'ready'] as const).map((status, index) => ({
+          id: 201 + index,
+          status: 'paid',
+          table_name: `T${index + 1}`,
+          created_at: createdAt,
+          paid_at: createdAt,
+          items: [
+            {
+              id: 2201 + index,
+              product_name: 'Kitchen item',
+              quantity: 1,
+              status,
+              price_cents: 1000,
+              category: 'Main Course',
+            },
+          ],
+          total_cents: 1000,
+        })),
+      ),
+    );
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    const cards = Array.from(
+      fixture.nativeElement.querySelectorAll('.order-card'),
+    ) as HTMLElement[];
+    expect(cards.map((card) => card.classList.contains('production-pending'))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    expect(cards[1].classList.contains('production-preparing')).toBeTrue();
+    expect(cards[2].classList.contains('production-ready')).toBeTrue();
+    expect(
+      cards.map((card) => card.querySelector('.production-status-badge')?.textContent?.trim()),
+    ).toEqual(['New', 'Preparing', 'Ready']);
+  });
+
   it('should report off-screen tickets and scroll the order lane with the footer arrows', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();

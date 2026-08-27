@@ -257,11 +257,15 @@ const VIEW_CATEGORY: Record<string, string> = {
             (scroll)="scheduleOrderNavigationUpdate()"
           >
             @for (order of activeOrders(); track order.id; let position = $index) {
-              <article class="order-card status-{{ order.status }} {{ getTimerColorClass(order) }}" [class.order-card-urgent]="order.staff_urgent">
+              <article
+                class="order-card production-{{ getProductionStatus(order) }} {{ getTimerColorClass(order) }}"
+                [class.order-card-urgent]="order.staff_urgent"
+              >
                 <header class="order-header">
                   <div class="order-sequence">
                     <span class="fifo-position">FIFO {{ position + 1 }}</span>
                     <span class="order-id">#{{ order.id }}</span>
+                    <span class="production-status-badge">{{ getProductionStatusLabel(order) }}</span>
                     @if (order.staff_urgent) {
                       <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
                     }
@@ -843,16 +847,34 @@ const VIEW_CATEGORY: Record<string, string> = {
       scrollbar-gutter: stable;
     }
     .order-card {
+      --ticket-background: #3a3020;
+      --ticket-panel: #302719;
+      --ticket-border: #8a6829;
       display: grid;
       flex: 0 0 clamp(320px, 31vw, 430px);
       min-width: 320px;
       scroll-snap-align: start;
-      background: #292e39;
-      border: 2px solid #414959;
+      background: var(--ticket-background);
+      border: 2px solid var(--ticket-border);
       border-left: 6px solid var(--color-warning);
       border-radius: 12px;
       overflow: hidden;
       box-shadow: var(--shadow-md);
+    }
+    .order-card.production-pending {
+      --ticket-background: #3a3020;
+      --ticket-panel: #302719;
+      --ticket-border: #8a6829;
+    }
+    .order-card.production-preparing {
+      --ticket-background: #1f3a5a;
+      --ticket-panel: #182f4a;
+      --ticket-border: #3b82f6;
+    }
+    .order-card.production-ready {
+      --ticket-background: #1e4938;
+      --ticket-panel: #173a2c;
+      --ticket-border: #22c55e;
     }
     .order-navigation {
       z-index: 15;
@@ -925,8 +947,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-weight: 700;
       font-variant-numeric: tabular-nums;
     }
-    .order-card.status-preparing { border-left-color: #3B82F6; }
-    .order-card.status-ready { border-left-color: var(--color-success); }
+    .order-card.production-preparing { border-left-color: #60a5fa; }
+    .order-card.production-ready { border-left-color: #4ade80; }
     .order-card-urgent {
       box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.45), var(--shadow-sm);
     }
@@ -950,6 +972,18 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-weight: 600;
       letter-spacing: 0.04em;
     }
+    .production-status-badge {
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 5px;
+      background: rgba(0, 0, 0, .2);
+      color: #fff;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
     .order-sequence {
       display: flex;
       align-items: center;
@@ -958,7 +992,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-timer-bar-wrap {
       padding: 0 16px 12px;
-      background: #20242d;
+      background: var(--ticket-panel);
     }
     .order-timer-bar-track {
       height: 8px;
@@ -986,7 +1020,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       align-items: center;
       gap: 12px;
       padding: 14px 16px 10px;
-      background: #20242d;
+      background: var(--ticket-panel);
     }
     .order-id {
       font-size: 1.2rem;
@@ -999,8 +1033,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       min-width: 0;
       gap: 4px;
       padding: 4px 16px 14px;
-      background: #20242d;
-      border-bottom: 1px solid #414959;
+      background: var(--ticket-panel);
+      border-bottom: 1px solid var(--ticket-border);
     }
     .order-destination-row {
       display: flex;
@@ -1073,7 +1107,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       padding: 13px 0;
       font-size: 1.1rem;
       line-height: 1.25;
-      border-bottom: 1px solid #414959;
+      border-bottom: 1px solid var(--ticket-border);
     }
     .order-item:last-child { border-bottom: none; }
     .item-qty {
@@ -1112,8 +1146,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 10px;
       padding: 12px 16px 14px;
-      border-top: 1px solid #414959;
-      background: #20242d;
+      border-top: 1px solid var(--ticket-border);
+      background: var(--ticket-panel);
     }
     .order-primary-action,
     .order-details-toggle {
@@ -1164,7 +1198,11 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-size: .9375rem;
     }
     .order-primary-action:active,.order-details-toggle:active { transform: translateY(1px); }
-    .order-details { padding: 12px 16px 16px; border-top: 1px solid #414959; background: #171a21; }
+    .order-details {
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--ticket-border);
+      background: var(--ticket-panel);
+    }
     .order-details dl { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; margin: 0; }
     .order-details dl div { min-width: 0; }
     .order-details dt {
