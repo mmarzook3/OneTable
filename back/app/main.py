@@ -61,6 +61,7 @@ from .product_bulk_import_routes import router as product_bulk_import_router
 from .tenant_subcategory_routes import router as tenant_subcategory_router
 from .reports_routes import router as reports_router
 from .platform_routes import router as platform_router
+from . import platform_settings_service as platform_settings_svc
 from .restaurant_onboarding_routes import router as restaurant_onboarding_router
 from .smart_plaque_routes import (
     release_smart_plaque_for_deleted_table,
@@ -2820,6 +2821,70 @@ def _record_login_event(session: Session, user: models.User, scope: str | None) 
     session.commit()
 
 
+def _remembered_session_policy(session: Session) -> tuple[int, int]:
+    row = platform_settings_svc.get_platform_settings(session, create=False)
+    session_days = int(getattr(row, "remember_session_days", 10) or 10)
+    inactivity_days = int(getattr(row, "remember_inactivity_days", 5) or 5)
+    session_days = max(1, min(session_days, 90))
+    inactivity_days = max(1, min(inactivity_days, 30, session_days))
+    return session_days, inactivity_days
+
+
+def _create_staff_refresh_token(
+    token_data: dict,
+    session: Session,
+    *,
+    remember_me: bool,
+    session_started_at: datetime | None = None,
+) -> tuple[str, int | None]:
+    now = datetime.now(timezone.utc)
+    if not remember_me:
+        token = security.create_refresh_token(
+            data={**token_data, "remember_me": False},
+            expires_delta=security.timedelta(days=settings.refresh_token_expire_days),
+        )
+        return token, None
+
+    session_days, _ = _remembered_session_policy(session)
+    started = session_started_at or now
+    absolute_expiry = started + timedelta(days=session_days)
+    claims = {
+        **token_data,
+        "remember_me": True,
+        "session_started_at": int(started.timestamp()),
+        "iat": int(now.timestamp()),
+    }
+    token = security.create_refresh_token(data=claims, expires_at=absolute_expiry)
+    max_age = max(1, int((absolute_expiry - now).total_seconds()))
+    return token, max_age
+
+
+def _set_staff_auth_cookies(
+    response: JSONResponse,
+    access_token: str,
+    refresh_token: str,
+    refresh_max_age: int | None,
+) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        path="/",
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+        path="/",
+        max_age=refresh_max_age,
+    )
+
+
 @app.post("/token")
 @limiter.limit(f"{getattr(settings, 'rate_limit_login_per_15min', 5)}/15 minutes")
 def login_for_access_token(
@@ -2827,6 +2892,7 @@ def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     tenant_id: int | None = Query(None, description="Optional tenant id from tenant picker"),
     scope: str | None = Query(None, description="Login scope: 'provider' for provider portal, 'courier' for courier portal, 'platform' for platform operator"),
+    remember_me: bool = Query(False, description="Keep this staff session on the device"),
     lang: str = Depends(_get_requested_language),
     session: Session = Depends(get_session),
 ) -> dict:
@@ -2865,7 +2931,9 @@ def login_for_access_token(
     # If OTP is enabled, require second factor; do not issue tokens yet
     if getattr(user, "otp_enabled", False) and getattr(user, "otp_secret", None):
         token_data = _token_data_for_user(user)
-        temp_token = security.create_otp_pending_token(token_data)
+        temp_token = security.create_otp_pending_token(
+            {**token_data, "remember_me": remember_me}
+        )
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={
@@ -2882,36 +2950,25 @@ def login_for_access_token(
         expires_delta=security.timedelta(minutes=settings.access_token_expire_minutes),
     )
     
-    refresh_token = security.create_refresh_token(
-        data=token_data,
-        expires_delta=security.timedelta(days=settings.refresh_token_expire_days),
+    refresh_token, refresh_max_age = _create_staff_refresh_token(
+        token_data,
+        session,
+        remember_me=remember_me,
     )
 
     _record_login_event(session, user, scope)
 
-    response = JSONResponse(content={"status": "success", "message": "Logged in"})
-    
-    # Set access token (short-lived, for all paths)
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.is_production,  # Only enforce HTTPS in production
-        samesite="lax",
-        path="/",  # Ensure cookie is sent with all API requests
-        max_age=settings.access_token_expire_minutes * 60,
+    session_days, inactivity_days = _remembered_session_policy(session)
+    response = JSONResponse(
+        content={
+            "status": "success",
+            "message": "Logged in",
+            "remembered": remember_me,
+            "remember_session_days": session_days,
+            "remember_inactivity_days": inactivity_days,
+        }
     )
-    
-    # Set refresh token (long-lived)
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-        path="/",  # Send to all paths so it works with proxy prefixes like /api/refresh
-        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
-    )
+    _set_staff_auth_cookies(response, access_token, refresh_token, refresh_max_age)
     
     return response
 
@@ -2980,33 +3037,27 @@ def login_with_otp(
         data=token_data,
         expires_delta=security.timedelta(minutes=settings.access_token_expire_minutes),
     )
-    refresh_token = security.create_refresh_token(
-        data=token_data,
-        expires_delta=security.timedelta(days=settings.refresh_token_expire_days),
+    remember_me = bool(payload.get("remember_me"))
+    refresh_token, refresh_max_age = _create_staff_refresh_token(
+        token_data,
+        session,
+        remember_me=remember_me,
     )
     login_scope = "platform" if payload.get("is_platform_operator") else (
         "provider" if provider_id is not None else "tenant"
     )
     _record_login_event(session, user, login_scope)
-    response = JSONResponse(content={"status": "success", "message": "Logged in"})
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-        path="/",
-        max_age=settings.access_token_expire_minutes * 60,
+    session_days, inactivity_days = _remembered_session_policy(session)
+    response = JSONResponse(
+        content={
+            "status": "success",
+            "message": "Logged in",
+            "remembered": remember_me,
+            "remember_session_days": session_days,
+            "remember_inactivity_days": inactivity_days,
+        }
     )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-        path="/",
-        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
-    )
+    _set_staff_auth_cookies(response, access_token, refresh_token, refresh_max_age)
     return response
 
 
@@ -3186,8 +3237,40 @@ def refresh_access_token(
             detail="No refresh token provided",
         )
     
-    # Validate refresh token and get user
-    user = security.validate_refresh_token(refresh_token, session)
+    # Validate refresh token and apply the current platform remember-session policy.
+    user, refresh_payload = security.validate_refresh_token_with_payload(
+        refresh_token,
+        session,
+    )
+    remember_me = bool(refresh_payload.get("remember_me"))
+    started_at: datetime | None = None
+    if remember_me:
+        now = datetime.now(timezone.utc)
+        session_days, inactivity_days = _remembered_session_policy(session)
+        try:
+            started_at = datetime.fromtimestamp(
+                int(refresh_payload["session_started_at"]),
+                timezone.utc,
+            )
+            last_used_at = datetime.fromtimestamp(
+                int(refresh_payload["iat"]),
+                timezone.utc,
+            )
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid remembered session",
+            ) from exc
+        if now >= started_at + timedelta(days=session_days):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Remembered session expired",
+            )
+        if now >= last_used_at + timedelta(days=inactivity_days):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session signed out after inactivity",
+            )
     token_data = _token_data_for_user(user)
     
     access_token = security.create_access_token(
@@ -3195,15 +3278,18 @@ def refresh_access_token(
         expires_delta=security.timedelta(minutes=settings.access_token_expire_minutes),
     )
     
+    rotated_refresh_token, refresh_max_age = _create_staff_refresh_token(
+        token_data,
+        session,
+        remember_me=remember_me,
+        session_started_at=started_at,
+    )
     response = JSONResponse(content={"status": "success", "message": "Token refreshed"})
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
-        path="/",
-        max_age=settings.access_token_expire_minutes * 60,
+    _set_staff_auth_cookies(
+        response,
+        access_token,
+        rotated_refresh_token,
+        refresh_max_age,
     )
     
     return response

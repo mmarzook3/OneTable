@@ -62,6 +62,8 @@ class TestPlatformSettings(PgClientTestCase):
         row.smtp_last_tested_at = None
         row.smtp_last_test_success = None
         row.smtp_last_test_message = None
+        row.remember_session_days = 10
+        row.remember_inactivity_days = 5
         self.operator.recovery_email = None
         self.session.add(self.operator)
         self.session.add(row)
@@ -90,6 +92,8 @@ class TestPlatformSettings(PgClientTestCase):
             "clear_smtp_password": False,
             "email_from": "noreply@scanaki.uk",
             "email_from_name": "Scanaki",
+            "remember_session_days": 10,
+            "remember_inactivity_days": 5,
         }
         body.update(overrides)
         return body
@@ -108,6 +112,8 @@ class TestPlatformSettings(PgClientTestCase):
         self.assertEqual(public.status_code, 200, public.text)
         self.assertNotIn("smtp_host", public.json())
         self.assertNotIn("smtp_password", public.text)
+        self.assertEqual(public.json()["remember_session_days"], 10)
+        self.assertEqual(public.json()["remember_inactivity_days"], 5)
 
     def test_update_masks_password_and_drives_public_legal_details(self) -> None:
         response = self.client.put(
@@ -133,6 +139,33 @@ class TestPlatformSettings(PgClientTestCase):
         legal = self.client.get("/public/legal-urls").json()
         self.assertEqual(legal["terms_of_service_url"], "https://scanaki.uk/terms")
         self.assertEqual(legal["privacy_policy_url"], "https://scanaki.uk/privacy")
+
+    def test_operator_controls_remembered_session_policy(self) -> None:
+        saved = self.client.put(
+            "/platform/settings",
+            headers=_headers(self.operator),
+            json=self._body(
+                remember_session_days=21,
+                remember_inactivity_days=3,
+            ),
+        )
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["remember_session_days"], 21)
+        self.assertEqual(saved.json()["remember_inactivity_days"], 3)
+        public = self.client.get("/platform/public-settings").json()
+        self.assertEqual(public["remember_session_days"], 21)
+        self.assertEqual(public["remember_inactivity_days"], 3)
+
+        invalid = self.client.put(
+            "/platform/settings",
+            headers=_headers(self.operator),
+            json=self._body(
+                remember_session_days=4,
+                remember_inactivity_days=5,
+            ),
+        )
+        self.assertEqual(invalid.status_code, 400, invalid.text)
+        self.assertIn("Inactivity sign-out", invalid.text)
 
     def test_test_email_records_verified_connection_without_exposing_secret(self) -> None:
         saved = self.client.put(

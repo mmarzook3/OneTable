@@ -727,6 +727,8 @@ export interface PlatformPublicSettings {
   vat_number?: string | null;
   terms_url?: string | null;
   privacy_url?: string | null;
+  remember_session_days: number;
+  remember_inactivity_days: number;
 }
 
 export interface PlatformSettings extends PlatformPublicSettings {
@@ -2609,8 +2611,15 @@ export class ApiService {
   }
 
   /** Login: sends username/password as application/x-www-form-urlencoded (required by backend OAuth2PasswordRequestForm). May return 403 with require_otp + temp_token when OTP is enabled. */
-  login(username: string, password: string, tenantId?: number, scope?: 'tenant' | 'provider' | 'courier' | 'platform'): Observable<any> {
+  login(
+    username: string,
+    password: string,
+    tenantId?: number,
+    scope?: 'tenant' | 'provider' | 'courier' | 'platform',
+    rememberMe: boolean = false,
+  ): Observable<any> {
     let queryParams = new HttpParams();
+    queryParams = queryParams.set('remember_me', rememberMe ? 'true' : 'false');
     if (scope === 'provider') {
       queryParams = queryParams.set('scope', 'provider');
     } else if (scope === 'courier') {

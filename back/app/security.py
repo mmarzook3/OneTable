@@ -90,16 +90,24 @@ def create_otp_pending_token(data: dict) -> str:
     return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
 
-def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
+def create_refresh_token(
+    data: dict,
+    expires_delta: timedelta | None = None,
+    expires_at: datetime | None = None,
+) -> str:
     """
     Create a refresh token with longer expiry and 'refresh' type.
     Uses separate secret key for additional security.
     """
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+    now = datetime.now(timezone.utc)
+    if expires_at:
+        expire = expires_at
+    elif expires_delta:
+        expire = now + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+        expire = now + timedelta(days=settings.refresh_token_expire_days)
+    to_encode.setdefault("iat", int(now.timestamp()))
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(
         to_encode, settings.refresh_secret_key, algorithm=settings.algorithm
@@ -209,7 +217,10 @@ def decode_otp_pending_token(token: str) -> dict:
     return payload
 
 
-def validate_refresh_token(refresh_token: str, session: Session) -> User:
+def validate_refresh_token_with_payload(
+    refresh_token: str,
+    session: Session,
+) -> tuple[User, dict]:
     """
     Validate a refresh token and return the associated user.
     Raises HTTPException if token is invalid, expired, or revoked.
@@ -231,9 +242,15 @@ def validate_refresh_token(refresh_token: str, session: Session) -> User:
         user = _user_from_payload(session, payload)
         if user is None:
             raise credentials_exception
-        return user
+        return user, payload
     except JWTError:
         raise credentials_exception
+
+
+def validate_refresh_token(refresh_token: str, session: Session) -> User:
+    """Backward-compatible refresh validation returning only the user."""
+    user, _ = validate_refresh_token_with_payload(refresh_token, session)
+    return user
 
 
 async def get_current_provider_user(

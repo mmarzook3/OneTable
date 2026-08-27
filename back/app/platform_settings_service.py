@@ -150,6 +150,8 @@ def public_platform_settings(session: Session) -> dict[str, Any]:
             "privacy",
             (row.privacy_url if row else None) or settings.public_privacy_policy_url,
         ),
+        "remember_session_days": row.remember_session_days if row else 10,
+        "remember_inactivity_days": row.remember_inactivity_days if row else 5,
     }
 
 
@@ -222,6 +224,11 @@ def update_platform_settings(
     sender_email = _email(body.email_from, "sender email")
     sender_name = _clean(body.email_from_name)
     new_password = _clean(body.smtp_password)
+    if body.remember_inactivity_days > body.remember_session_days:
+        raise HTTPException(
+            status_code=400,
+            detail="Inactivity sign-out cannot be longer than the remembered session",
+        )
     if not row.smtp_password_encrypted and not new_password and not body.clear_smtp_password:
         differs_from_environment = any(
             (
@@ -268,6 +275,8 @@ def update_platform_settings(
     row.smtp_user = smtp_user if smtp_auth_required else None
     row.email_from = sender_email
     row.email_from_name = sender_name
+    row.remember_session_days = body.remember_session_days
+    row.remember_inactivity_days = body.remember_inactivity_days
     if body.clear_smtp_password or not smtp_auth_required:
         row.smtp_password_encrypted = None
     elif new_password:
