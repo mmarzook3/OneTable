@@ -297,7 +297,9 @@ const VIEW_CATEGORY: Record<string, string> = {
                         <span class="item-copy">
                           <strong class="item-name">{{ item.product_name }}</strong>
                           @if (hasCustomization(item)) {
-                            <small class="item-customization">{{ formatCustomizationItem(item) }}</small>
+                            <small class="item-customization">
+                              <strong>Modifiers:</strong> {{ formatCustomizationItem(item) }}
+                            </small>
                           }
                           @if (item.notes) {
                             <small class="item-notes"><strong>{{ 'KITCHEN_DISPLAY.ITEM_COMMENT' | translate }}:</strong> {{ item.notes }}</small>
@@ -307,6 +309,15 @@ const VIEW_CATEGORY: Record<string, string> = {
                     }
                   }
                 </ul>
+                @if (cleanKitchenNotes(order.notes); as visibleNotes) {
+                  <section
+                    class="customer-request"
+                    [attr.data-testid]="'kitchen-customer-request-' + order.id"
+                  >
+                    <strong class="customer-request-label">Customer request</strong>
+                    <p>{{ visibleNotes }}</p>
+                  </section>
+                }
                 <footer class="order-actions">
                   @if (getOrderActionTarget(order)) {
                     <button
@@ -353,9 +364,6 @@ const VIEW_CATEGORY: Record<string, string> = {
                         }
                       }
                     </div>
-                    @if (cleanKitchenNotes(order.notes); as visibleNotes) {
-                      <div class="order-notes">{{ 'KITCHEN_DISPLAY.NOTES' | translate }}: {{ visibleNotes }}</div>
-                    }
                   </section>
                 }
               </article>
@@ -1137,9 +1145,41 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .item-customization {
       display: block;
-      font-size: .85rem;
-      line-height: 1.3;
-      color: #cbd5e1;
+      padding: 6px 8px;
+      border-left: 3px solid #60a5fa;
+      border-radius: 5px;
+      background: rgba(15, 23, 42, .48);
+      color: #dbeafe;
+      font-size: .88rem;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .customer-request {
+      margin: 0 16px 12px;
+      padding: 10px 12px;
+      border: 1px solid #f59e0b;
+      border-left-width: 5px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, .86);
+      color: #f8fafc;
+    }
+    .customer-request-label {
+      display: block;
+      margin-bottom: 4px;
+      color: #fbbf24;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .customer-request p {
+      margin: 0;
+      font-size: .94rem;
+      font-weight: 600;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .order-actions {
       display: grid;
@@ -1214,18 +1254,6 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-details dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #f8fafc; font-weight: 600; }
     .item-status-summary { display: grid; gap: 5px; margin-top: 12px; color: #cbd5e1; font-size: .78rem; }
-    .order-notes {
-      margin-top: 12px;
-      padding: 10px 11px;
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, .26);
-      border-radius: 8px;
-      font-size: .82rem;
-      font-weight: 600;
-      color: #f8fafc;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
     @media (max-width: 520px) {
       .order-destination-row { align-items: flex-start; flex-direction: column; }
       .order-actions { grid-template-columns: 1fr; }
