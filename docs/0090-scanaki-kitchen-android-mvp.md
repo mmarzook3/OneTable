@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Scanaki Kitchen `0.2.2-debug` is a native Android application shell for the existing Scanaki Kitchen Display System. It is not a PWA and does not duplicate order-processing logic. The application loads the production KDS from `https://scanaki.uk/kitchen` inside a restricted Android WebView.
+Scanaki Kitchen `0.3.0-debug` is a native Android application shell for the existing Scanaki Kitchen Display System. It is not a PWA and does not duplicate order-processing logic. The application loads the production KDS from `https://scanaki.uk/kitchen` inside a restricted Android WebView.
 
 ## Native behaviour
 
@@ -23,6 +23,9 @@ Scanaki Kitchen `0.2.2-debug` is a native Android application shell for the exis
 15. Stops heartbeating when the app leaves the foreground, allowing Scanaki to flag the tablet offline.
 16. Exposes Kitchen online/offline, online device count, last heartbeat and timeout in the platform tenant screen.
 17. Flushes remembered-session cookies after full page loads, single-page route changes and successful native heartbeats so abrupt app termination does not lose the session.
+18. Allows Kitchen feedback vibration for new orders and successful status changes.
+19. Requires a two-second animated press-and-hold before advancing a ticket.
+20. Locks the next ticket transition for five seconds after a successful change.
 
 ## HONOR acceptance test
 
@@ -85,7 +88,7 @@ adb -s ALDMJV6429H00568 install -r -t app/build/outputs/apk/debug/app-debug.apk
 Prepared APK:
 
 ```text
-output/scanaki-kitchen-0.2.2-debug.apk
+output/scanaki-kitchen-0.3.0-debug.apk
 ```
 
 ## Before wider distribution

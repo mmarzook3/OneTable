@@ -25,8 +25,15 @@ describe('KitchenDisplayComponent', () => {
     updateProductAvailability: jasmine.Spy;
     getProductImageUrl: jasmine.Spy;
     updateOrderItemStatus: jasmine.Spy;
+    updateOrderKitchenStatus: jasmine.Spy;
   };
-  let mockAudio: { setEnabled: jasmine.Spy; playRestaurantOrderChange: jasmine.Spy };
+  let mockAudio: {
+    setEnabled: jasmine.Spy;
+    prepare: jasmine.Spy;
+    playRestaurantOrderChange: jasmine.Spy;
+    playKitchenNewOrderAlert: jasmine.Spy;
+    playKitchenStatusConfirmed: jasmine.Spy;
+  };
 
   beforeEach(async () => {
     orderUpdates$ = new Subject<unknown>();
@@ -49,10 +56,14 @@ describe('KitchenDisplayComponent', () => {
       updateProductAvailability: jasmine.createSpy('updateProductAvailability').and.returnValue(of([])),
       getProductImageUrl: jasmine.createSpy('getProductImageUrl').and.returnValue(null),
       updateOrderItemStatus: jasmine.createSpy('updateOrderItemStatus').and.returnValue(of({ status: 'ok' })),
+      updateOrderKitchenStatus: jasmine.createSpy('updateOrderKitchenStatus').and.returnValue(of({ status: 'ok' })),
     };
     mockAudio = {
       setEnabled: jasmine.createSpy('setEnabled'),
+      prepare: jasmine.createSpy('prepare'),
       playRestaurantOrderChange: jasmine.createSpy('playRestaurantOrderChange'),
+      playKitchenNewOrderAlert: jasmine.createSpy('playKitchenNewOrderAlert'),
+      playKitchenStatusConfirmed: jasmine.createSpy('playKitchenStatusConfirmed'),
     };
 
     await TestBed.configureTestingModule({
@@ -88,7 +99,7 @@ describe('KitchenDisplayComponent', () => {
   it('should load orders on init', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
   });
 
   it('should connect WebSocket on init', () => {
@@ -107,18 +118,18 @@ describe('KitchenDisplayComponent', () => {
   it('should play sound when WebSocket emits new_order and sound is enabled', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    expect(mockAudio.playRestaurantOrderChange).not.toHaveBeenCalled();
+    expect(mockAudio.playKitchenNewOrderAlert).not.toHaveBeenCalled();
     orderUpdates$.next({ type: 'new_order' });
-    expect(mockAudio.playRestaurantOrderChange).toHaveBeenCalled();
+    expect(mockAudio.playKitchenNewOrderAlert).toHaveBeenCalled();
   });
 
   it('should not play sound when sound is disabled and WebSocket emits', () => {
     spyOn(localStorage, 'getItem').and.returnValue('false');
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    mockAudio.playRestaurantOrderChange.calls.reset();
+    mockAudio.playKitchenNewOrderAlert.calls.reset();
     orderUpdates$.next({ type: 'new_order' });
-    expect(mockAudio.playRestaurantOrderChange).not.toHaveBeenCalled();
+    expect(mockAudio.playKitchenNewOrderAlert).not.toHaveBeenCalled();
   });
 
   it('should refresh orders when WebSocket emits', () => {
@@ -126,7 +137,7 @@ describe('KitchenDisplayComponent', () => {
     fixture.detectChanges();
     mockApi.getOrders.calls.reset();
     orderUpdates$.next({ type: 'items_added' });
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
   });
 
   it('should filter to orders that have at least one pending or preparing item', () => {
@@ -197,6 +208,43 @@ describe('KitchenDisplayComponent', () => {
     expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 901, 'preparing');
     expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 902, 'preparing');
   });
+
+  it('should require a two-second hold and enforce a five-second cooldown', fakeAsync(() => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    const order = {
+      id: 93,
+      status: 'paid',
+      table_name: 'T1',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      items: [
+        { id: 930, product_name: 'Pie', quantity: 1, status: 'pending', price_cents: 1200, category: 'Main Course' },
+      ],
+      total_cents: 1200,
+    };
+    fixture.componentInstance.orders.set([order]);
+    const event = {
+      button: 0,
+      pointerId: 1,
+      preventDefault: jasmine.createSpy('preventDefault'),
+      currentTarget: { setPointerCapture: jasmine.createSpy('setPointerCapture') },
+    } as unknown as PointerEvent;
+
+    fixture.componentInstance.startOrderHold(event, order);
+    tick(1999);
+    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalledWith(93, 930, 'preparing');
+    tick(1);
+    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(93, 930, 'preparing');
+    expect(mockAudio.playKitchenStatusConfirmed).toHaveBeenCalled();
+    expect(fixture.componentInstance.orderCooldownSeconds(93)).toBe(5);
+
+    mockApi.updateOrderItemStatus.calls.reset();
+    fixture.componentInstance.startOrderHold(event, order);
+    tick(2000);
+    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
+    fixture.destroy();
+  }));
 
   it('should hide secondary ticket details until Show more is selected', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
@@ -334,7 +382,7 @@ describe('KitchenDisplayComponent', () => {
     mockApi.getOrders.calls.reset();
     tick(15000);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
   }));
 
   it('should not show full-page loading on background refresh', fakeAsync(() => {
@@ -358,7 +406,7 @@ describe('KitchenDisplayComponent', () => {
     expect(mockApi.getOrders).not.toHaveBeenCalled();
     mockApi.getOrders.calls.reset();
     fixture.componentInstance.toggleItemStatusDropdown(1, 1);
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
   });
 
   it('should call requestFullscreen when toggleFullscreen and not already fullscreen', () => {

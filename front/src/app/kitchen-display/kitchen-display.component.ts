@@ -29,6 +29,8 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 
 const REFRESH_INTERVAL_MS = 15000;
 const HEARTBEAT_INTERVAL_MS = 30000;
+const ORDER_HOLD_MS = 2000;
+const ORDER_STATUS_COOLDOWN_MS = 5000;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
 const DEVICE_KEY_STORAGE_KEY = 'one-table-kds-device-key';
 const STATION_STORAGE_PREFIX = 'one-table-kds-station';
@@ -300,10 +302,25 @@ const VIEW_CATEGORY: Record<string, string> = {
                       type="button"
                       class="order-primary-action"
                       [class]="getOrderActionClass(order)"
-                      [disabled]="isOrderActionBusy(order.id) || !canUpdateItemStatus()"
-                      (click)="advanceOrder(order)"
+                      [class.order-hold-active]="isOrderHoldActive(order.id)"
+                      [disabled]="isOrderInteractionDisabled(order.id)"
+                      [attr.aria-label]="'Press and hold for 2 seconds to ' + getOrderActionLabel(order)"
+                      [attr.data-testid]="'kitchen-order-action-' + order.id"
+                      (pointerdown)="startOrderHold($event, order)"
+                      (pointerup)="cancelOrderHold(order.id)"
+                      (pointercancel)="cancelOrderHold(order.id)"
+                      (keydown.enter)="startKeyboardOrderHold($event, order)"
+                      (keyup.enter)="cancelOrderHold(order.id)"
+                      (keydown.space)="startKeyboardOrderHold($event, order)"
+                      (keyup.space)="cancelOrderHold(order.id)"
+                      (contextmenu)="$event.preventDefault()"
                     >
-                      {{ isOrderActionBusy(order.id) ? 'Updating...' : getOrderActionLabel(order) }}
+                      @if (isOrderHoldActive(order.id)) {
+                        <span class="order-hold-progress" aria-hidden="true"></span>
+                      }
+                      <span class="order-action-label">
+                        {{ getOrderActionButtonLabel(order) }}
+                      </span>
                     </button>
                   }
                   <button type="button" class="order-details-toggle" (click)="toggleOrderDetails(order.id)" [attr.aria-expanded]="isOrderDetailsOpen(order.id)">
@@ -521,7 +538,7 @@ const VIEW_CATEGORY: Record<string, string> = {
                         <select
                           [ngModel]="getProductionStatus(order)"
                           (ngModelChange)="requestOrderStatusChange(order, $event)"
-                          [disabled]="isOrderActionBusy(order.id)"
+                          [disabled]="isOrderActionBusy(order.id) || orderCooldownSeconds(order.id) > 0"
                           [attr.data-testid]="'kitchen-order-status-select-' + order.id"
                         >
                           <option value="pending">New</option>
@@ -963,7 +980,31 @@ const VIEW_CATEGORY: Record<string, string> = {
       cursor: pointer;
       touch-action: manipulation;
     }
-    .order-primary-action { border: 1px solid #2563eb; background: #2563eb; color: #fff; }
+    .order-primary-action {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #fff;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .order-action-label { position: relative; z-index: 2; pointer-events: none; }
+    .order-hold-progress {
+      position: absolute;
+      z-index: 1;
+      inset: 0 auto 0 0;
+      width: 0;
+      background: rgba(255, 255, 255, .28);
+      pointer-events: none;
+      animation: kitchen-hold-fill 2s linear forwards;
+    }
+    .order-primary-action.order-hold-active {
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55);
+    }
+    @keyframes kitchen-hold-fill { from { width: 0; } to { width: 100%; } }
     .order-primary-action.order-action-ready { border-color: #16a34a; background: #16a34a; }
     .order-primary-action.order-action-complete { border-color: #64748b; background: #475569; }
     .order-primary-action:disabled { cursor: wait; opacity: .55; }
@@ -1419,6 +1460,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
   private stockNoticeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private orderHoldTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private knownActiveOrderIds = new Set<number>();
+  private orderAlertsReady = false;
+  private lastOrderAlertAt = 0;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -1466,6 +1511,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   strictFifo = signal(true);
   expandedOrderDetails = signal<Set<number>>(new Set());
   orderActionBusy = signal<Set<number>>(new Set());
+  orderHold = signal<{ orderId: number; startedAt: number } | null>(null);
+  orderCooldownUntil = signal<Record<number, number>>({});
   allOrdersModalOpen = signal(false);
   orderHistorySearch = signal('');
   orderHistoryStatusFilter = signal<'all' | KitchenOrderHistoryStatus>('all');
@@ -1639,6 +1686,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const stored = localStorage.getItem(SOUND_STORAGE_KEY);
     this.soundEnabled.set(stored !== 'false');
     this.audio.setEnabled(this.soundEnabled());
+    this.audio.prepare();
 
     const view = (this.route.snapshot.data['view'] as 'kitchen' | 'bar') || 'kitchen';
     this.viewMode.set(view);
@@ -1685,8 +1733,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.wsSub = this.api.orderUpdates$.subscribe((update: unknown) => {
         if (update && typeof update === 'object' && 'type' in update) {
           const type = (update as { type: string }).type;
-          if (this.soundEnabled() && ['new_order', 'items_added'].includes(type)) {
-            this.audio.playRestaurantOrderChange();
+          if (['new_order', 'items_added'].includes(type)) {
+            this.triggerNewOrderAlert();
           }
           this.loadOrders({ background: true });
         }
@@ -1726,6 +1774,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearTimeout(this.stockNoticeTimeoutId);
       this.stockNoticeTimeoutId = null;
     }
+    this.clearOrderHoldTimer();
     this.wsSub?.unsubscribe();
     this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
@@ -2072,6 +2121,16 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.api.getOrders(false, true).subscribe({
       next: (list) => {
         this.orders.set(list);
+        const activeIds = new Set(this.activeOrders().map((order) => order.id));
+        if (
+          this.orderAlertsReady &&
+          [...activeIds].some((id) => !this.knownActiveOrderIds.has(id)) &&
+          Date.now() - this.lastOrderAlertAt > 3500
+        ) {
+          this.triggerNewOrderAlert();
+        }
+        this.knownActiveOrderIds = activeIds;
+        this.orderAlertsReady = true;
         this.lastRefreshAt.set(new Date());
         if (isInitial) {
           this.loading.set(false);
@@ -2135,6 +2194,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   requestOrderStatusChange(order: Order, status: KitchenOrderStatus): void {
+    if (this.orderCooldownSeconds(order.id) > 0) return;
     if (!['pending', 'preparing', 'ready', 'completed'].includes(status)) return;
     if (this.getProductionStatus(order) === status) {
       this.pendingOrderStatusChange.set(null);
@@ -2160,7 +2220,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   confirmOrderStatusChange(order: Order): void {
     const pending = this.pendingOrderStatusChange();
-    if (!pending || pending.orderId !== order.id || this.isOrderActionBusy(order.id)) return;
+    if (
+      !pending ||
+      pending.orderId !== order.id ||
+      this.isOrderActionBusy(order.id) ||
+      this.orderCooldownSeconds(order.id) > 0
+    ) return;
     const itemStatus = pending.status === 'completed' ? 'delivered' : pending.status;
     const label = this.kitchenOrderStatusLabel(pending.status);
     this.orderActionBusy.update((current) => new Set(current).add(order.id));
@@ -2169,6 +2234,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       next: () => {
         this.pendingOrderStatusChange.set(null);
         this.orderHistoryNotice.set(`Order #${order.id} moved to ${label}. Payment status was not changed.`);
+        this.completeOrderStatusFeedback(order.id);
         this.finishOrderAction(order.id);
       },
       error: (err) => {
@@ -2205,6 +2271,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.soundEnabled.set(checked);
     this.audio.setEnabled(checked);
     localStorage.setItem(SOUND_STORAGE_KEY, String(checked));
+    if (checked) this.audio.playKitchenStatusConfirmed();
   }
 
   getStatusLabel(status: string): string {
@@ -2345,6 +2412,73 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return '';
   }
 
+  getOrderActionButtonLabel(order: Order): string {
+    if (this.isOrderActionBusy(order.id)) return 'Updating...';
+    const cooldown = this.orderCooldownSeconds(order.id);
+    if (cooldown > 0) return `Wait ${cooldown}s`;
+    if (this.isOrderHoldActive(order.id)) return 'Keep holding... 2s';
+    return this.getOrderActionLabel(order);
+  }
+
+  isOrderHoldActive(orderId: number): boolean {
+    return this.orderHold()?.orderId === orderId;
+  }
+
+  orderCooldownSeconds(orderId: number): number {
+    const remaining = (this.orderCooldownUntil()[orderId] || 0) - this.now();
+    return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+  }
+
+  isOrderInteractionDisabled(orderId: number): boolean {
+    return (
+      this.isOrderActionBusy(orderId) ||
+      this.orderCooldownSeconds(orderId) > 0 ||
+      !this.canUpdateItemStatus()
+    );
+  }
+
+  startOrderHold(event: PointerEvent, order: Order): void {
+    if (event.button !== 0 || this.isOrderInteractionDisabled(order.id)) return;
+    event.preventDefault();
+    const button = event.currentTarget as HTMLElement | null;
+    try {
+      button?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture is an enhancement; the hold timer remains safe without it.
+    }
+    this.beginOrderHold(order);
+  }
+
+  startKeyboardOrderHold(event: KeyboardEvent, order: Order): void {
+    if (event.repeat || this.isOrderInteractionDisabled(order.id)) return;
+    event.preventDefault();
+    this.beginOrderHold(order);
+  }
+
+  private beginOrderHold(order: Order): void {
+    this.clearOrderHoldTimer();
+    this.orderHold.set({ orderId: order.id, startedAt: Date.now() });
+    this.orderHoldTimeoutId = setTimeout(() => {
+      if (this.orderHold()?.orderId !== order.id) return;
+      this.orderHold.set(null);
+      this.orderHoldTimeoutId = null;
+      this.advanceOrder(order);
+    }, ORDER_HOLD_MS);
+  }
+
+  cancelOrderHold(orderId: number): void {
+    if (this.orderHold()?.orderId !== orderId) return;
+    this.clearOrderHoldTimer();
+    this.orderHold.set(null);
+  }
+
+  private clearOrderHoldTimer(): void {
+    if (this.orderHoldTimeoutId) {
+      clearTimeout(this.orderHoldTimeoutId);
+      this.orderHoldTimeoutId = null;
+    }
+  }
+
   getOrderActionClass(order: Order): string {
     const target = this.getOrderActionTarget(order);
     if (target === 'ready') return 'order-primary-action order-action-ready';
@@ -2354,7 +2488,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   advanceOrder(order: Order): void {
     const target = this.getOrderActionTarget(order);
-    if (!target || this.isOrderActionBusy(order.id)) return;
+    if (!target || this.isOrderInteractionDisabled(order.id)) return;
     const sourceStatus = target === 'preparing' ? 'pending' : target === 'ready' ? 'preparing' : 'ready';
     const itemIds = (order.items || [])
       .filter(
@@ -2367,9 +2501,40 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (itemIds.length === 0) return;
     this.orderActionBusy.update((current) => new Set(current).add(order.id));
     forkJoin(itemIds.map((itemId) => this.api.updateOrderItemStatus(order.id, itemId, target))).subscribe({
-      next: () => this.finishOrderAction(order.id),
-      error: () => this.finishOrderAction(order.id),
+      next: () => {
+        this.completeOrderStatusFeedback(order.id);
+        this.finishOrderAction(order.id);
+      },
+      error: () => {
+        this.showStockNotice(`Could not update order #${order.id}. Please try again.`);
+        this.finishOrderAction(order.id);
+      },
     });
+  }
+
+  private completeOrderStatusFeedback(orderId: number): void {
+    this.orderCooldownUntil.update((current) => ({
+      ...current,
+      [orderId]: Date.now() + ORDER_STATUS_COOLDOWN_MS,
+    }));
+    if (this.soundEnabled()) this.audio.playKitchenStatusConfirmed();
+    this.vibrate([90, 45, 150]);
+  }
+
+  private triggerNewOrderAlert(): void {
+    this.lastOrderAlertAt = Date.now();
+    if (this.soundEnabled()) this.audio.playKitchenNewOrderAlert();
+    this.vibrate([260, 120, 260, 120, 420]);
+  }
+
+  private vibrate(pattern: number[]): void {
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(pattern);
+      }
+    } catch {
+      // Vibration is optional on browsers/tablets that do not expose it.
+    }
   }
 
   private finishOrderAction(orderId: number): void {
@@ -2428,9 +2593,13 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   updateItemStatus(orderId: number, itemId: number, status: string): void {
+    if (this.orderCooldownSeconds(orderId) > 0) return;
     this.itemStatusDropdownOpen.set(null);
     this.api.updateOrderItemStatus(orderId, itemId, status).subscribe({
-      next: () => this.loadOrders({ background: true }),
+      next: () => {
+        this.completeOrderStatusFeedback(orderId);
+        this.loadOrders({ background: true });
+      },
       error: () => this.loadOrders({ background: true }),
     });
   }
