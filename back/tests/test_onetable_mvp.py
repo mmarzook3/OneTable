@@ -293,6 +293,83 @@ class TestScanakiMvp(PgClientTestCase):
         self.assertTrue(available["allowed"])
         self.assertTrue(available["kds_online"])
 
+    def test_kitchen_heartbeat_diagnostics_survive_recovery(self) -> None:
+        headers = _bearer_headers(self.owner)
+        device_key = "kitchen-diagnostic-000001"
+        recorded = self.client.post(
+            "/tenant/kitchen-devices/diagnostics",
+            headers=headers,
+            json={
+                "device_key": device_key,
+                "events": [
+                    {
+                        "source": "web",
+                        "outcome": "failure",
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "status_code": 504,
+                        "duration_ms": 30000,
+                        "consecutive_failures": 1,
+                        "network_type": "wifi",
+                        "network_validated": True,
+                        "detail": "Gateway timeout while the order status pool was saturated.",
+                    },
+                    {
+                        "source": "web",
+                        "outcome": "recovered",
+                        "occurred_at": datetime.now(timezone.utc).isoformat(),
+                        "status_code": 200,
+                        "duration_ms": 45,
+                        "consecutive_failures": 1,
+                        "network_type": "wifi",
+                        "network_validated": True,
+                        "detail": "Heartbeat recovered.",
+                    },
+                ],
+            },
+        )
+        self.assertEqual(recorded.status_code, 200, recorded.text)
+        self.assertEqual(recorded.json()["count"], 2)
+
+        diagnostics = self.client.get(
+            "/tenant/kitchen-devices/diagnostics",
+            headers=headers,
+        )
+        self.assertEqual(diagnostics.status_code, 200, diagnostics.text)
+        rows = [row for row in diagnostics.json() if row["device_key"] == device_key]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({row["outcome"] for row in rows}, {"failure", "recovered"})
+
+    def test_server_records_a_late_heartbeat_gap(self) -> None:
+        headers = _bearer_headers(self.owner)
+        device_key = "kitchen-gap-test-000001"
+        first = self.client.post(
+            "/tenant/kitchen-devices/heartbeat",
+            headers=headers,
+            json={"device_key": device_key, "name": "Gap test", "display_route": "kitchen"},
+        )
+        self.assertEqual(first.status_code, 200, first.text)
+        device = self.session.exec(
+            select(models.KitchenDevice).where(models.KitchenDevice.device_key == device_key)
+        ).one()
+        device.last_seen_at = datetime.now(timezone.utc) - timedelta(seconds=150)
+        self.session.add(device)
+        self.session.commit()
+
+        recovered = self.client.post(
+            "/tenant/kitchen-devices/heartbeat",
+            headers=headers,
+            json={"device_key": device_key, "name": "Gap test", "display_route": "kitchen"},
+        )
+        self.assertEqual(recovered.status_code, 200, recovered.text)
+        self.assertGreaterEqual(recovered.json()["server_gap_seconds"], 149)
+        row = self.session.exec(
+            select(models.KitchenHeartbeatDiagnostic).where(
+                models.KitchenHeartbeatDiagnostic.device_key == device_key,
+                models.KitchenHeartbeatDiagnostic.outcome == "heartbeat_gap",
+            )
+        ).one()
+        self.assertIn("gap between successful heartbeats", row.detail or "")
+
     def test_pause_and_service_hours_are_enforced(self) -> None:
         self.tenant.ordering_paused = True
         self.tenant.ordering_pause_reason = "Kitchen is catching up."

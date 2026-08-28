@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     db_user: str = Field(default="pos", validation_alias="DB_USER")
     db_password: str = Field(default="pos", validation_alias="DB_PASSWORD")
     db_name: str = Field(default="pos", validation_alias="DB_NAME")
+    db_pool_size: int = Field(default=10, ge=5, le=50, validation_alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=20, ge=0, le=100, validation_alias="DB_MAX_OVERFLOW")
+    db_pool_timeout_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=30,
+        validation_alias="DB_POOL_TIMEOUT_SECONDS",
+    )
 
     secret_key: str = Field(
         default="CHANGE_THIS_IN_PRODUCTION", validation_alias="SECRET_KEY"

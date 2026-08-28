@@ -456,6 +456,42 @@ def platform_tenant_detail(
     return _tenant_detail(session, tenant)
 
 
+@router.get("/tenants/{tenant_id}/kitchen-heartbeat-diagnostics")
+def platform_tenant_kitchen_heartbeat_diagnostics(
+    tenant_id: int,
+    current_user: Annotated[models.User, Depends(_require_platform_operator)],
+    session: Session = Depends(get_session),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict[str, object]]:
+    tenant = session.get(models.Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    rows = session.exec(
+        select(models.KitchenHeartbeatDiagnostic)
+        .where(models.KitchenHeartbeatDiagnostic.tenant_id == tenant_id)
+        .order_by(models.KitchenHeartbeatDiagnostic.occurred_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "id": row.id,
+            "device_key": row.device_key,
+            "source": row.source,
+            "outcome": row.outcome,
+            "occurred_at": row.occurred_at.isoformat(),
+            "received_at": row.received_at.isoformat(),
+            "status_code": row.status_code,
+            "duration_ms": row.duration_ms,
+            "consecutive_failures": row.consecutive_failures,
+            "network_type": row.network_type,
+            "wifi_enabled": row.wifi_enabled,
+            "network_validated": row.network_validated,
+            "detail": row.detail,
+        }
+        for row in rows
+    ]
+
+
 @router.get("/subscriptions")
 def platform_subscriptions(
     current_user: Annotated[models.User, Depends(_require_platform_operator)],

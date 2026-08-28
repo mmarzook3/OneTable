@@ -2,7 +2,12 @@ import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
-import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/api.service';
+import {
+  ApiService,
+  KitchenHeartbeatDiagnostic,
+  PlatformTenantDetail,
+  TenantLocation,
+} from '../services/api.service';
 
 @Component({
   selector: 'app-platform-tenant-detail',
@@ -104,6 +109,26 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
             <div><dt>Last heartbeat</dt><dd>{{ heartbeatAge(tenant()!.kds_last_seen_at) }}</dd></div>
             <div><dt>Offline threshold</dt><dd>{{ tenant()!.kds_heartbeat_timeout_seconds }} seconds</dd></div>
           </dl>
+          <div class="kds-diagnostic-log" data-testid="platform-kds-diagnostic-log">
+            <div class="kds-diagnostic-heading">
+              <strong>Heartbeat diagnostics</strong>
+              <button type="button" (click)="loadKdsDiagnostics()">Refresh log</button>
+            </div>
+            @for (entry of kdsDiagnostics().slice(0, 12); track entry.id) {
+              <article [class.kds-diagnostic-recovered]="entry.outcome === 'recovered'">
+                <time>{{ formatDate(entry.occurred_at) }}</time>
+                <b>{{ entry.source }} · {{ entry.outcome }}</b>
+                <span>
+                  @if (entry.status_code != null) { HTTP {{ entry.status_code }} · }
+                  @if (entry.duration_ms != null) { {{ entry.duration_ms }}ms · }
+                  failures {{ entry.consecutive_failures || 0 }}
+                </span>
+                @if (entry.detail) { <small>{{ entry.detail }}</small> }
+              </article>
+            } @empty {
+              <p class="platform-muted">No heartbeat failures have been recorded.</p>
+            }
+          </div>
         </section>
 
         <section class="platform-section location-oversight">
@@ -285,6 +310,13 @@ import { ApiService, PlatformTenantDetail, TenantLocation } from '../services/ap
     .kds-health--offline { border-color: #b64235; background: #fff6f4; }
     .kds-health--offline .kds-health-status { color: #b64235; }
     .kds-health--offline dl { border-top-color: #f0c8c2; }
+    .kds-diagnostic-log { grid-column: 1 / -1; display: grid; gap: 7px; padding-top: 12px; border-top: 1px solid #cce5d6; }
+    .kds-diagnostic-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .kds-diagnostic-heading button { min-height: 34px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-primary); font: inherit; font-size: .75rem; font-weight: 600; cursor: pointer; }
+    .kds-diagnostic-log article { display: grid; grid-template-columns: minmax(145px,auto) minmax(140px,auto) 1fr; gap: 5px 12px; padding: 8px 10px; border-left: 4px solid #b64235; background: #fff; font-size: .76rem; }
+    .kds-diagnostic-log article.kds-diagnostic-recovered { border-left-color: #18794e; }
+    .kds-diagnostic-log time,.kds-diagnostic-log span { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+    .kds-diagnostic-log small { grid-column: 1 / -1; color: var(--color-text-muted); }
     .link-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
     .link-btn {
       display: inline-block;
@@ -354,6 +386,7 @@ export class PlatformTenantDetailComponent implements OnInit, OnDestroy {
   extraTables = 0;
   planSaving = signal(false);
   locations = signal<TenantLocation[]>([]);
+  kdsDiagnostics = signal<KitchenHeartbeatDiagnostic[]>([]);
   locationFormOpen = signal(false);
   editingLocationId = signal<number | null>(null);
   locationForm = { name: '', display_name: '', location_type: 'pub' };
@@ -384,6 +417,7 @@ export class PlatformTenantDetailComponent implements OnInit, OnDestroy {
       next: (rows) => this.locations.set(rows),
       error: () => this.locations.set([]),
     });
+    this.loadKdsDiagnostics();
     this.kdsRefreshIntervalId = setInterval(() => this.refreshKdsHealth(), 10_000);
   }
 
@@ -406,6 +440,14 @@ export class PlatformTenantDetailComponent implements OnInit, OnDestroy {
     if (seconds < 60) return `${seconds} seconds ago`;
     const minutes = Math.floor(seconds / 60);
     return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  }
+
+  loadKdsDiagnostics(): void {
+    if (!this.tenantId) return;
+    this.api.getPlatformKitchenHeartbeatDiagnostics(this.tenantId, 100).subscribe({
+      next: (rows) => this.kdsDiagnostics.set(rows),
+      error: () => this.kdsDiagnostics.set([]),
+    });
   }
 
   publicUrl(segment: string): string {

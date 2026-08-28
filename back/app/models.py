@@ -863,6 +863,27 @@ class KitchenDevice(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class KitchenHeartbeatDiagnostic(SQLModel, table=True):
+    """Durable client/server heartbeat transition log for remote KDS diagnosis."""
+
+    __tablename__ = "kitchen_heartbeat_diagnostic"
+
+    id: int | None = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenant.id", index=True)
+    device_key: str = Field(max_length=64, index=True)
+    source: str = Field(max_length=16, index=True)
+    outcome: str = Field(max_length=32, index=True)
+    occurred_at: datetime = Field(index=True)
+    received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    status_code: int | None = None
+    duration_ms: int | None = None
+    consecutive_failures: int = Field(default=0)
+    network_type: str | None = Field(default=None, max_length=32)
+    wifi_enabled: bool | None = None
+    network_validated: bool | None = None
+    detail: str | None = Field(default=None, max_length=500)
+
+
 class Product(TenantMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str

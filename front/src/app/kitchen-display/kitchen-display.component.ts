@@ -14,6 +14,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
   ApiService,
+  KitchenHeartbeatDiagnosticEvent,
   KitchenStockProduct,
   KitchenStation,
   OperationalLocation,
@@ -23,13 +24,16 @@ import {
 } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
-import { forkJoin, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { FocusFirstInputDirective } from '../shared/focus-first-input.directive';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 const REFRESH_INTERVAL_MS = 15000;
-const HEARTBEAT_INTERVAL_MS = 30000;
+const HEARTBEAT_INTERVAL_MS = 10000;
+const HEARTBEAT_FAILURE_THRESHOLD = 3;
+const HEARTBEAT_OFFLINE_AFTER_MS = 25000;
+const HEARTBEAT_DIAGNOSTICS_STORAGE_KEY = 'scanaki-kds-heartbeat-diagnostics';
 const DEFAULT_ORDER_HOLD_SECONDS = 1;
 const DEFAULT_ORDER_COOLDOWN_SECONDS = 2;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
@@ -71,6 +75,10 @@ type TicketReviewState = {
   hasOverflow: boolean;
   reviewed: boolean;
   measured: boolean;
+};
+
+type NavigatorWithConnection = Navigator & {
+  connection?: { type?: string; effectiveType?: string };
 };
 
 function getFullscreenElement(): Element | null {
@@ -1869,6 +1877,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private ticketReviewFrameId: number | null = null;
   private knownTicketItemKeys = new Map<number, Set<string>>();
   private pendingTicketReviewResets = new Set<number>();
+  private heartbeatInFlight = false;
+  private heartbeatConsecutiveFailures = 0;
+  private heartbeatLastSuccessAt = Date.now();
+  private pendingHeartbeatDiagnostics: KitchenHeartbeatDiagnosticEvent[] = [];
+  private heartbeatDiagnosticsUploadInFlight = false;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -2118,6 +2131,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   ngOnInit(): void {
     this.deviceKey = this.getOrCreateDeviceKey();
+    this.pendingHeartbeatDiagnostics = this.loadHeartbeatDiagnostics();
     const stored = localStorage.getItem(SOUND_STORAGE_KEY);
     this.soundEnabled.set(stored !== 'false');
     this.audio.setEnabled(this.soundEnabled());
@@ -2653,6 +2667,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private sendHeartbeat(): void {
+    if (this.heartbeatInFlight) return;
+    this.heartbeatInFlight = true;
+    const startedAt = Date.now();
     const selection = this.stationSelection();
     this.api.heartbeatKitchenDevice({
       device_key: this.deviceKey,
@@ -2665,14 +2682,112 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       display_route: this.viewMode(),
       station_id: selection === 'all' ? null : selection,
     }).subscribe({
-      next: () => {
+      next: (response) => {
+        this.heartbeatInFlight = false;
+        const durationMs = Date.now() - startedAt;
+        if (this.heartbeatConsecutiveFailures > 0) {
+          this.recordHeartbeatDiagnostic({
+            source: 'web',
+            outcome: 'recovered',
+            occurred_at: new Date().toISOString(),
+            status_code: 200,
+            duration_ms: durationMs,
+            consecutive_failures: this.heartbeatConsecutiveFailures,
+            network_type: this.currentBrowserNetworkType(),
+            network_validated: typeof navigator === 'undefined' ? null : navigator.onLine,
+            detail: response.server_gap_seconds
+              ? `Heartbeat recovered after a server-observed gap of ${response.server_gap_seconds}s.`
+              : 'Heartbeat recovered.',
+          });
+        }
+        this.heartbeatConsecutiveFailures = 0;
+        this.heartbeatLastSuccessAt = Date.now();
         this.kdsOnline.set(true);
+        this.flushHeartbeatDiagnostics();
         this.api.getOrderingStatus().subscribe({
           next: (status) => this.strictFifo.set(status.strict_fifo_kds !== false),
           error: () => {},
         });
       },
-      error: () => this.kdsOnline.set(false),
+      error: (error: unknown) => {
+        this.heartbeatInFlight = false;
+        this.heartbeatConsecutiveFailures += 1;
+        const httpError = error as { status?: number; name?: string; message?: string };
+        const statusCode = Number.isFinite(httpError?.status) ? Number(httpError.status) : null;
+        const elapsedSinceSuccess = Date.now() - this.heartbeatLastSuccessAt;
+        const outcome = statusCode === 401 || statusCode === 403 ? 'auth_failure' : 'failure';
+        this.recordHeartbeatDiagnostic({
+          source: 'web',
+          outcome,
+          occurred_at: new Date().toISOString(),
+          status_code: statusCode,
+          duration_ms: Date.now() - startedAt,
+          consecutive_failures: this.heartbeatConsecutiveFailures,
+          network_type: this.currentBrowserNetworkType(),
+          network_validated: typeof navigator === 'undefined' ? null : navigator.onLine,
+          detail: `${httpError?.name || 'HeartbeatError'}: ${httpError?.message || 'Request failed'}`,
+        });
+        if (
+          this.heartbeatConsecutiveFailures >= HEARTBEAT_FAILURE_THRESHOLD &&
+          elapsedSinceSuccess >= HEARTBEAT_OFFLINE_AFTER_MS
+        ) {
+          this.kdsOnline.set(false);
+        }
+      },
+    });
+  }
+
+  private currentBrowserNetworkType(): string | null {
+    if (typeof navigator === 'undefined') return null;
+    const connection = (navigator as NavigatorWithConnection).connection;
+    return connection?.type || connection?.effectiveType || (navigator.onLine ? 'online' : 'offline');
+  }
+
+  private loadHeartbeatDiagnostics(): KitchenHeartbeatDiagnosticEvent[] {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HEARTBEAT_DIAGNOSTICS_STORAGE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed.slice(-50) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private recordHeartbeatDiagnostic(event: KitchenHeartbeatDiagnosticEvent): void {
+    this.pendingHeartbeatDiagnostics = [...this.pendingHeartbeatDiagnostics, event].slice(-50);
+    try {
+      localStorage.setItem(
+        HEARTBEAT_DIAGNOSTICS_STORAGE_KEY,
+        JSON.stringify(this.pendingHeartbeatDiagnostics),
+      );
+    } catch {
+      // In-memory diagnostics still upload after recovery when storage is unavailable.
+    }
+    if (event.outcome !== 'recovered') {
+      console.warn('Scanaki KDS heartbeat diagnostic', event);
+    }
+  }
+
+  private flushHeartbeatDiagnostics(): void {
+    if (this.heartbeatDiagnosticsUploadInFlight || this.pendingHeartbeatDiagnostics.length === 0) return;
+    const sending = this.pendingHeartbeatDiagnostics.slice(0, 50);
+    this.heartbeatDiagnosticsUploadInFlight = true;
+    this.api.recordKitchenHeartbeatDiagnostics(this.deviceKey, sending).subscribe({
+      next: () => {
+        this.heartbeatDiagnosticsUploadInFlight = false;
+        this.pendingHeartbeatDiagnostics = this.pendingHeartbeatDiagnostics.slice(sending.length);
+        try {
+          localStorage.setItem(
+            HEARTBEAT_DIAGNOSTICS_STORAGE_KEY,
+            JSON.stringify(this.pendingHeartbeatDiagnostics),
+          );
+        } catch {
+          // The server already has the diagnostic batch.
+        }
+        if (this.pendingHeartbeatDiagnostics.length > 0) this.flushHeartbeatDiagnostics();
+      },
+      error: () => {
+        this.heartbeatDiagnosticsUploadInFlight = false;
+      },
     });
   }
 
@@ -3263,17 +3378,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const target = this.getOrderActionTarget(order);
     if (!target || this.isOrderInteractionDisabled(order.id)) return;
     const sourceStatus = target === 'preparing' ? 'pending' : target === 'ready' ? 'preparing' : 'ready';
-    const itemIds = (order.items || [])
-      .filter(
-        (item) =>
-          item.id != null &&
-          !item.removed_by_customer &&
-          (item.status || 'pending') === sourceStatus,
-      )
-      .map((item) => item.id!);
-    if (itemIds.length === 0) return;
+    const hasMatchingItems = (order.items || []).some(
+      (item) => !item.removed_by_customer && (item.status || 'pending') === sourceStatus,
+    );
+    if (!hasMatchingItems) return;
     this.orderActionBusy.update((current) => new Set(current).add(order.id));
-    forkJoin(itemIds.map((itemId) => this.api.updateOrderItemStatus(order.id, itemId, target))).subscribe({
+    this.api.updateOrderKitchenStatus(order.id, target).subscribe({
       next: () => {
         this.completeOrderStatusFeedback(order.id);
         this.finishOrderAction(order.id);

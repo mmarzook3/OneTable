@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta, timezone
 import json
+import logging
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlmodel import Session, select
+from sqlmodel import Session, delete, select
 
 from . import models
 from .db import get_session
@@ -20,6 +21,7 @@ from .opening_hours_effective import opening_service_windows_for_date
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ORDERING_MODES = {"activation_pin", "automatic", "menu_only"}
 DAY_NAMES = (
@@ -295,6 +297,24 @@ class KitchenHeartbeat(BaseModel):
     station_id: int | None = None
 
 
+class KitchenHeartbeatDiagnosticEvent(BaseModel):
+    source: str = Field(pattern=r"^(native|web|server)$")
+    outcome: str = Field(pattern=r"^(failure|recovered|heartbeat_gap|auth_failure)$")
+    occurred_at: datetime
+    status_code: int | None = Field(default=None, ge=0, le=599)
+    duration_ms: int | None = Field(default=None, ge=0, le=300_000)
+    consecutive_failures: int = Field(default=0, ge=0, le=1000)
+    network_type: str | None = Field(default=None, max_length=32)
+    wifi_enabled: bool | None = None
+    network_validated: bool | None = None
+    detail: str | None = Field(default=None, max_length=500)
+
+
+class KitchenHeartbeatDiagnosticBatch(BaseModel):
+    device_key: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    events: list[KitchenHeartbeatDiagnosticEvent] = Field(min_length=1, max_length=50)
+
+
 class OrderingPause(BaseModel):
     reason: str | None = Field(default=None, max_length=240)
 
@@ -371,6 +391,91 @@ def list_kitchen_devices(
     ]
 
 
+def _heartbeat_diagnostic_dict(row: models.KitchenHeartbeatDiagnostic) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "device_key": row.device_key,
+        "source": row.source,
+        "outcome": row.outcome,
+        "occurred_at": row.occurred_at.isoformat(),
+        "received_at": row.received_at.isoformat(),
+        "status_code": row.status_code,
+        "duration_ms": row.duration_ms,
+        "consecutive_failures": row.consecutive_failures,
+        "network_type": row.network_type,
+        "wifi_enabled": row.wifi_enabled,
+        "network_validated": row.network_validated,
+        "detail": row.detail,
+    }
+
+
+@router.get("/tenant/kitchen-devices/diagnostics")
+def list_kitchen_heartbeat_diagnostics(
+    current_user: Annotated[models.User, Depends(require_permission(Permission.SETTINGS_READ))],
+    device_key: str | None = Query(default=None, min_length=16, max_length=64),
+    limit: int = Query(default=100, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> list[dict[str, Any]]:
+    query = select(models.KitchenHeartbeatDiagnostic).where(
+        models.KitchenHeartbeatDiagnostic.tenant_id == current_user.tenant_id
+    )
+    if device_key:
+        query = query.where(models.KitchenHeartbeatDiagnostic.device_key == device_key)
+    rows = session.exec(
+        query.order_by(models.KitchenHeartbeatDiagnostic.occurred_at.desc()).limit(limit)
+    ).all()
+    return [_heartbeat_diagnostic_dict(row) for row in rows]
+
+
+@router.post("/tenant/kitchen-devices/diagnostics")
+def record_kitchen_heartbeat_diagnostics(
+    body: KitchenHeartbeatDiagnosticBatch,
+    current_user: Annotated[models.User, Depends(require_permission(Permission.ORDER_READ))],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    received_at = datetime.now(timezone.utc)
+    session.exec(
+        delete(models.KitchenHeartbeatDiagnostic).where(
+            models.KitchenHeartbeatDiagnostic.tenant_id == current_user.tenant_id,
+            models.KitchenHeartbeatDiagnostic.received_at
+            < received_at - timedelta(days=30),
+        )
+    )
+    for event in body.events:
+        row = models.KitchenHeartbeatDiagnostic(
+            tenant_id=current_user.tenant_id,
+            device_key=body.device_key,
+            source=event.source,
+            outcome=event.outcome,
+            occurred_at=_as_utc(event.occurred_at),
+            received_at=received_at,
+            status_code=event.status_code,
+            duration_ms=event.duration_ms,
+            consecutive_failures=event.consecutive_failures,
+            network_type=(event.network_type or "").strip() or None,
+            wifi_enabled=event.wifi_enabled,
+            network_validated=event.network_validated,
+            detail=(event.detail or "").strip()[:500] or None,
+        )
+        session.add(row)
+        log = logger.warning if event.outcome in {"failure", "heartbeat_gap", "auth_failure"} else logger.info
+        log(
+            "kds_heartbeat_diagnostic tenant_id=%s device_key=%s source=%s outcome=%s "
+            "status=%s duration_ms=%s consecutive_failures=%s network=%s detail=%s",
+            current_user.tenant_id,
+            body.device_key,
+            event.source,
+            event.outcome,
+            event.status_code,
+            event.duration_ms,
+            event.consecutive_failures,
+            event.network_type,
+            event.detail,
+        )
+    session.commit()
+    return {"status": "recorded", "count": len(body.events)}
+
+
 @router.post("/tenant/kitchen-devices/heartbeat")
 def kitchen_device_heartbeat(
     body: KitchenHeartbeat,
@@ -390,6 +495,28 @@ def kitchen_device_heartbeat(
     ).first()
     if device and device.revoked_at is not None:
         raise HTTPException(status_code=403, detail="Kitchen device has been revoked")
+    server_gap_seconds: int | None = None
+    if device:
+        tenant = session.get(models.Tenant, current_user.tenant_id)
+        timeout = max(30, min(int(getattr(tenant, "kds_heartbeat_timeout_seconds", 120) or 120), 900))
+        server_gap_seconds = max(
+            0,
+            int((datetime.now(timezone.utc) - _as_utc(device.last_seen_at)).total_seconds()),
+        )
+        if server_gap_seconds > max(timeout, 45):
+            session.add(
+                models.KitchenHeartbeatDiagnostic(
+                    tenant_id=current_user.tenant_id,
+                    device_key=body.device_key,
+                    source="server",
+                    outcome="heartbeat_gap",
+                    occurred_at=datetime.now(timezone.utc),
+                    status_code=200,
+                    duration_ms=None,
+                    consecutive_failures=max(1, server_gap_seconds // 10),
+                    detail=f"Server observed a {server_gap_seconds}s gap between successful heartbeats.",
+                )
+            )
     if not device:
         device = models.KitchenDevice(
             tenant_id=current_user.tenant_id,
@@ -403,7 +530,12 @@ def kitchen_device_heartbeat(
     session.add(device)
     session.commit()
     session.refresh(device)
-    return {"id": device.id, "online": True, "last_seen_at": device.last_seen_at.isoformat()}
+    return {
+        "id": device.id,
+        "online": True,
+        "last_seen_at": device.last_seen_at.isoformat(),
+        "server_gap_seconds": server_gap_seconds,
+    }
 
 
 @router.delete("/tenant/kitchen-devices/{device_id}")

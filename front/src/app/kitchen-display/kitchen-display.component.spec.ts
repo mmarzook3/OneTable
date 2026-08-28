@@ -6,7 +6,7 @@ import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 describe('KitchenDisplayComponent', () => {
   let orderUpdates$: Subject<unknown>;
@@ -20,6 +20,7 @@ describe('KitchenDisplayComponent', () => {
     getKitchenDisplaySettings: jasmine.Spy;
     updateKitchenDisplaySettings: jasmine.Spy;
     heartbeatKitchenDevice: jasmine.Spy;
+    recordKitchenHeartbeatDiagnostics: jasmine.Spy;
     getOrderingStatus: jasmine.Spy;
     getKitchenStock: jasmine.Spy;
     updateProductAvailability: jasmine.Spy;
@@ -65,6 +66,9 @@ describe('KitchenDisplayComponent', () => {
         }),
       ),
       heartbeatKitchenDevice: jasmine.createSpy('heartbeatKitchenDevice').and.returnValue(of({ status: 'ok' })),
+      recordKitchenHeartbeatDiagnostics: jasmine
+        .createSpy('recordKitchenHeartbeatDiagnostics')
+        .and.returnValue(of({ status: 'recorded', count: 1 })),
       getOrderingStatus: jasmine.createSpy('getOrderingStatus').and.returnValue(of({ strict_fifo_kds: true })),
       getKitchenStock: jasmine.createSpy('getKitchenStock').and.returnValue(of([])),
       updateProductAvailability: jasmine.createSpy('updateProductAvailability').and.returnValue(of([])),
@@ -79,6 +83,7 @@ describe('KitchenDisplayComponent', () => {
       playKitchenNewOrderAlert: jasmine.createSpy('playKitchenNewOrderAlert'),
       playKitchenStatusConfirmed: jasmine.createSpy('playKitchenStatusConfirmed'),
     };
+    localStorage.removeItem('scanaki-kds-heartbeat-diagnostics');
 
     await TestBed.configureTestingModule({
       imports: [
@@ -327,9 +332,69 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.getOrderActionLabel(order)).toBe('Start');
     fixture.componentInstance.advanceOrder(order);
 
-    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 901, 'preparing');
-    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(91, 902, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(91, 'preparing');
+    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
   });
+
+  it('should advance a 15-item ticket with one atomic request', () => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    const order = {
+      id: 167,
+      status: 'paid',
+      table_name: 'Indoor Table 1',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      items: Array.from({ length: 15 }, (_, index) => ({
+        id: 3000 + index,
+        product_name: `Long order item ${index + 1}`,
+        quantity: 1,
+        status: 'pending',
+        price_cents: 500,
+        category: 'Main Course',
+      })),
+      total_cents: 7500,
+    };
+    fixture.componentInstance.orders.set([order]);
+    fixture.componentInstance.ticketReviewStates.set({
+      167: {
+        itemCount: 15,
+        remainingBelow: 0,
+        hasOverflow: true,
+        reviewed: true,
+        measured: true,
+      },
+    });
+
+    fixture.componentInstance.advanceOrder(order);
+
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(167, 'preparing');
+    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
+  });
+
+  it('should require three heartbeat failures before showing offline and upload recovery logs', fakeAsync(() => {
+    mockApi.heartbeatKitchenDevice.and.returnValue(
+      throwError(() => ({ status: 504, name: 'GatewayTimeout', message: 'Gateway timeout' })),
+    );
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as { sendHeartbeat: () => void };
+
+    expect(fixture.componentInstance.kdsOnline()).toBeTrue();
+    tick(10_000);
+    component.sendHeartbeat();
+    expect(fixture.componentInstance.kdsOnline()).toBeTrue();
+    tick(15_000);
+    component.sendHeartbeat();
+    expect(fixture.componentInstance.kdsOnline()).toBeFalse();
+
+    mockApi.heartbeatKitchenDevice.and.returnValue(of({ status: 'ok' }));
+    component.sendHeartbeat();
+
+    expect(fixture.componentInstance.kdsOnline()).toBeTrue();
+    expect(mockApi.recordKitchenHeartbeatDiagnostics).toHaveBeenCalled();
+    fixture.destroy();
+  }));
 
   it('should require a one-second hold and enforce a two-second cooldown', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
@@ -355,16 +420,16 @@ describe('KitchenDisplayComponent', () => {
 
     fixture.componentInstance.startOrderHold(event, order);
     tick(999);
-    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalledWith(93, 930, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalledWith(93, 'preparing');
     tick(1);
-    expect(mockApi.updateOrderItemStatus).toHaveBeenCalledWith(93, 930, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledWith(93, 'preparing');
     expect(mockAudio.playKitchenStatusConfirmed).toHaveBeenCalled();
     expect(fixture.componentInstance.orderCooldownSeconds(93)).toBe(2);
 
-    mockApi.updateOrderItemStatus.calls.reset();
+    mockApi.updateOrderKitchenStatus.calls.reset();
     fixture.componentInstance.startOrderHold(event, order);
     tick(1000);
-    expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
+    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
     fixture.destroy();
   }));
 

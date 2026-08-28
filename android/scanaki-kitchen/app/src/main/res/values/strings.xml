@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Scanaki Kitchen</string>
     <string name="blocked_link">This link is not available inside Scanaki Kitchen.</string>
-    <string name="heartbeat_failed">Network connection interrupted. Scanaki is trying Wi-Fi and mobile data.</string>
+    <string name="heartbeat_failed">Kitchen connection has failed repeatedly. Scanaki is retrying Wi-Fi and mobile data.</string>
     <string name="offline_html"><![CDATA[
 <!doctype html>
 <html lang="en">

@@ -212,6 +212,43 @@ class TestPaidOrderLeavesActive(PgClientTestCase):
         self.assertEqual(item.status, models.OrderItemStatus.delivered)
         self.assertEqual(item.delivered_by_user_id, kitchen.id)
 
+    def test_atomic_kitchen_status_updates_a_15_item_ticket(self) -> None:
+        order = models.Order(
+            table_id=self.table.id,
+            tenant_id=self.owner.tenant_id,
+            status=models.OrderStatus.paid,
+            paid_at=datetime.now(timezone.utc),
+        )
+        self.session.add(order)
+        self.session.commit()
+        self.session.refresh(order)
+        for index in range(15):
+            self.session.add(
+                models.OrderItem(
+                    order_id=order.id,
+                    product_id=self.product.id,
+                    product_name=f"Long ticket item {index + 1}",
+                    quantity=1,
+                    price_cents=self.product.price_cents,
+                    status=models.OrderItemStatus.pending,
+                )
+            )
+        self.session.commit()
+
+        response = self.client.put(
+            f"/orders/{order.id}/kitchen-status",
+            json={"status": "preparing"},
+            headers=_bearer_headers(self.owner),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json().get("updated_items"), 15)
+        items = self.session.exec(
+            select(models.OrderItem).where(models.OrderItem.order_id == order.id)
+        ).all()
+        self.assertEqual(len(items), 15)
+        self.assertTrue(all(item.status == models.OrderItemStatus.preparing for item in items))
+
     def test_cancelled_order_cannot_be_restored_from_kitchen(self) -> None:
         order = self._order_with_item(item_status=models.OrderItemStatus.cancelled)
         order.status = models.OrderStatus.cancelled
