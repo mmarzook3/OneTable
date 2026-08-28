@@ -151,13 +151,33 @@ describe('KitchenDisplayComponent', () => {
     expect(mockAudio.playKitchenNewOrderAlert).not.toHaveBeenCalled();
   });
 
-  it('should refresh orders when WebSocket emits', () => {
+  it('should refresh orders when WebSocket emits', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
     mockApi.getOrders.calls.reset();
     orderUpdates$.next({ type: 'items_added' });
+    expect(mockApi.getOrders).not.toHaveBeenCalled();
+    tick(180);
     expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
-  });
+    fixture.destroy();
+  }));
+
+  it('should coalesce a 30-order WebSocket burst into one refresh and one alert', fakeAsync(() => {
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    mockApi.getOrders.calls.reset();
+    mockAudio.playKitchenNewOrderAlert.calls.reset();
+
+    for (let index = 0; index < 30; index += 1) {
+      orderUpdates$.next({ type: 'new_order', order_id: 5000 + index });
+    }
+
+    expect(mockApi.getOrders).not.toHaveBeenCalled();
+    expect(mockAudio.playKitchenNewOrderAlert).toHaveBeenCalledTimes(1);
+    tick(180);
+    expect(mockApi.getOrders).toHaveBeenCalledTimes(1);
+    fixture.destroy();
+  }));
 
   it('should filter to orders that have at least one pending or preparing item', () => {
     const orders = [
