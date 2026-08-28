@@ -1,0 +1,163 @@
+# Scanaki production deployment.
+#
+# The production VPS is an rsync release at /opt/scanaki/app, not a Git checkout.
+# Repository secrets:
+#   SCANAKI_DEPLOY_HOST, SCANAKI_DEPLOY_USER, SSH_PRIVATE_KEY_SCANAKI
+# Repository variables (optional defaults shown):
+#   SCANAKI_DEPLOY_PORT=22, SCANAKI_DEPLOY_PATH=/opt/scanaki/app
+
+name: Deploy Scanaki production
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-scanaki-production
+      cancel-in-progress: false
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      SCANAKI_DEPLOY_HOST: ${{ secrets.SCANAKI_DEPLOY_HOST }}
+      SCANAKI_DEPLOY_USER: ${{ secrets.SCANAKI_DEPLOY_USER }}
+      SCANAKI_DEPLOY_PORT: ${{ vars.SCANAKI_DEPLOY_PORT || '22' }}
+      SCANAKI_DEPLOY_PATH: ${{ vars.SCANAKI_DEPLOY_PATH || '/opt/scanaki/app' }}
+
+    steps:
+      - name: Checkout production revision
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        env:
+          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
+        run: |
+          set -euo pipefail
+          [ -n "$SCANAKI_DEPLOY_HOST" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_HOST"; exit 1; }
+          [ -n "$SCANAKI_DEPLOY_USER" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_USER"; exit 1; }
+          [ -n "$SSH_PRIVATE_KEY_SCANAKI" ] || { echo "::error::Missing repository secret SSH_PRIVATE_KEY_SCANAKI"; exit 1; }
+          [[ "$SCANAKI_DEPLOY_PORT" =~ ^[0-9]+$ ]] || { echo "::error::SCANAKI_DEPLOY_PORT must be numeric"; exit 1; }
+          [ "$SCANAKI_DEPLOY_PATH" = "/opt/scanaki/app" ] || {
+            echo "::error::Refusing unexpected SCANAKI_DEPLOY_PATH: $SCANAKI_DEPLOY_PATH"
+            exit 1
+          }
+
+      - name: Fetch marketing site artifacts
+        env:
+          MARKETING_ARTIFACT_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
+          GH_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
+          MARKETING_SYNC_FORCE: "1"
+          MARKETING_VERIFY_NO_PLACEHOLDERS: "1"
+        run: bash scripts/sync-all-marketing-sites.sh
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY_SCANAKI" | tr -d '\r' > ~/.ssh/scanaki_deploy_key
+          chmod 600 ~/.ssh/scanaki_deploy_key
+          ssh-keygen -y -f ~/.ssh/scanaki_deploy_key >/dev/null 2>&1 || {
+            echo "::error::SSH_PRIVATE_KEY_SCANAKI is not a valid private key"
+            exit 1
+          }
+          ssh-keyscan -H -p "$SCANAKI_DEPLOY_PORT" "$SCANAKI_DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload immutable release
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          RELEASE_ROOT="$(dirname "$SCANAKI_DEPLOY_PATH")/releases"
+          RELEASE_DIR="$RELEASE_ROOT/$RELEASE_SHA"
+          SSH=(ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30)
+          "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "mkdir -p '$RELEASE_DIR'"
+          rsync -az --delete \
+            --exclude '/.git/' \
+            --exclude '/.env' \
+            --exclude '/config.env' \
+            --exclude '/.secrets' \
+            --exclude '/deployment-secrets.env' \
+            --exclude '/docker-compose.scanaki.yml' \
+            --exclude '/nginx.scanaki.conf' \
+            --exclude '/data/' \
+            --exclude '/backups/' \
+            --exclude '/certbot/' \
+            --exclude '/tmp/' \
+            --exclude '/android/scanaki-kitchen/signing/' \
+            -e "ssh -p $SCANAKI_DEPLOY_PORT -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30" \
+            ./ "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST:$RELEASE_DIR/"
+          printf '%s\n' "$RELEASE_SHA" | "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "cat > '$RELEASE_DIR/release-commit.txt'"
+
+      - name: Promote release and deploy Scanaki stack
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        timeout-minutes: 24
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="$(dirname "$SCANAKI_DEPLOY_PATH")/releases/$RELEASE_SHA"
+          ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" \
+            "bash -s -- '$SCANAKI_DEPLOY_PATH' '$RELEASE_DIR'" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$1"
+          RELEASE_DIR="$2"
+          [ "$APP_DIR" = "/opt/scanaki/app" ] || { echo "Refusing unexpected app directory" >&2; exit 1; }
+          [ -d "$RELEASE_DIR" ] || { echo "Release directory is missing" >&2; exit 1; }
+          for required in config.env deployment-secrets.env docker-compose.scanaki.yml nginx.scanaki.conf; do
+            [ -s "$APP_DIR/$required" ] || { echo "Required server file is missing: $required" >&2; exit 1; }
+          done
+          rsync -a --delete \
+            --exclude '/config.env' \
+            --exclude '/.secrets' \
+            --exclude '/deployment-secrets.env' \
+            --exclude '/docker-compose.scanaki.yml' \
+            --exclude '/nginx.scanaki.conf' \
+            --exclude '/data/' \
+            --exclude '/backups/' \
+            --exclude '/certbot/' \
+            --exclude '/android/scanaki-kitchen/signing/' \
+            "$RELEASE_DIR/" "$APP_DIR/"
+          cd "$APP_DIR"
+          bash scripts/deploy-scanaki-production.sh
+          RELEASE_ROOT="$(dirname "$RELEASE_DIR")"
+          [ "$RELEASE_ROOT" = "/opt/scanaki/releases" ] || { echo "Refusing unexpected release root" >&2; exit 1; }
+          mapfile -t OLD_RELEASES < <(
+            find "$RELEASE_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+              | sort -rn | tail -n +6 | cut -d' ' -f2-
+          )
+          for old_release in "${OLD_RELEASES[@]}"; do
+            [ "$old_release" != "$RELEASE_DIR" ] && rm -rf -- "$old_release"
+          done
+          REMOTE
+
+      - name: Verify public production service
+        env:
+          SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://scanaki.uk' }}
+        run: |
+          set -euo pipefail
+          BASE="${SMOKE_TEST_BASE_URL%/}"
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --max-time 15 "$BASE/" >/dev/null \
+              && curl --fail --silent --show-error --max-time 15 "$BASE/api/health" >/dev/null; then
+              HTML="$(curl --fail --silent --show-error --max-time 15 "$BASE/?release=${GITHUB_SHA}")"
+              echo "$HTML" | grep -qE 'name="app-version"[^>]*content="[0-9]+\.[0-9]+\.[0-9]+"' || {
+                echo "::error::Production landing page is missing the app-version meta tag"
+                exit 1
+              }
+              echo "Scanaki production smoke test passed."
+              exit 0
+            fi
+            [ "$attempt" -lt 6 ] && sleep 10
+          done
+          echo "::error::Scanaki production did not pass its public health checks"
+          exit 1
