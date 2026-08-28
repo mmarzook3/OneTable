@@ -18,7 +18,8 @@ upstream `502` responses after a container recreation.
 - Workflow: `.github/workflows/deploy-scanaki-production.yml`
 - VPS application directory: `/opt/scanaki/app`
 - Release staging directory: `/opt/scanaki/releases/<git-sha>`
-- Public health URL: `https://scanaki.uk/api/health`
+- Public liveness URL: `https://scanaki.uk/api/health`
+- Public readiness URL: `https://scanaki.uk/api/health/ready` (checks PostgreSQL and Redis)
 - Compose project: `scanaki_prod`, defined by the server-owned `docker-compose.scanaki.yml`
 
 The production directory is an rsynced release and deliberately has no `.git` directory. Do not restore the old `amvara9` Git-fetch deployment steps: they target a different server, repository and compose layout.
@@ -84,6 +85,7 @@ images are built sequentially to reduce peak VPS load.
 gh run list --repo mmarzook3/OneTable --workflow deploy-scanaki-production.yml --limit 5
 gh run view <run-id> --repo mmarzook3/OneTable --log-failed
 curl --fail https://scanaki.uk/api/health
+curl --fail https://scanaki.uk/api/health/ready
 ```
 
 Use `workflow_dispatch` to test CI without manufacturing an empty production commit. A failed image build or migration does not remove the existing database or current application containers; the workflow prints Scanaki-only container status and recent application logs for diagnosis.
