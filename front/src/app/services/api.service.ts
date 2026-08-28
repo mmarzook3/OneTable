@@ -3708,6 +3708,12 @@ export class ApiService {
     return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params });
   }
 
+  getKitchenOrders(limit = 500): Observable<Order[]> {
+    return this.http.get<Order[]>(`${this.apiUrl}/orders/kitchen-feed`, {
+      params: { limit: String(limit) },
+    });
+  }
+
   createSatisfechoDeliveryOrder(body: SatisfechoDeliveryOrderCreate): Observable<SatisfechoDeliveryOrderResponse> {
     return this.http.post<SatisfechoDeliveryOrderResponse>(`${this.apiUrl}/orders/satisfecho-delivery`, body);
   }

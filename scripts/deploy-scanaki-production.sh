@@ -3,6 +3,21 @@
 
 set -Eeuo pipefail
 
+DEPLOY_LOCK="/run/lock/scanaki-production-deploy.lock"
+install -d "$(dirname "$DEPLOY_LOCK")"
+exec 9>"$DEPLOY_LOCK"
+if ! flock -n 9; then
+  echo "Another Scanaki production deployment is already running; refusing a concurrent build." >&2
+  exit 75
+fi
+
+AVAILABLE_KB="$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)"
+MIN_BUILD_KB="${SCANAKI_MIN_BUILD_MEMORY_KB:-2097152}"
+if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ || "$AVAILABLE_KB" -lt "$MIN_BUILD_KB" ]]; then
+  echo "Insufficient available memory for a safe Scanaki build: ${AVAILABLE_KB:-unknown}kB" >&2
+  exit 1
+fi
+
 ROOT_DIR="${SCANAKI_APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$ROOT_DIR"
 

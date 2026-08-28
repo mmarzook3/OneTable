@@ -24,14 +24,29 @@ BASE_URL="${SCANAKI_BASE_URL:-$(sed -n 's/^PUBLIC_APP_BASE_URL=//p' config.env |
 BASE_URL="${BASE_URL:-https://scanaki.uk}"
 BASE_URL="${BASE_URL%/}"
 
-curl --fail --silent --show-error --max-time 15 "$BASE_URL/" >/dev/null
-curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/health" >/dev/null
+MISSING_SERVICES=()
 for service in $("${COMPOSE[@]}" config --services); do
-  [[ -n "$("${COMPOSE[@]}" ps --status running -q "$service")" ]] || {
-    echo "Container service is not running: $service" >&2
+  [[ -n "$("${COMPOSE[@]}" ps --status running -q "$service")" ]] || MISSING_SERVICES+=("$service")
+done
+if [[ "${#MISSING_SERVICES[@]}" -gt 0 ]]; then
+  echo "Self-healing stopped Scanaki services: ${MISSING_SERVICES[*]}" >&2
+  "${COMPOSE[@]}" up -d
+  for attempt in $(seq 1 30); do
+    still_missing=""
+    for service in "${MISSING_SERVICES[@]}"; do
+      [[ -n "$("${COMPOSE[@]}" ps --status running -q "$service")" ]] || still_missing=1
+    done
+    [[ -z "$still_missing" ]] && break
+    sleep 2
+  done
+  [[ -z "${still_missing:-}" ]] || {
+    echo "Scanaki self-heal failed for: ${MISSING_SERVICES[*]}" >&2
     exit 1
   }
-done
+fi
+
+curl --fail --silent --show-error --max-time 15 "$BASE_URL/" >/dev/null
+curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/health" >/dev/null
 "${COMPOSE[@]}" exec -T back python -m app.seeds.check_onetable_payment_reconciliation
 
 BACKUP_DIR="${SCANAKI_BACKUP_DIR:-$ROOT_DIR/backups/scanaki}"

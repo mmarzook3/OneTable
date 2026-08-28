@@ -11,7 +11,7 @@ import { of, throwError } from 'rxjs';
 describe('KitchenDisplayComponent', () => {
   let orderUpdates$: Subject<unknown>;
   let mockApi: {
-    getOrders: jasmine.Spy;
+    getKitchenOrders: jasmine.Spy;
     connectWebSocket: jasmine.Spy;
     orderUpdates$: Subject<unknown>;
     getCurrentUser: jasmine.Spy;
@@ -39,7 +39,7 @@ describe('KitchenDisplayComponent', () => {
   beforeEach(async () => {
     orderUpdates$ = new Subject<unknown>();
     mockApi = {
-      getOrders: jasmine.createSpy('getOrders').and.returnValue(of([])),
+      getKitchenOrders: jasmine.createSpy('getKitchenOrders').and.returnValue(of([])),
       connectWebSocket: jasmine.createSpy('connectWebSocket'),
       orderUpdates$,
       getCurrentUser: jasmine.createSpy('getCurrentUser').and.returnValue({ id: 1, role: 'kitchen' }),
@@ -118,7 +118,7 @@ describe('KitchenDisplayComponent', () => {
   it('should load orders on init', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
+    expect(mockApi.getKitchenOrders).toHaveBeenCalledWith();
   });
 
   it('should connect WebSocket on init', () => {
@@ -154,28 +154,28 @@ describe('KitchenDisplayComponent', () => {
   it('should refresh orders when WebSocket emits', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    mockApi.getOrders.calls.reset();
+    mockApi.getKitchenOrders.calls.reset();
     orderUpdates$.next({ type: 'items_added' });
-    expect(mockApi.getOrders).not.toHaveBeenCalled();
+    expect(mockApi.getKitchenOrders).not.toHaveBeenCalled();
     tick(180);
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
+    expect(mockApi.getKitchenOrders).toHaveBeenCalledWith();
     fixture.destroy();
   }));
 
   it('should coalesce a 30-order WebSocket burst into one refresh and one alert', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    mockApi.getOrders.calls.reset();
+    mockApi.getKitchenOrders.calls.reset();
     mockAudio.playKitchenNewOrderAlert.calls.reset();
 
     for (let index = 0; index < 30; index += 1) {
       orderUpdates$.next({ type: 'new_order', order_id: 5000 + index });
     }
 
-    expect(mockApi.getOrders).not.toHaveBeenCalled();
+    expect(mockApi.getKitchenOrders).not.toHaveBeenCalled();
     expect(mockAudio.playKitchenNewOrderAlert).toHaveBeenCalledTimes(1);
     tick(180);
-    expect(mockApi.getOrders).toHaveBeenCalledTimes(1);
+    expect(mockApi.getKitchenOrders).toHaveBeenCalledTimes(1);
     fixture.destroy();
   }));
 
@@ -217,7 +217,7 @@ describe('KitchenDisplayComponent', () => {
       },
       { id: 3, status: 'completed', table_name: 'T3', created_at: new Date().toISOString(), items: [], total_cents: 0 },
     ];
-    mockApi.getOrders.and.returnValue(of(orders));
+    mockApi.getKitchenOrders.and.returnValue(of(orders));
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
     expect(fixture.componentInstance.activeOrders().length).toBe(1);
@@ -233,7 +233,7 @@ describe('KitchenDisplayComponent', () => {
       price_cents: 500,
       category: 'Main Course',
     }));
-    mockApi.getOrders.and.returnValue(of([{
+    mockApi.getKitchenOrders.and.returnValue(of([{
       id: 67,
       status: 'paid',
       table_name: 'Indoor Table 1',
@@ -296,7 +296,7 @@ describe('KitchenDisplayComponent', () => {
       ],
       total_cents: 1600,
     };
-    mockApi.getOrders.and.returnValue(of([baseOrder]));
+    mockApi.getKitchenOrders.and.returnValue(of([baseOrder]));
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
 
@@ -308,7 +308,7 @@ describe('KitchenDisplayComponent', () => {
       price_cents: 250,
       category: 'Main Course',
     };
-    mockApi.getOrders.and.returnValue(of([{
+    mockApi.getKitchenOrders.and.returnValue(of([{
       ...baseOrder,
       items: [...baseOrder.items, addedItem],
       total_cents: 1850,
@@ -476,7 +476,7 @@ describe('KitchenDisplayComponent', () => {
   });
 
   it('should keep the elapsed wait timer visible on a collapsed ticket', () => {
-    mockApi.getOrders.and.returnValue(
+    mockApi.getKitchenOrders.and.returnValue(
       of([
         {
           id: 92,
@@ -509,7 +509,7 @@ describe('KitchenDisplayComponent', () => {
   });
 
   it('should show customer requests and food modifiers without opening ticket details', () => {
-    mockApi.getOrders.and.returnValue(
+    mockApi.getKitchenOrders.and.returnValue(
       of([
         {
           id: 94,
@@ -549,7 +549,7 @@ describe('KitchenDisplayComponent', () => {
 
   it('should show the live clock and active ticket counts in the header', () => {
     const createdAt = new Date(Date.now() - 60_000).toISOString();
-    mockApi.getOrders.and.returnValue(
+    mockApi.getKitchenOrders.and.returnValue(
       of([
         {
           id: 101,
@@ -598,7 +598,7 @@ describe('KitchenDisplayComponent', () => {
 
   it('should colour the full ticket surface from the live production status', () => {
     const createdAt = new Date().toISOString();
-    mockApi.getOrders.and.returnValue(
+    mockApi.getKitchenOrders.and.returnValue(
       of(
         (['pending', 'preparing', 'ready'] as const).map((status, index) => ({
           id: 201 + index,
@@ -709,10 +709,10 @@ describe('KitchenDisplayComponent', () => {
   it('should auto-refresh after interval', fakeAsync(() => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    mockApi.getOrders.calls.reset();
+    mockApi.getKitchenOrders.calls.reset();
     tick(15000);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
+    expect(mockApi.getKitchenOrders).toHaveBeenCalledWith();
   }));
 
   it('should not show full-page loading on background refresh', fakeAsync(() => {
@@ -724,19 +724,19 @@ describe('KitchenDisplayComponent', () => {
     tick();
     fixture.detectChanges();
     expect(fixture.componentInstance.loading()).toBe(false);
-    expect(mockApi.getOrders).toHaveBeenCalled();
+    expect(mockApi.getKitchenOrders).toHaveBeenCalled();
   }));
 
   it('should defer background refresh until item status dropdown closes', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    mockApi.getOrders.calls.reset();
+    mockApi.getKitchenOrders.calls.reset();
     fixture.componentInstance.toggleItemStatusDropdown(1, 1);
     fixture.componentInstance.loadOrders({ background: true });
-    expect(mockApi.getOrders).not.toHaveBeenCalled();
-    mockApi.getOrders.calls.reset();
+    expect(mockApi.getKitchenOrders).not.toHaveBeenCalled();
+    mockApi.getKitchenOrders.calls.reset();
     fixture.componentInstance.toggleItemStatusDropdown(1, 1);
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
+    expect(mockApi.getKitchenOrders).toHaveBeenCalledWith();
   });
 
   it('should call requestFullscreen when toggleFullscreen and not already fullscreen', () => {
