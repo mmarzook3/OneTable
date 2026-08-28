@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta, timezone
 import json
 import logging
+import os
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from jose import JWTError, jwt
 from pydantic import BaseModel, Field
+import redis
 from sqlmodel import Session, delete, select
 
 from . import models
@@ -18,10 +21,12 @@ from .kitchen_stations_util import normalize_display_route
 from .permissions import Permission, require_permission
 from . import location_service as location_svc
 from .opening_hours_effective import opening_service_windows_for_date
+from .settings import settings
 
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+_pulse_redis: redis.Redis | None = None
 
 ORDERING_MODES = {"activation_pin", "automatic", "menu_only"}
 DAY_NAMES = (
@@ -33,6 +38,68 @@ DAY_NAMES = (
     "saturday",
     "sunday",
 )
+
+
+def _get_pulse_redis() -> redis.Redis | None:
+    global _pulse_redis
+    if _pulse_redis is not None:
+        return _pulse_redis
+    try:
+        client = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+        client.ping()
+        _pulse_redis = client
+        return client
+    except Exception:
+        _pulse_redis = None
+        return None
+
+
+def record_kds_pulse(tenant_id: int, device_key: str, at: datetime | None = None) -> bool:
+    client = _get_pulse_redis()
+    if client is None:
+        return False
+    occurred_at = _as_utc(at or datetime.now(timezone.utc))
+    try:
+        value = occurred_at.isoformat()
+        pipeline = client.pipeline(transaction=False)
+        pipeline.set(f"kds:pulse:{tenant_id}:latest", value, ex=300)
+        pipeline.set(f"kds:pulse:{tenant_id}:{device_key}", value, ex=300)
+        pipeline.execute()
+        return True
+    except Exception:
+        return False
+
+
+def latest_kds_pulse_at(tenant_id: int) -> datetime | None:
+    client = _get_pulse_redis()
+    if client is None:
+        return None
+    try:
+        value = client.get(f"kds:pulse:{tenant_id}:latest")
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        return _as_utc(datetime.fromisoformat(str(value))) if value else None
+    except Exception:
+        return None
+
+
+def _pulse_identity(request: Request) -> tuple[int, str]:
+    token = request.cookies.get("access_token")
+    if not token:
+        authorization = request.headers.get("authorization") or ""
+        if authorization.lower().startswith("bearer "):
+            token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        tenant_id = int(payload["tenant_id"])
+        subject = str(payload["sub"])
+        if tenant_id <= 0 or not subject:
+            raise ValueError
+        return tenant_id, subject
+    except (JWTError, KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 
 def normalize_ordering_mode(value: str | None) -> str:
@@ -272,13 +339,16 @@ def ordering_availability(
     if bool(getattr(tenant, "require_kds_online", False)):
         timeout = max(30, min(int(getattr(tenant, "kds_heartbeat_timeout_seconds", 120) or 120), 900))
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout)
+        pulse_at = latest_kds_pulse_at(tenant.id)
         devices = session.exec(
             select(models.KitchenDevice).where(
                 models.KitchenDevice.tenant_id == tenant.id,
                 models.KitchenDevice.revoked_at.is_(None),
             )
         ).all()
-        online = any(_as_utc(device.last_seen_at) >= cutoff for device in devices)
+        online = bool(pulse_at and pulse_at >= cutoff) or any(
+            _as_utc(device.last_seen_at) >= cutoff for device in devices
+        )
         result["kds_online"] = online
         if not online:
             result.update(
@@ -359,6 +429,25 @@ def resume_ordering(
     session.add(tenant)
     session.commit()
     return ordering_availability(session, tenant)
+
+
+@router.post("/tenant/kitchen-devices/pulse")
+async def kitchen_device_pulse(
+    body: KitchenHeartbeat,
+    request: Request,
+) -> dict[str, Any]:
+    """Priority liveness pulse: JWT validation + Redis only, with no SQL dependency."""
+    tenant_id, _subject = _pulse_identity(request)
+    route = normalize_display_route(body.display_route)
+    occurred_at = datetime.now(timezone.utc)
+    if not record_kds_pulse(tenant_id, body.device_key, occurred_at):
+        raise HTTPException(status_code=503, detail="Kitchen liveness cache is unavailable")
+    return {
+        "online": True,
+        "device_key": body.device_key,
+        "display_route": route,
+        "last_seen_at": occurred_at.isoformat(),
+    }
 
 
 @router.get("/tenant/kitchen-devices")
@@ -530,6 +619,7 @@ def kitchen_device_heartbeat(
     session.add(device)
     session.commit()
     session.refresh(device)
+    record_kds_pulse(current_user.tenant_id, body.device_key, device.last_seen_at)
     return {
         "id": device.id,
         "online": True,

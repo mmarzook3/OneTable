@@ -20,6 +20,7 @@ describe('KitchenDisplayComponent', () => {
     getKitchenDisplaySettings: jasmine.Spy;
     updateKitchenDisplaySettings: jasmine.Spy;
     heartbeatKitchenDevice: jasmine.Spy;
+    pulseKitchenDevice: jasmine.Spy;
     recordKitchenHeartbeatDiagnostics: jasmine.Spy;
     getOrderingStatus: jasmine.Spy;
     getKitchenStock: jasmine.Spy;
@@ -66,6 +67,7 @@ describe('KitchenDisplayComponent', () => {
         }),
       ),
       heartbeatKitchenDevice: jasmine.createSpy('heartbeatKitchenDevice').and.returnValue(of({ status: 'ok' })),
+      pulseKitchenDevice: jasmine.createSpy('pulseKitchenDevice').and.returnValue(of({ online: true })),
       recordKitchenHeartbeatDiagnostics: jasmine
         .createSpy('recordKitchenHeartbeatDiagnostics')
         .and.returnValue(of({ status: 'recorded', count: 1 })),
@@ -393,7 +395,7 @@ describe('KitchenDisplayComponent', () => {
   });
 
   it('should require three heartbeat failures before showing offline and upload recovery logs', fakeAsync(() => {
-    mockApi.heartbeatKitchenDevice.and.returnValue(
+    mockApi.pulseKitchenDevice.and.returnValue(
       throwError(() => ({ status: 504, name: 'GatewayTimeout', message: 'Gateway timeout' })),
     );
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
@@ -408,7 +410,7 @@ describe('KitchenDisplayComponent', () => {
     component.sendHeartbeat();
     expect(fixture.componentInstance.kdsOnline()).toBeFalse();
 
-    mockApi.heartbeatKitchenDevice.and.returnValue(of({ status: 'ok' }));
+    mockApi.pulseKitchenDevice.and.returnValue(of({ online: true }));
     component.sendHeartbeat();
 
     expect(fixture.componentInstance.kdsOnline()).toBeTrue();

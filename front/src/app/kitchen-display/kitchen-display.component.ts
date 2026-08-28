@@ -1940,6 +1940,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private heartbeatLastSuccessAt = Date.now();
   private pendingHeartbeatDiagnostics: KitchenHeartbeatDiagnosticEvent[] = [];
   private heartbeatDiagnosticsUploadInFlight = false;
+  private lastHeartbeatRegistrationAt = 0;
+  private lastOrderingStatusAt = 0;
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -2712,7 +2714,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.heartbeatInFlight = true;
     const startedAt = Date.now();
     const selection = this.stationSelection();
-    this.api.heartbeatKitchenDevice({
+    const heartbeatBody = {
       device_key: this.deviceKey,
       name:
         typeof navigator !== 'undefined' && /\bScanakiKitchen\//i.test(navigator.userAgent)
@@ -2722,7 +2724,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
             : 'Kitchen tablet',
       display_route: this.viewMode(),
       station_id: selection === 'all' ? null : selection,
-    }).subscribe({
+    } as const;
+    this.api.pulseKitchenDevice(heartbeatBody).subscribe({
       next: (response) => {
         this.heartbeatInFlight = false;
         const durationMs = Date.now() - startedAt;
@@ -2736,19 +2739,21 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
             consecutive_failures: this.heartbeatConsecutiveFailures,
             network_type: this.currentBrowserNetworkType(),
             network_validated: typeof navigator === 'undefined' ? null : navigator.onLine,
-            detail: response.server_gap_seconds
-              ? `Heartbeat recovered after a server-observed gap of ${response.server_gap_seconds}s.`
-              : 'Heartbeat recovered.',
+            detail: 'Priority heartbeat pulse recovered.',
           });
         }
         this.heartbeatConsecutiveFailures = 0;
         this.heartbeatLastSuccessAt = Date.now();
         this.kdsOnline.set(true);
         this.flushHeartbeatDiagnostics();
-        this.api.getOrderingStatus().subscribe({
-          next: (status) => this.strictFifo.set(status.strict_fifo_kds !== false),
-          error: () => {},
-        });
+        this.registerKitchenDeviceIfDue(heartbeatBody);
+        if (Date.now() - this.lastOrderingStatusAt >= 60_000) {
+          this.lastOrderingStatusAt = Date.now();
+          this.api.getOrderingStatus().subscribe({
+            next: (status) => this.strictFifo.set(status.strict_fifo_kds !== false),
+            error: () => {},
+          });
+        }
       },
       error: (error: unknown) => {
         this.heartbeatInFlight = false;
@@ -2774,6 +2779,48 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
         ) {
           this.kdsOnline.set(false);
         }
+      },
+    });
+  }
+
+  private registerKitchenDeviceIfDue(body: {
+    device_key: string;
+    name: string;
+    display_route: 'kitchen' | 'bar';
+    station_id?: number | null;
+  }): void {
+    if (Date.now() - this.lastHeartbeatRegistrationAt < 60_000) return;
+    this.lastHeartbeatRegistrationAt = Date.now();
+    const startedAt = Date.now();
+    this.api.heartbeatKitchenDevice(body).subscribe({
+      next: (response) => {
+        if (response.server_gap_seconds && response.server_gap_seconds > 45) {
+          this.recordHeartbeatDiagnostic({
+            source: 'web',
+            outcome: 'recovered',
+            occurred_at: new Date().toISOString(),
+            status_code: 200,
+            duration_ms: Date.now() - startedAt,
+            consecutive_failures: 0,
+            network_type: this.currentBrowserNetworkType(),
+            network_validated: typeof navigator === 'undefined' ? null : navigator.onLine,
+            detail: `Durable heartbeat recovered after a ${response.server_gap_seconds}s server gap.`,
+          });
+        }
+      },
+      error: (error: unknown) => {
+        const httpError = error as { status?: number; name?: string; message?: string };
+        this.recordHeartbeatDiagnostic({
+          source: 'web',
+          outcome: httpError.status === 401 || httpError.status === 403 ? 'auth_failure' : 'failure',
+          occurred_at: new Date().toISOString(),
+          status_code: Number.isFinite(httpError.status) ? Number(httpError.status) : null,
+          duration_ms: Date.now() - startedAt,
+          consecutive_failures: 0,
+          network_type: this.currentBrowserNetworkType(),
+          network_validated: typeof navigator === 'undefined' ? null : navigator.onLine,
+          detail: `Durable registration failed: ${httpError.message || 'Request failed'}`,
+        });
       },
     });
   }

@@ -41,6 +41,7 @@ from .platform_settings_service import (
     test_platform_smtp,
     update_platform_settings,
 )
+from .onetable_ordering import latest_kds_pulse_at
 
 router = APIRouter()
 
@@ -87,10 +88,15 @@ def _kds_health(session: Session, tenant: models.Tenant) -> dict[str, object]:
         )
     ).all()
     online = [device for device in devices if _as_utc(device.last_seen_at) >= cutoff]
-    last_seen = max((_as_utc(device.last_seen_at) for device in devices), default=None)
+    pulse_at = latest_kds_pulse_at(tenant_id)
+    pulse_online = bool(pulse_at and pulse_at >= cutoff)
+    last_seen = max(
+        [*(_as_utc(device.last_seen_at) for device in devices), *([pulse_at] if pulse_at else [])],
+        default=None,
+    )
     return {
         "kds_required": bool(tenant.require_kds_online),
-        "kds_online": bool(online),
+        "kds_online": bool(online) or pulse_online,
         "kds_device_count": len(devices),
         "kds_online_device_count": len(online),
         "kds_last_seen_at": last_seen,
