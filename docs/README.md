@@ -147,6 +147,7 @@ This folder contains deployment guides, feature documentation, implementation pl
 | Doc | Description |
 |-----|-------------|
 | [testing.md](testing.md) | **Puppeteer UI tests**: prerequisites, env vars, all test scripts (reservations, demo data, working plan, tables, landing, provider, orders, reports, catalog, rate limit, etc.), npm script table, backend/data checks, coverage summary, known issues. |
+| [0093-kds-capacity-stress-test-report.md](0093-kds-capacity-stress-test-report.md) | Production KDS capacity, failure analysis, tested headroom and regression thresholds. |
 
 ---
 
