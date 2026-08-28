@@ -87,6 +87,16 @@ echo "Applying database migrations before application replacement..."
 echo "Replacing only containers in the scanaki_prod Compose project..."
 "${COMPOSE[@]}" up -d --remove-orphans
 
+EDGE_CONTAINER="${SCANAKI_EDGE_CONTAINER:-mesher-iot-platform-phase0-nginx-1}"
+if [[ -n "$(docker ps -q --filter "name=^/${EDGE_CONTAINER}$")" ]]; then
+  echo "Reloading shared edge proxy so it resolves the new Scanaki container address..."
+  docker exec "$EDGE_CONTAINER" nginx -t
+  docker exec "$EDGE_CONTAINER" nginx -s reload
+else
+  echo "Required Scanaki edge proxy is not running: $EDGE_CONTAINER" >&2
+  exit 1
+fi
+
 echo "Applying idempotent Scanaki production seeds..."
 "${COMPOSE[@]}" exec -T back python -m app.seeds.ensure_landing_demo
 "${COMPOSE[@]}" exec -T back python -m app.seeds.seed_yue_tree_pilot

@@ -6,6 +6,11 @@ Production deployments take an exclusive host lock at
 starting another Angular/Docker build. The script also refuses to build with less than 2 GiB
 available memory, preventing host-wide resource exhaustion.
 
+After replacing Scanaki containers, deployment validates and reloads the existing shared
+edge proxy (`mesher-iot-platform-phase0-nginx-1` by default). This forces Nginx to resolve
+the new `scanaki-front` container address before public health checks, preventing stale
+upstream `502` responses after a container recreation.
+
 ## Production contract
 
 - GitHub repository: `mmarzook3/OneTable`
