@@ -1,5 +1,11 @@
 # Scanaki production deployment
 
+Production deployments take an exclusive host lock at
+`/run/lock/scanaki-production-deploy.lock`. CI and manual runs must use
+`scripts/deploy-scanaki-production.sh`; a second deployment exits with code 75 instead of
+starting another Angular/Docker build. The script also refuses to build with less than 2 GiB
+available memory, preventing host-wide resource exhaustion.
+
 ## Production contract
 
 - GitHub repository: `mmarzook3/OneTable`

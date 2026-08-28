@@ -47,6 +47,12 @@ class Settings(BaseSettings):
         le=30,
         validation_alias="DB_POOL_TIMEOUT_SECONDS",
     )
+    api_slow_request_ms: int = Field(
+        default=2000,
+        ge=250,
+        le=60000,
+        validation_alias="API_SLOW_REQUEST_MS",
+    )
 
     secret_key: str = Field(
         default="CHANGE_THIS_IN_PRODUCTION", validation_alias="SECRET_KEY"

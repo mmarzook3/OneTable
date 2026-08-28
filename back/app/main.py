@@ -32,7 +32,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as _BaseModel, Field
 from sqlalchemy import event, exists, func, or_
-from sqlalchemy.exc import IntegrityError, InvalidRequestError, OperationalError, StatementError
+from sqlalchemy.exc import (
+    IntegrityError,
+    InvalidRequestError,
+    OperationalError,
+    StatementError,
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 from sqlmodel import Session, select
 
 from . import models, security
@@ -80,6 +86,7 @@ from .delivery_integration_routes import (
 )
 from .social_routes import router as social_router
 from .print_routes import staff_router as print_staff_router, agent_router as print_agent_router
+from .kitchen_feed_routes import router as kitchen_feed_router
 from .customer_routes import router as customer_router
 from .work_session_serialization import serialize_work_session, work_session_net_duration_minutes
 from .clock_qr_util import (
@@ -408,6 +415,43 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def request_observability_middleware(request: Request, call_next):
+    """Attach a request ID and log every slow or failed API request with pool context."""
+    supplied_id = (request.headers.get("x-request-id") or "").strip()
+    request_id = supplied_id[:80] if supplied_id else uuid4().hex
+    started = _time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((_time.perf_counter() - started) * 1000)
+        logger.exception(
+            "api_request_exception request_id=%s method=%s path=%s duration_ms=%s pool=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            duration_ms,
+            engine.pool.status(),
+        )
+        raise
+    duration_ms = round((_time.perf_counter() - started) * 1000)
+    response.headers["X-Request-ID"] = request_id
+    if response.status_code >= 500 or duration_ms >= settings.api_slow_request_ms:
+        log = logger.error if response.status_code >= 500 else logger.warning
+        log(
+            "api_request_observation request_id=%s method=%s path=%s status=%s "
+            "duration_ms=%s client=%s pool=%s",
+            request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            request.client.host if request.client else "unknown",
+            engine.pool.status(),
+        )
+    return response
+
+
+@app.middleware("http")
 async def saas_paywall_middleware(request: Request, call_next):
     """Block staff APIs for tenants without trial/subscription when SAAS_PAYWALL_ENABLED."""
     from .saas_billing import (
@@ -479,6 +523,25 @@ async def database_operational_error_handler(request: Request, exc: OperationalE
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Database temporarily unavailable. Try again shortly."},
+    )
+
+
+@app.exception_handler(SQLAlchemyTimeoutError)
+async def database_pool_timeout_handler(request: Request, exc: SQLAlchemyTimeoutError):
+    logger.error(
+        "Database pool timeout on %s %s: %s pool=%s",
+        request.method,
+        request.url.path,
+        exc,
+        engine.pool.status(),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": "Service is temporarily busy. The request was not lost; retry shortly.",
+            "code": "DATABASE_POOL_BUSY",
+        },
+        headers={"Retry-After": "2"},
     )
 
 
@@ -620,6 +683,7 @@ app.include_router(print_staff_router, tags=["Print jobs"])
 app.include_router(print_agent_router, tags=["Print agent"])
 app.include_router(customer_router, prefix="/customer", tags=["Customer accounts"])
 app.include_router(onetable_ordering_router, tags=["Scanaki ordering"])
+app.include_router(kitchen_feed_router, tags=["Kitchen display"])
 app.include_router(smart_plaque_router, tags=["Smart plaques"])
 app.include_router(location_router, tags=["Locations"])
 
