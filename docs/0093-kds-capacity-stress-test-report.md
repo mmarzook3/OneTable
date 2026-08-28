@@ -76,6 +76,8 @@ The permanent correction:
 - `/api/health/ready` checks both PostgreSQL and Redis.
 - Five-minute operations checks cover containers, public liveness/readiness, payment
   reconciliation, backup age, TLS expiry and disk usage.
+- Failed health, backup and restore checks send email through Platform SMTP to the configured
+  Scanaki operations recipient; an independent webhook can also be configured.
 - Stopped Scanaki containers are restarted by the health check without touching other Docker
   projects.
 - Production deployments are serialised with CI concurrency and a host lock, and refuse to

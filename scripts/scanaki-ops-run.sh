@@ -41,12 +41,30 @@ OUTPUT="$(run_action 2>&1)"
 RC=$?
 printf '%s [%s] action=%s rc=%s %s\n' "$STAMP" "$$" "$ACTION" "$RC" "$OUTPUT" >>"$LOG_FILE"
 logger -t scanaki-ops "action=$ACTION rc=$RC $OUTPUT"
-if [[ "$RC" -ne 0 && -n "${SCANAKI_ALERT_WEBHOOK_URL:-}" ]]; then
+if [[ "$RC" -ne 0 ]]; then
   MESSAGE="Scanaki ${ACTION} failed on $(hostname): ${OUTPUT:0:1200}"
-  curl --silent --show-error --max-time 10 -X POST \
-    -H 'Content-Type: application/json' \
-    --data "{\"text\":$(printf '%s' "$MESSAGE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" \
-    "$SCANAKI_ALERT_WEBHOOK_URL" >/dev/null || true
+  if [[ -n "${SCANAKI_ALERT_EMAIL:-}" ]]; then
+    COMPOSE_FILE="${SCANAKI_COMPOSE_FILE:-docker-compose.prod.yml}"
+    if [[ "$COMPOSE_FILE" == "docker-compose.scanaki.yml" ]]; then
+      COMPOSE=(docker compose --env-file "$APP_DIR/config.env" -f "$APP_DIR/$COMPOSE_FILE")
+    elif [[ "$COMPOSE_FILE" == "docker-compose.yml" ]]; then
+      COMPOSE=(docker compose --env-file "$APP_DIR/config.env" -f "$APP_DIR/docker-compose.yml")
+    else
+      COMPOSE=(docker compose --env-file "$APP_DIR/config.env" -f "$APP_DIR/docker-compose.yml" -f "$APP_DIR/$COMPOSE_FILE")
+    fi
+    if ! "${COMPOSE[@]}" exec -T back python -m app.seeds.send_platform_alert \
+      --recipient "$SCANAKI_ALERT_EMAIL" \
+      --subject "Scanaki ${ACTION} failure" \
+      --message "$MESSAGE" >>"$LOG_FILE" 2>&1; then
+      logger -t scanaki-ops "email alert delivery failed action=$ACTION"
+    fi
+  fi
+  if [[ -n "${SCANAKI_ALERT_WEBHOOK_URL:-}" ]]; then
+    curl --silent --show-error --max-time 10 -X POST \
+      -H 'Content-Type: application/json' \
+      --data "{\"text\":$(printf '%s' "$MESSAGE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" \
+      "$SCANAKI_ALERT_WEBHOOK_URL" >/dev/null || true
+  fi
 fi
 printf '%s\n' "$OUTPUT"
 exit "$RC"

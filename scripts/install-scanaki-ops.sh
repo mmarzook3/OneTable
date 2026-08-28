@@ -20,6 +20,7 @@ if [[ ! -f "$OPS_ENV" ]]; then
     printf 'SCANAKI_BACKUP_DIR=%q\n' "$APP_DIR/backups/scanaki"
     printf 'SCANAKI_BACKUP_RETAIN=14\n'
     printf 'SCANAKI_BACKUP_PASSPHRASE=%q\n' "$PASSPHRASE"
+    printf 'SCANAKI_ALERT_EMAIL=alerts@scanaki.uk\n'
     printf 'SCANAKI_ALERT_WEBHOOK_URL=\n'
   } >"$OPS_ENV"
 fi
