@@ -14970,6 +14970,10 @@ def list_orders(
         False,
         description="Hide public prepayment checkouts until payment releases them to KDS",
     ),
+    active_only: bool = Query(
+        False,
+        description="Return only active production orders for Kitchen displays",
+    ),
     session: Session = Depends(get_session)
 ) -> list[dict]:
     order_query = (
@@ -14982,6 +14986,18 @@ def list_orders(
             or_(
                 models.Order.requires_prepayment == False,
                 models.Order.kitchen_released_at.is_not(None),
+            )
+        )
+    if active_only:
+        order_query = order_query.where(
+            models.Order.status.in_(
+                [
+                    models.OrderStatus.pending,
+                    models.OrderStatus.preparing,
+                    models.OrderStatus.ready,
+                    models.OrderStatus.partially_delivered,
+                    models.OrderStatus.paid,
+                ]
             )
         )
     orders = session.exec(order_query.order_by(models.Order.created_at.desc())).all()

@@ -3001,7 +3001,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.loading.set(true);
     }
 
-    this.api.getOrders(false, true).subscribe({
+    this.api.getOrders(false, true, true).subscribe({
       next: (list) => {
         this.orders.set(list);
         const resetReviewOrderIds = this.reconcileTicketItemChanges(this.activeOrders());
