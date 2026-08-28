@@ -30,6 +30,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
 const REFRESH_INTERVAL_MS = 15000;
+const ORDER_EVENT_REFRESH_DEBOUNCE_MS = 180;
 const HEARTBEAT_INTERVAL_MS = 10000;
 const HEARTBEAT_FAILURE_THRESHOLD = 3;
 const HEARTBEAT_OFFLINE_AFTER_MS = 25000;
@@ -1868,6 +1869,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private queryParamSub: Subscription | null = null;
   private initialLoadDone = false;
   private pendingBackgroundRefresh = false;
+  private ordersRequestInFlight = false;
+  private queuedOrdersRefresh = false;
+  private orderEventRefreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stockNoticeTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private orderHoldTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private knownActiveOrderIds = new Set<number>();
@@ -2185,7 +2189,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
           if (['new_order', 'items_added'].includes(type)) {
             this.triggerNewOrderAlert();
           }
-          this.loadOrders({ background: true });
+          this.scheduleOrderEventRefresh();
         }
       });
     } catch {
@@ -2225,6 +2229,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.stockNoticeTimeoutId) {
       clearTimeout(this.stockNoticeTimeoutId);
       this.stockNoticeTimeoutId = null;
+    }
+    if (this.orderEventRefreshTimeoutId) {
+      clearTimeout(this.orderEventRefreshTimeoutId);
+      this.orderEventRefreshTimeoutId = null;
     }
     this.clearOrderHoldTimer();
     this.wsSub?.unsubscribe();
@@ -2982,7 +2990,12 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       this.pendingBackgroundRefresh = true;
       return;
     }
+    if (this.ordersRequestInFlight) {
+      this.queuedOrdersRefresh = true;
+      return;
+    }
     this.pendingBackgroundRefresh = false;
+    this.ordersRequestInFlight = true;
 
     if (isInitial) {
       this.loading.set(true);
@@ -3009,14 +3022,31 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
           this.loading.set(false);
           this.initialLoadDone = true;
         }
+        this.finishOrdersRequest();
       },
       error: () => {
         if (isInitial) {
           this.loading.set(false);
           this.initialLoadDone = true;
         }
+        this.finishOrdersRequest();
       },
     });
+  }
+
+  private scheduleOrderEventRefresh(): void {
+    if (this.orderEventRefreshTimeoutId) clearTimeout(this.orderEventRefreshTimeoutId);
+    this.orderEventRefreshTimeoutId = setTimeout(() => {
+      this.orderEventRefreshTimeoutId = null;
+      this.loadOrders({ background: true });
+    }, ORDER_EVENT_REFRESH_DEBOUNCE_MS);
+  }
+
+  private finishOrdersRequest(): void {
+    this.ordersRequestInFlight = false;
+    if (!this.queuedOrdersRefresh) return;
+    this.queuedOrdersRefresh = false;
+    this.loadOrders({ background: true });
   }
 
   openAllOrdersModal(): void {
@@ -3405,6 +3435,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private triggerNewOrderAlert(): void {
+    if (Date.now() - this.lastOrderAlertAt < 1500) return;
     this.lastOrderAlertAt = Date.now();
     if (this.soundEnabled()) this.audio.playKitchenNewOrderAlert();
     this.vibrate([260, 120, 260, 120, 420]);
