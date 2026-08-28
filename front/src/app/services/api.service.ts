@@ -4501,6 +4501,20 @@ export class ApiService {
     );
   }
 
+  pulseKitchenDevice(body: {
+    device_key: string;
+    name: string;
+    display_route: 'kitchen' | 'bar';
+    station_id?: number | null;
+  }): Observable<{ online: boolean; device_key: string; display_route: string; last_seen_at: string }> {
+    return this.http.post<{
+      online: boolean;
+      device_key: string;
+      display_route: string;
+      last_seen_at: string;
+    }>(`${this.apiUrl}/tenant/kitchen-devices/pulse`, body);
+  }
+
   recordKitchenHeartbeatDiagnostics(
     deviceKey: string,
     events: KitchenHeartbeatDiagnosticEvent[],

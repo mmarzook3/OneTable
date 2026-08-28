@@ -110,7 +110,7 @@ async def _run(args: argparse.Namespace) -> dict:
     )
     prefix = args.api_prefix.rstrip("/")
     feed_path = f"{prefix}/orders/kitchen-feed"
-    heartbeat_path = f"{prefix}/tenant/kitchen-devices/heartbeat"
+    heartbeat_path = f"{prefix}/tenant/kitchen-devices/pulse"
     status_path = lambda order_id: f"{prefix}/orders/{order_id}/kitchen-status"
     run_key = uuid4().hex[:12]
     heartbeat_payloads = [

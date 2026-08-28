@@ -293,6 +293,40 @@ class TestScanakiMvp(PgClientTestCase):
         self.assertTrue(available["allowed"])
         self.assertTrue(available["kds_online"])
 
+    def test_priority_kitchen_pulse_uses_redis_without_device_db_write(self) -> None:
+        headers = _bearer_headers(self.owner)
+        with patch("app.onetable_ordering.record_kds_pulse", return_value=True) as record:
+            response = self.client.post(
+                "/tenant/kitchen-devices/pulse",
+                headers=headers,
+                json={
+                    "device_key": "priority-pulse-device-0001",
+                    "name": "Priority pulse",
+                    "display_route": "kitchen",
+                },
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["online"])
+        record.assert_called_once()
+        row = self.session.exec(
+            select(models.KitchenDevice).where(
+                models.KitchenDevice.device_key == "priority-pulse-device-0001"
+            )
+        ).first()
+        self.assertIsNone(row)
+
+    def test_recent_priority_pulse_satisfies_kds_gate(self) -> None:
+        self.tenant.require_kds_online = True
+        self.session.add(self.tenant)
+        self.session.commit()
+        with patch(
+            "app.onetable_ordering.latest_kds_pulse_at",
+            return_value=datetime.now(timezone.utc),
+        ):
+            available = ordering_availability(self.session, self.tenant)
+        self.assertTrue(available["allowed"])
+        self.assertTrue(available["kds_online"])
+
     def test_kitchen_heartbeat_diagnostics_survive_recovery(self) -> None:
         headers = _bearer_headers(self.owner)
         device_key = "kitchen-diagnostic-000001"

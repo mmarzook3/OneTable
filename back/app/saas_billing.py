@@ -335,6 +335,7 @@ SAAS_EXEMPT_PREFIXES = (
     "/provider",
     "/courier",
     "/print-agent",  # LAN print agent polls with its own token (#317)
+    "/tenant/kitchen-devices/pulse",  # priority KDS liveness uses JWT + Redis
     "/uploads",
     "/products",  # guided signup seeds / photos before paywall
     "/users/me",
