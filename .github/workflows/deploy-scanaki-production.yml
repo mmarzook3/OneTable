@@ -34,7 +34,26 @@ jobs:
       - name: Checkout production revision
         uses: actions/checkout@v6
 
+      - name: Skip superseded queued revision
+        id: deployment_gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LATEST_MASTER_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)"
+          if [ "$GITHUB_SHA" = "$LATEST_MASTER_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping superseded revision $GITHUB_SHA; master is now $LATEST_MASTER_SHA"
+          fi
+
       - name: Validate deployment configuration
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
         run: |
@@ -49,6 +68,7 @@ jobs:
           }
 
       - name: Fetch marketing site artifacts
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           MARKETING_ARTIFACT_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
           GH_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
@@ -57,6 +77,7 @@ jobs:
         run: bash scripts/sync-all-marketing-sites.sh
 
       - name: Configure SSH
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
         run: |
@@ -71,6 +92,7 @@ jobs:
           ssh-keyscan -H -p "$SCANAKI_DEPLOY_PORT" "$SCANAKI_DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload immutable release
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           RELEASE_SHA: ${{ github.sha }}
         run: |
@@ -97,6 +119,7 @@ jobs:
           printf '%s\n' "$RELEASE_SHA" | "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "cat > '$RELEASE_DIR/release-commit.txt'"
 
       - name: Promote release and deploy Scanaki stack
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           RELEASE_SHA: ${{ github.sha }}
         timeout-minutes: 24
@@ -140,6 +163,7 @@ jobs:
           REMOTE
 
       - name: Verify public production service
+        if: steps.deployment_gate.outputs.deploy == 'true'
         env:
           SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://scanaki.uk' }}
         run: |

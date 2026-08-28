@@ -60,6 +60,13 @@ The workflow refuses any deployment path other than `/opt/scanaki/app`. Deployme
 12. Run public landing-page and API smoke tests from GitHub Actions.
 13. Retain the five newest uploaded release directories.
 
+GitHub Actions serialises production runs. When several `master` commits arrive
+quickly, a queued run checks the current `master` SHA and exits successfully if
+it has already been superseded. The server deployment script also takes
+`/run/lock/scanaki-production-deploy.lock`, preventing CI and documented manual
+deployments from building or migrating concurrently. Back, WebSocket and front
+images are built sequentially to reduce peak VPS load.
+
 ## Manual verification
 
 ```bash

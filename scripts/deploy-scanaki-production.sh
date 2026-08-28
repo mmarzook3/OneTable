@@ -21,6 +21,15 @@ set +a
 
 COMPOSE=(docker compose --env-file config.env -f docker-compose.scanaki.yml)
 
+# GitHub concurrency protects Actions runs, while this host lock also protects
+# against a simultaneous manual deployment on the VPS. Never allow two image
+# builds or migration sequences to compete for this host.
+exec 9>/run/lock/scanaki-production-deploy.lock
+if ! flock -w 1800 9; then
+  echo "Another Scanaki deployment still owns the server lock after 30 minutes." >&2
+  exit 1
+fi
+
 show_failure_context() {
   rc=$?
   if [[ "$rc" -ne 0 ]]; then
@@ -48,7 +57,10 @@ COMMIT_HASH="$(tr -d '\r\n' < release-commit.txt 2>/dev/null || true)"
 export COMMIT_HASH
 
 echo "Building Scanaki images for ${COMMIT_HASH:0:9} while the current stack remains online..."
-"${COMPOSE[@]}" build back ws-bridge front
+# Build sequentially to cap peak CPU/RAM usage on the multi-project VPS.
+"${COMPOSE[@]}" build back
+"${COMPOSE[@]}" build ws-bridge
+"${COMPOSE[@]}" build front
 
 echo "Ensuring Scanaki database and Redis are healthy..."
 "${COMPOSE[@]}" up -d db redis
