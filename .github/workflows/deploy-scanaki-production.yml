@@ -25,7 +25,6 @@ jobs:
       group: deploy-scanaki-production
       cancel-in-progress: false
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       SCANAKI_DEPLOY_HOST: ${{ secrets.SCANAKI_DEPLOY_HOST }}
       SCANAKI_DEPLOY_USER: ${{ secrets.SCANAKI_DEPLOY_USER }}
       SCANAKI_DEPLOY_PORT: ${{ vars.SCANAKI_DEPLOY_PORT || '22' }}
@@ -33,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout production revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate deployment configuration
         env:
