@@ -15,6 +15,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -36,13 +37,17 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -54,8 +59,14 @@ public final class MainActivity extends Activity {
     private static final String KDS_URL = "https://scanaki.uk/kitchen";
     private static final String HEARTBEAT_URL =
         "https://scanaki.uk/api/tenant/kitchen-devices/heartbeat";
+    private static final String HEARTBEAT_DIAGNOSTICS_URL =
+        "https://scanaki.uk/api/tenant/kitchen-devices/diagnostics";
     private static final String DEVICE_KEY_STORAGE = "native_kds_device_key";
+    private static final String HEARTBEAT_DIAGNOSTICS_STORAGE = "native_kds_heartbeat_diagnostics";
     private static final long HEARTBEAT_INTERVAL_SECONDS = 10;
+    private static final int HEARTBEAT_FAILURE_THRESHOLD = 3;
+    private static final long HEARTBEAT_OFFLINE_AFTER_MS = 25_000;
+    private static final int MAX_HEARTBEAT_DIAGNOSTICS = 50;
     private static final long FRONTEND_UPDATE_CHECK_INTERVAL_MS = 60_000;
     private static final int CELLULAR_REQUEST_TIMEOUT_MS = 8_000;
     private static final Set<String> ALLOWED_HOSTS = Set.of("scanaki.uk", "www.scanaki.uk");
@@ -76,6 +87,8 @@ public final class MainActivity extends Activity {
     private boolean cellularFallbackRequested;
     private boolean internetPanelShownForOutage;
     private long lastFrontendUpdateCheckAt;
+    private int consecutiveHeartbeatFailures;
+    private long lastSuccessfulHeartbeatAt = System.currentTimeMillis();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -325,7 +338,6 @@ public final class MainActivity extends Activity {
             boolean shouldReload = networkWasLost || showingOfflinePage;
             networkWasLost = false;
             showingOfflinePage = false;
-            hideHeartbeatFailure();
             if (shouldReload) {
                 webView.loadUrl(KDS_URL);
             }
@@ -340,7 +352,6 @@ public final class MainActivity extends Activity {
         }
 
         networkWasLost = true;
-        showHeartbeatFailure();
         if (!isWifiEnabled()) {
             showOfflinePage();
             openInternetConnectivityPanel();
@@ -510,23 +521,12 @@ public final class MainActivity extends Activity {
     }
 
     private void synchroniseDeviceKey(WebView view) {
+        // The native Android ID is authoritative. Copy it into the web app instead of
+        // adopting a browser-generated key, which created duplicate device rows after
+        // cache clears and app upgrades.
         view.evaluateJavascript(
-            "localStorage.getItem('one-table-kds-device-key') || ''",
-            value -> {
-                String webKey = value == null ? "" : value.replace("\"", "").trim();
-                if (isValidDeviceKey(webKey)) {
-                    deviceKey = webKey;
-                    getPreferences(MODE_PRIVATE)
-                        .edit()
-                        .putString(DEVICE_KEY_STORAGE, webKey)
-                        .apply();
-                } else {
-                    view.evaluateJavascript(
-                        "localStorage.setItem('one-table-kds-device-key','" + deviceKey + "')",
-                        null
-                    );
-                }
-            }
+            "localStorage.setItem('one-table-kds-device-key','" + deviceKey + "')",
+            null
         );
     }
 
@@ -558,8 +558,13 @@ public final class MainActivity extends Activity {
     }
 
     private void sendNativeHeartbeat() {
+        long startedAt = System.currentTimeMillis();
         if (!hasInternetConnection()) {
-            showHeartbeatFailure();
+            handleHeartbeatFailure(
+                null,
+                "No validated Wi-Fi or mobile connection",
+                System.currentTimeMillis() - startedAt
+            );
             return;
         }
         String cookies = CookieManager.getInstance().getCookie("https://scanaki.uk/");
@@ -609,20 +614,207 @@ public final class MainActivity extends Activity {
             }
             if (status >= 200 && status < 300) {
                 CookieManager.getInstance().flush();
-                hideHeartbeatFailure();
+                handleHeartbeatSuccess(
+                    cookies,
+                    System.currentTimeMillis() - startedAt
+                );
                 requestFrontendUpdateCheck();
             } else if (status == 401 || status == 403) {
+                recordHeartbeatDiagnostic(
+                    "auth_failure",
+                    status,
+                    System.currentTimeMillis() - startedAt,
+                    "Native heartbeat authentication was rejected; web token refresh will retry."
+                );
                 hideHeartbeatFailure();
+                requestFrontendUpdateCheck();
             } else {
-                showHeartbeatFailure();
+                handleHeartbeatFailure(
+                    status,
+                    "Heartbeat returned HTTP " + status,
+                    System.currentTimeMillis() - startedAt
+                );
             }
-        } catch (Exception ignored) {
-            showHeartbeatFailure();
+        } catch (Exception error) {
+            handleHeartbeatFailure(
+                null,
+                error.getClass().getSimpleName() + ": " + safeDetail(error.getMessage()),
+                System.currentTimeMillis() - startedAt
+            );
         } finally {
             if (connection != null) {
                 connection.disconnect();
             }
         }
+    }
+
+    private synchronized void handleHeartbeatFailure(
+        Integer statusCode,
+        String detail,
+        long durationMs
+    ) {
+        consecutiveHeartbeatFailures += 1;
+        recordHeartbeatDiagnostic("failure", statusCode, durationMs, detail);
+        if (
+            consecutiveHeartbeatFailures >= HEARTBEAT_FAILURE_THRESHOLD
+                && System.currentTimeMillis() - lastSuccessfulHeartbeatAt
+                    >= HEARTBEAT_OFFLINE_AFTER_MS
+        ) {
+            showHeartbeatFailure();
+        }
+    }
+
+    private synchronized void handleHeartbeatSuccess(String cookies, long durationMs) {
+        int recoveredFailures = consecutiveHeartbeatFailures;
+        if (recoveredFailures > 0) {
+            recordHeartbeatDiagnostic(
+                "recovered",
+                200,
+                durationMs,
+                "Heartbeat recovered after " + recoveredFailures + " consecutive failure(s)."
+            );
+        }
+        consecutiveHeartbeatFailures = 0;
+        lastSuccessfulHeartbeatAt = System.currentTimeMillis();
+        hideHeartbeatFailure();
+        uploadPendingHeartbeatDiagnostics(cookies);
+    }
+
+    private synchronized void recordHeartbeatDiagnostic(
+        String outcome,
+        Integer statusCode,
+        long durationMs,
+        String detail
+    ) {
+        try {
+            JSONObject event = new JSONObject();
+            event.put("source", "native");
+            event.put("outcome", outcome);
+            event.put("occurred_at", Instant.now().toString());
+            if (statusCode != null) event.put("status_code", statusCode);
+            event.put("duration_ms", Math.max(0, durationMs));
+            event.put("consecutive_failures", consecutiveHeartbeatFailures);
+            event.put("network_type", currentNetworkType());
+            event.put("wifi_enabled", isWifiEnabled());
+            event.put("network_validated", hasInternetConnection());
+            event.put("detail", safeDetail(detail));
+
+            JSONArray stored = pendingHeartbeatDiagnostics();
+            JSONArray capped = new JSONArray();
+            int first = Math.max(0, stored.length() - (MAX_HEARTBEAT_DIAGNOSTICS - 1));
+            for (int index = first; index < stored.length(); index += 1) {
+                capped.put(stored.get(index));
+            }
+            capped.put(event);
+            getPreferences(MODE_PRIVATE)
+                .edit()
+                .putString(HEARTBEAT_DIAGNOSTICS_STORAGE, capped.toString())
+                .apply();
+            appendHeartbeatLog(event.toString());
+            if (!"recovered".equals(outcome)) {
+                Log.w("ScanakiHeartbeat", event.toString());
+            } else {
+                Log.i("ScanakiHeartbeat", event.toString());
+            }
+        } catch (Exception error) {
+            Log.w("ScanakiHeartbeat", "Could not persist heartbeat diagnostic", error);
+        }
+    }
+
+    private JSONArray pendingHeartbeatDiagnostics() {
+        String stored = getPreferences(MODE_PRIVATE)
+            .getString(HEARTBEAT_DIAGNOSTICS_STORAGE, "[]");
+        try {
+            return new JSONArray(stored == null ? "[]" : stored);
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private void uploadPendingHeartbeatDiagnostics(String cookies) {
+        JSONArray events = pendingHeartbeatDiagnostics();
+        if (events.length() == 0 || cookies == null || cookies.trim().isEmpty()) return;
+        HttpURLConnection diagnosticConnection = null;
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("device_key", deviceKey);
+            payload.put("events", events);
+            byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
+            diagnosticConnection = (HttpURLConnection) new URL(
+                HEARTBEAT_DIAGNOSTICS_URL
+            ).openConnection();
+            diagnosticConnection.setRequestMethod("POST");
+            diagnosticConnection.setConnectTimeout(5000);
+            diagnosticConnection.setReadTimeout(5000);
+            diagnosticConnection.setDoOutput(true);
+            diagnosticConnection.setFixedLengthStreamingMode(body.length);
+            diagnosticConnection.setRequestProperty("Content-Type", "application/json");
+            diagnosticConnection.setRequestProperty("Accept", "application/json");
+            diagnosticConnection.setRequestProperty("Cookie", cookies);
+            diagnosticConnection.setRequestProperty(
+                "User-Agent",
+                "ScanakiKitchen/" + BuildConfig.VERSION_NAME
+            );
+            try (OutputStream output = diagnosticConnection.getOutputStream()) {
+                output.write(body);
+            }
+            int status = diagnosticConnection.getResponseCode();
+            InputStream response = status >= 400
+                ? diagnosticConnection.getErrorStream()
+                : diagnosticConnection.getInputStream();
+            if (response != null) {
+                try (response) {
+                    byte[] buffer = new byte[256];
+                    while (response.read(buffer) != -1) {
+                        // Drain response.
+                    }
+                }
+            }
+            if (status >= 200 && status < 300) {
+                getPreferences(MODE_PRIVATE)
+                    .edit()
+                    .putString(HEARTBEAT_DIAGNOSTICS_STORAGE, "[]")
+                    .apply();
+            }
+        } catch (Exception error) {
+            Log.w("ScanakiHeartbeat", "Diagnostic upload deferred", error);
+        } finally {
+            if (diagnosticConnection != null) diagnosticConnection.disconnect();
+        }
+    }
+
+    private String currentNetworkType() {
+        Network network = getUsableNetwork();
+        NetworkCapabilities capabilities = network == null
+            ? null
+            : connectivityManager.getNetworkCapabilities(network);
+        if (capabilities == null) return "none";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return "wifi";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) return "cellular";
+        if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) return "ethernet";
+        return "other";
+    }
+
+    private void appendHeartbeatLog(String line) {
+        try {
+            File logFile = new File(getFilesDir(), "kds-heartbeat.log");
+            if (logFile.exists() && logFile.length() > 262_144) {
+                File previous = new File(getFilesDir(), "kds-heartbeat.log.1");
+                if (previous.exists()) previous.delete();
+                if (!logFile.renameTo(previous)) logFile.delete();
+            }
+            try (FileOutputStream output = new FileOutputStream(logFile, true)) {
+                output.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception error) {
+            Log.w("ScanakiHeartbeat", "Could not append local heartbeat log", error);
+        }
+    }
+
+    private String safeDetail(String value) {
+        if (value == null || value.trim().isEmpty()) return "No detail";
+        String normalized = value.replaceAll("[\\r\\n]+", " ").trim();
+        return normalized.length() <= 500 ? normalized : normalized.substring(0, 500);
     }
 
     private void showHeartbeatFailure() {

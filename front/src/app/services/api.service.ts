@@ -2163,6 +2163,25 @@ export interface KitchenDevice {
   online: boolean;
 }
 
+export interface KitchenHeartbeatDiagnosticEvent {
+  source: 'native' | 'web' | 'server';
+  outcome: 'failure' | 'recovered' | 'heartbeat_gap' | 'auth_failure';
+  occurred_at: string;
+  status_code?: number | null;
+  duration_ms?: number | null;
+  consecutive_failures?: number;
+  network_type?: string | null;
+  wifi_enabled?: boolean | null;
+  network_validated?: boolean | null;
+  detail?: string | null;
+}
+
+export interface KitchenHeartbeatDiagnostic extends KitchenHeartbeatDiagnosticEvent {
+  id: number;
+  device_key: string;
+  received_at: string;
+}
+
 export interface TableCartLine {
   line_id: string;
   session_id: string;
@@ -2831,6 +2850,16 @@ export class ApiService {
 
   getPlatformTenant(tenantId: number): Observable<PlatformTenantDetail> {
     return this.http.get<PlatformTenantDetail>(`${this.apiUrl}/platform/tenants/${tenantId}`);
+  }
+
+  getPlatformKitchenHeartbeatDiagnostics(
+    tenantId: number,
+    limit = 100,
+  ): Observable<KitchenHeartbeatDiagnostic[]> {
+    return this.http.get<KitchenHeartbeatDiagnostic[]>(
+      `${this.apiUrl}/platform/tenants/${tenantId}/kitchen-heartbeat-diagnostics`,
+      { params: { limit: String(limit) } },
+    );
   }
 
   getPlatformTenantLocations(tenantId: number): Observable<TenantLocation[]> {
@@ -4454,10 +4483,20 @@ export class ApiService {
     name: string;
     display_route: 'kitchen' | 'bar';
     station_id?: number | null;
-  }): Observable<{ id: number; online: boolean; last_seen_at: string }> {
-    return this.http.post<{ id: number; online: boolean; last_seen_at: string }>(
+  }): Observable<{ id: number; online: boolean; last_seen_at: string; server_gap_seconds?: number | null }> {
+    return this.http.post<{ id: number; online: boolean; last_seen_at: string; server_gap_seconds?: number | null }>(
       `${this.apiUrl}/tenant/kitchen-devices/heartbeat`,
       body
+    );
+  }
+
+  recordKitchenHeartbeatDiagnostics(
+    deviceKey: string,
+    events: KitchenHeartbeatDiagnosticEvent[],
+  ): Observable<{ status: string; count: number }> {
+    return this.http.post<{ status: string; count: number }>(
+      `${this.apiUrl}/tenant/kitchen-devices/diagnostics`,
+      { device_key: deviceKey, events },
     );
   }
 
