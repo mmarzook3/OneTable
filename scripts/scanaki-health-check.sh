@@ -43,6 +43,11 @@ if [[ "${#MISSING_SERVICES[@]}" -gt 0 ]]; then
     echo "Scanaki self-heal failed for: ${MISSING_SERVICES[*]}" >&2
     exit 1
   }
+  EDGE_CONTAINER="${SCANAKI_EDGE_CONTAINER:-mesher-iot-platform-phase0-nginx-1}"
+  if [[ -n "$(docker ps -q --filter "name=^/${EDGE_CONTAINER}$")" ]]; then
+    docker exec "$EDGE_CONTAINER" nginx -t >/dev/null
+    docker exec "$EDGE_CONTAINER" nginx -s reload >/dev/null
+  fi
 fi
 
 curl --fail --silent --show-error --max-time 15 "$BASE_URL/" >/dev/null

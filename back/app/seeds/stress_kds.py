@@ -12,6 +12,7 @@ from datetime import timedelta
 import json
 import statistics
 import time
+from uuid import uuid4
 
 import httpx
 from sqlmodel import Session, select
@@ -111,11 +112,15 @@ async def _run(args: argparse.Namespace) -> dict:
     feed_path = f"{prefix}/orders/kitchen-feed"
     heartbeat_path = f"{prefix}/tenant/kitchen-devices/heartbeat"
     status_path = lambda order_id: f"{prefix}/orders/{order_id}/kitchen-status"
-    heartbeat = {
-        "device_key": device.device_key,
-        "name": "Capacity test heartbeat",
-        "display_route": "kitchen",
-    }
+    run_key = uuid4().hex[:12]
+    heartbeat_payloads = [
+        {
+            "device_key": f"stress_{args.tenant_id}_{run_key}_{index:02d}",
+            "name": f"Capacity test device {index + 1}",
+            "display_route": "kitchen",
+        }
+        for index in range(args.heartbeats)
+    ]
     report: dict = {
         "tenant_id": args.tenant_id,
         "tenant_name": args.confirm_tenant_name,
@@ -134,8 +139,8 @@ async def _run(args: argparse.Namespace) -> dict:
             rows = await asyncio.gather(
                 *[_request(client, "GET", feed_path) for _ in range(tier)],
                 *[
-                    _request(client, "POST", heartbeat_path, json=heartbeat)
-                    for _ in range(args.heartbeats)
+                    _request(client, "POST", heartbeat_path, json=payload)
+                    for payload in heartbeat_payloads
                 ],
             )
             feed_rows = rows[:tier]
@@ -162,8 +167,8 @@ async def _run(args: argparse.Namespace) -> dict:
                 ],
                 *[_request(client, "GET", feed_path) for _ in range(args.mixed_feeds)],
                 *[
-                    _request(client, "POST", heartbeat_path, json=heartbeat)
-                    for _ in range(args.heartbeats)
+                    _request(client, "POST", heartbeat_path, json=payload)
+                    for payload in heartbeat_payloads
                 ],
             )
             update_count = len(stress_order_ids)
@@ -183,6 +188,18 @@ async def _run(args: argparse.Namespace) -> dict:
                     for order_id in stress_order_ids
                 ]
             )
+
+    with Session(engine) as session:
+        temporary_keys = [payload["device_key"] for payload in heartbeat_payloads]
+        temporary_devices = session.exec(
+            select(models.KitchenDevice).where(
+                models.KitchenDevice.tenant_id == args.tenant_id,
+                models.KitchenDevice.device_key.in_(temporary_keys),
+            )
+        ).all()
+        for row in temporary_devices:
+            session.delete(row)
+        session.commit()
 
     failures: list[str] = []
     for row in report["tiers"]:
