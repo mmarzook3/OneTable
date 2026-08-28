@@ -1,16 +1,12 @@
-# Deploy to amvara9 only when the production branch is pushed (this repo: `master`).
-# Pushes to `development` do not run this workflow (merge to `master` to deploy). Use workflow_dispatch for manual runs.
-# Repository: https://github.com/satisfecho/pos — workflow must run from satisfecho/pos; server clone must have origin = satisfecho/pos.
-# Requires repository secret: SSH_PRIVATE_KEY_AMVARA9 (private key for root@amvara9; raw PEM or base64).
-# Optional: DEPLOY_HOST (default 167.235.138.59), DEPLOY_USER (default root), DEPLOY_PATH (default /development/pos), DEPLOY_SSH_PORT (default 60022; amvara9 SSH is not on port 22).
-# Marketing sites under /<slug>/ (see config/marketing-sites.json): optional MARKETING_ARTIFACT_TOKEN
-# (preferred) or legacy GUSTAZO_ARTIFACT_TOKEN — PAT with Actions read on each repo in the manifest.
-# MARKETING_VERIFY_NO_PLACEHOLDERS=1 fails the job if a manifest site is still a placeholder (often
-# expired Actions artifacts — refresh with scripts/refresh-expired-marketing-artifacts.sh).
-# CI rsync runs after git reset so bundles are not wiped (--delete removes dropped slugs).
-# Smoke test uses SMOKE_TEST_BASE_URL (default https://scanaki.uk) so SSL validates.
+# Scanaki production deployment.
+#
+# The production VPS is an rsync release at /opt/scanaki/app, not a Git checkout.
+# Repository secrets:
+#   SCANAKI_DEPLOY_HOST, SCANAKI_DEPLOY_USER, SSH_PRIVATE_KEY_SCANAKI
+# Repository variables (optional defaults shown):
+#   SCANAKI_DEPLOY_PORT=22, SCANAKI_DEPLOY_PATH=/opt/scanaki/app
 
-name: Deploy to amvara9
+name: Deploy Scanaki production
 
 on:
   push:
@@ -18,125 +14,150 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # One deploy at a time to the same host/path regardless of branch (avoids overlapping git/build/up).
+    timeout-minutes: 30
     concurrency:
-      group: deploy-amvara9
+      group: deploy-scanaki-production
       cancel-in-progress: false
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      DEPLOY_SSH_PORT: ${{ vars.DEPLOY_SSH_PORT || '60022' }}
+      SCANAKI_DEPLOY_HOST: ${{ secrets.SCANAKI_DEPLOY_HOST }}
+      SCANAKI_DEPLOY_USER: ${{ secrets.SCANAKI_DEPLOY_USER }}
+      SCANAKI_DEPLOY_PORT: ${{ vars.SCANAKI_DEPLOY_PORT || '22' }}
+      SCANAKI_DEPLOY_PATH: ${{ vars.SCANAKI_DEPLOY_PATH || '/opt/scanaki/app' }}
+
     steps:
-      - name: Checkout
+      - name: Checkout production revision
         uses: actions/checkout@v4
 
-      - name: Fetch marketing site artifacts (curl + GitHub API)
+      - name: Validate deployment configuration
+        env:
+          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
+        run: |
+          set -euo pipefail
+          [ -n "$SCANAKI_DEPLOY_HOST" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_HOST"; exit 1; }
+          [ -n "$SCANAKI_DEPLOY_USER" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_USER"; exit 1; }
+          [ -n "$SSH_PRIVATE_KEY_SCANAKI" ] || { echo "::error::Missing repository secret SSH_PRIVATE_KEY_SCANAKI"; exit 1; }
+          [[ "$SCANAKI_DEPLOY_PORT" =~ ^[0-9]+$ ]] || { echo "::error::SCANAKI_DEPLOY_PORT must be numeric"; exit 1; }
+          [ "$SCANAKI_DEPLOY_PATH" = "/opt/scanaki/app" ] || {
+            echo "::error::Refusing unexpected SCANAKI_DEPLOY_PATH: $SCANAKI_DEPLOY_PATH"
+            exit 1
+          }
+
+      - name: Fetch marketing site artifacts
         env:
           MARKETING_ARTIFACT_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
           GH_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
           MARKETING_SYNC_FORCE: "1"
-          # Fails the job if any listed site is still the placeholder (PAT must cover every manifest repo)
           MARKETING_VERIFY_NO_PLACEHOLDERS: "1"
         run: bash scripts/sync-all-marketing-sites.sh
 
-      - name: Set up SSH
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
         run: |
-          mkdir -p ~/.ssh
-          KEY="${{ secrets.SSH_PRIVATE_KEY_AMVARA9 }}"
-          echo "Key length: ${#KEY} chars, looks like PEM: $(echo \"$KEY\" | grep -q 'BEGIN' && echo \"$KEY\" | grep -q 'PRIVATE KEY' && echo yes || echo no)"
-          # If secret contains PEM markers, use as raw key; else decode as base64
-          if echo "$KEY" | grep -q "BEGIN" && echo "$KEY" | grep -q "PRIVATE KEY"; then
-            # Preserve newlines: interpret \n if stored literally, strip CR
-            printf '%b' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
-          else
-            echo "$KEY" | tr -d '\n\r\t ' | sed 's/[^A-Za-z0-9+\/=]//g' | base64 -d > ~/.ssh/deploy_key
-          fi
-          chmod 600 ~/.ssh/deploy_key
-          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
-            echo "::error::Invalid SSH_PRIVATE_KEY_AMVARA9: ssh-keygen could not read the key. Paste the full raw key (-----BEGIN...END-----) or a single-line base64 string (base64 -w 0 keyfile)."
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY_SCANAKI" | tr -d '\r' > ~/.ssh/scanaki_deploy_key
+          chmod 600 ~/.ssh/scanaki_deploy_key
+          ssh-keygen -y -f ~/.ssh/scanaki_deploy_key >/dev/null 2>&1 || {
+            echo "::error::SSH_PRIVATE_KEY_SCANAKI is not a valid private key"
             exit 1
-          fi
-          ssh-keyscan -H -p "$DEPLOY_SSH_PORT" "${{ secrets.DEPLOY_HOST || '167.235.138.59' }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          }
+          ssh-keyscan -H -p "$SCANAKI_DEPLOY_PORT" "$SCANAKI_DEPLOY_HOST" >> ~/.ssh/known_hosts
 
-      # Git reset must run BEFORE rsync of marketing bundles: deploy-amvara9.sh uses `docker compose build`
-      # which COPYs front/sites/*. If we rsync before `git reset --hard`, placeholders from Git overwrite
-      # fetched artifacts on the server.
-
-      - name: Checkout latest code on amvara9 (git fetch / reset — marketing dirs reset to placeholders)
+      - name: Upload immutable release
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '167.235.138.59' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/development/pos' }}
+          RELEASE_SHA: ${{ github.sha }}
         run: |
-          ssh -p "$DEPLOY_SSH_PORT" -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}/front/sites'"
-          BRANCH="${{ github.ref_name }}"
-          ssh -p "$DEPLOY_SSH_PORT" -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "cd '${DEPLOY_PATH}' && git fetch origin && git checkout -f '${BRANCH}' && git reset --hard 'origin/${BRANCH}' && git clean -fd"
+          set -euo pipefail
+          RELEASE_ROOT="$(dirname "$SCANAKI_DEPLOY_PATH")/releases"
+          RELEASE_DIR="$RELEASE_ROOT/$RELEASE_SHA"
+          SSH=(ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30)
+          "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "mkdir -p '$RELEASE_DIR'"
+          rsync -az --delete \
+            --exclude '/.git/' \
+            --exclude '/.env' \
+            --exclude '/config.env' \
+            --exclude '/.secrets' \
+            --exclude '/deployment-secrets.env' \
+            --exclude '/docker-compose.scanaki.yml' \
+            --exclude '/nginx.scanaki.conf' \
+            --exclude '/data/' \
+            --exclude '/backups/' \
+            --exclude '/certbot/' \
+            --exclude '/tmp/' \
+            --exclude '/android/scanaki-kitchen/signing/' \
+            -e "ssh -p $SCANAKI_DEPLOY_PORT -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30" \
+            ./ "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST:$RELEASE_DIR/"
+          printf '%s\n' "$RELEASE_SHA" | "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "cat > '$RELEASE_DIR/release-commit.txt'"
 
-      - name: Sync marketing sites to server (after git reset; bundles from Fetch step above)
+      - name: Promote release and deploy Scanaki stack
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '167.235.138.59' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/development/pos' }}
+          RELEASE_SHA: ${{ github.sha }}
+        timeout-minutes: 24
         run: |
-          rsync -az --delete -e "ssh -p $DEPLOY_SSH_PORT -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60" \
-            ./front/sites/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/front/sites/"
+          set -euo pipefail
+          RELEASE_DIR="$(dirname "$SCANAKI_DEPLOY_PATH")/releases/$RELEASE_SHA"
+          ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" \
+            "bash -s -- '$SCANAKI_DEPLOY_PATH' '$RELEASE_DIR'" <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$1"
+          RELEASE_DIR="$2"
+          [ "$APP_DIR" = "/opt/scanaki/app" ] || { echo "Refusing unexpected app directory" >&2; exit 1; }
+          [ -d "$RELEASE_DIR" ] || { echo "Release directory is missing" >&2; exit 1; }
+          for required in config.env deployment-secrets.env docker-compose.scanaki.yml nginx.scanaki.conf; do
+            [ -s "$APP_DIR/$required" ] || { echo "Required server file is missing: $required" >&2; exit 1; }
+          done
+          rsync -a --delete \
+            --exclude '/config.env' \
+            --exclude '/.secrets' \
+            --exclude '/deployment-secrets.env' \
+            --exclude '/docker-compose.scanaki.yml' \
+            --exclude '/nginx.scanaki.conf' \
+            --exclude '/data/' \
+            --exclude '/backups/' \
+            --exclude '/certbot/' \
+            --exclude '/android/scanaki-kitchen/signing/' \
+            "$RELEASE_DIR/" "$APP_DIR/"
+          cd "$APP_DIR"
+          bash scripts/deploy-scanaki-production.sh
+          RELEASE_ROOT="$(dirname "$RELEASE_DIR")"
+          [ "$RELEASE_ROOT" = "/opt/scanaki/releases" ] || { echo "Refusing unexpected release root" >&2; exit 1; }
+          mapfile -t OLD_RELEASES < <(
+            find "$RELEASE_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+              | sort -rn | tail -n +6 | cut -d' ' -f2-
+          )
+          for old_release in "${OLD_RELEASES[@]}"; do
+            [ "$old_release" != "$RELEASE_DIR" ] && rm -rf -- "$old_release"
+          done
+          REMOTE
 
-      - name: Build and restart stack on amvara9
-        env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '167.235.138.59' }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/development/pos' }}
-        timeout-minutes: 20
-        run: |
-          ssh -p "$DEPLOY_SSH_PORT" -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60 -o ServerAliveCountMax=10 \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" "cd '${DEPLOY_PATH}' && bash scripts/deploy-amvara9.sh"
-
-      - name: Smoke test (landing, version, API health)
+      - name: Verify public production service
         env:
           SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://scanaki.uk' }}
         run: |
-          BASE="${SMOKE_TEST_BASE_URL}"
-          echo "Smoke test: $BASE (landing), version in footer, $BASE/api/health"
-          LANDING_OK=""
+          set -euo pipefail
+          BASE="${SMOKE_TEST_BASE_URL%/}"
           for attempt in 1 2 3 4 5 6; do
-            echo "Landing HTTP check attempt ${attempt}/6..."
-            if curl -sf -o /dev/null -w "%{http_code}" "$BASE/" | grep -q 200; then
-              LANDING_OK=1
-              break
+            if curl --fail --silent --show-error --max-time 15 "$BASE/" >/dev/null \
+              && curl --fail --silent --show-error --max-time 15 "$BASE/api/health" >/dev/null; then
+              HTML="$(curl --fail --silent --show-error --max-time 15 "$BASE/?release=${GITHUB_SHA}")"
+              echo "$HTML" | grep -qE 'name="app-version"[^>]*content="[0-9]+\.[0-9]+\.[0-9]+"' || {
+                echo "::error::Production landing page is missing the app-version meta tag"
+                exit 1
+              }
+              echo "Scanaki production smoke test passed."
+              exit 0
             fi
-            [ "$attempt" -lt 6 ] && sleep 15
+            [ "$attempt" -lt 6 ] && sleep 10
           done
-          [ -n "$LANDING_OK" ] || (echo "Landing page failed after retries"; exit 1)
-          HTML=""
-          for attempt in 1 2 3 4 5 6; do
-            echo "Landing HTML + version meta attempt ${attempt}/6..."
-            HTML=$(curl -sfL "$BASE/?t=$(date +%s)") && break
-            [ "$attempt" -lt 6 ] && sleep 15
-          done
-          [ -n "$HTML" ] || (echo "Failed to fetch landing page after retries"; exit 1)
-          if echo "$HTML" | grep -qE 'name="app-version"[^>]*content="[0-9]+\.[0-9]+\.[0-9]+"'; then
-            echo "Version meta tag found in landing page."
-          elif echo "$HTML" | grep -q 'name="app-version"' && echo "$HTML" | grep -qE 'content="[0-9]+\.[0-9]+\.[0-9]+"'; then
-            echo "Version meta (split) found in landing page."
-          else
-            echo "Version meta tag missing in landing page HTML (expected app-version with semver)."
-            echo "First 500 chars of head: $(echo "$HTML" | head -c 500)"
-            exit 1
-          fi
-          echo "Version correctly shown in landing page (no login required)."
-          HEALTH_OK=""
-          for attempt in 1 2 3 4 5 6; do
-            echo "API health attempt ${attempt}/6..."
-            if curl -sf -o /dev/null -w "%{http_code}" "$BASE/api/health" | grep -q 200; then
-              HEALTH_OK=1
-              break
-            fi
-            [ "$attempt" -lt 6 ] && sleep 15
-          done
-          [ -n "$HEALTH_OK" ] || (echo "API health failed after retries"; exit 1)
-          echo "Smoke test passed."
+          echo "::error::Scanaki production did not pass its public health checks"
+          exit 1
