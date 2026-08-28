@@ -118,7 +118,7 @@ describe('KitchenDisplayComponent', () => {
   it('should load orders on init', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
   });
 
   it('should connect WebSocket on init', () => {
@@ -158,7 +158,7 @@ describe('KitchenDisplayComponent', () => {
     orderUpdates$.next({ type: 'items_added' });
     expect(mockApi.getOrders).not.toHaveBeenCalled();
     tick(180);
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
     fixture.destroy();
   }));
 
@@ -700,7 +700,7 @@ describe('KitchenDisplayComponent', () => {
     mockApi.getOrders.calls.reset();
     tick(15000);
     fixture.detectChanges();
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
   }));
 
   it('should not show full-page loading on background refresh', fakeAsync(() => {
@@ -724,7 +724,7 @@ describe('KitchenDisplayComponent', () => {
     expect(mockApi.getOrders).not.toHaveBeenCalled();
     mockApi.getOrders.calls.reset();
     fixture.componentInstance.toggleItemStatusDropdown(1, 1);
-    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true);
+    expect(mockApi.getOrders).toHaveBeenCalledWith(false, true, true);
   });
 
   it('should call requestFullscreen when toggleFullscreen and not already fullscreen', () => {

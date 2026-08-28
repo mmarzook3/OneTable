@@ -249,6 +249,25 @@ class TestPaidOrderLeavesActive(PgClientTestCase):
         self.assertEqual(len(items), 15)
         self.assertTrue(all(item.status == models.OrderItemStatus.preparing for item in items))
 
+    def test_active_only_orders_excludes_completed_history(self) -> None:
+        active = self._order_with_item(item_status=models.OrderItemStatus.pending)
+        completed = self._order_with_item(item_status=models.OrderItemStatus.delivered)
+        completed.status = models.OrderStatus.completed
+        completed.paid_at = datetime.now(timezone.utc)
+        self.session.add(completed)
+        self.session.commit()
+
+        response = self.client.get(
+            "/orders",
+            params={"active_only": "true"},
+            headers=_bearer_headers(self.owner),
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        ids = {row["id"] for row in response.json()}
+        self.assertIn(active.id, ids)
+        self.assertNotIn(completed.id, ids)
+
     def test_cancelled_order_cannot_be_restored_from_kitchen(self) -> None:
         order = self._order_with_item(item_status=models.OrderItemStatus.cancelled)
         order.status = models.OrderStatus.cancelled

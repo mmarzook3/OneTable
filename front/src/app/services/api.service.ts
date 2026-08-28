@@ -3696,10 +3696,15 @@ export class ApiService {
   }
 
   // Orders
-  getOrders(includeRemoved: boolean = false, kitchenReleasedOnly: boolean = false): Observable<Order[]> {
+  getOrders(
+    includeRemoved: boolean = false,
+    kitchenReleasedOnly: boolean = false,
+    activeOnly: boolean = false,
+  ): Observable<Order[]> {
     let params = new HttpParams();
     if (includeRemoved) params = params.set('include_removed', 'true');
     if (kitchenReleasedOnly) params = params.set('kitchen_released_only', 'true');
+    if (activeOnly) params = params.set('active_only', 'true');
     return this.http.get<Order[]>(`${this.apiUrl}/orders`, { params });
   }
 
