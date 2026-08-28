@@ -35,6 +35,8 @@ const DEFAULT_ORDER_COOLDOWN_SECONDS = 2;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
 const DEVICE_KEY_STORAGE_KEY = 'one-table-kds-device-key';
 const STATION_STORAGE_PREFIX = 'one-table-kds-station';
+const LONG_TICKET_REVIEW_THRESHOLD = 5;
+const TICKET_BOTTOM_TOLERANCE_PX = 10;
 
 type FullscreenCapableElement = HTMLElement & {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -61,6 +63,14 @@ type KitchenDisplaySettings = {
   routing_mode: KdsRoutingMode;
   action_hold_seconds: number;
   action_cooldown_seconds: number;
+};
+
+type TicketReviewState = {
+  itemCount: number;
+  remainingBelow: number;
+  hasOverflow: boolean;
+  reviewed: boolean;
+  measured: boolean;
 };
 
 function getFullscreenElement(): Element | null {
@@ -262,6 +272,7 @@ const VIEW_CATEGORY: Record<string, string> = {
               <article
                 class="order-card production-{{ getProductionStatus(order) }} {{ getTimerColorClass(order) }}"
                 [class.order-card-urgent]="order.staff_urgent"
+                [attr.data-order-id]="order.id"
               >
                 <header class="order-header">
                   <div class="order-sequence">
@@ -292,17 +303,33 @@ const VIEW_CATEGORY: Record<string, string> = {
                   </div>
                 </div>
                 <div
+                  class="ticket-review-summary"
+                  [class.ticket-review-summary-needed]="ticketRequiresReview(order)"
+                  [class.ticket-review-summary-complete]="ticketReviewComplete(order)"
+                  [attr.data-testid]="'kitchen-ticket-summary-' + order.id"
+                >
+                  {{ ticketReviewBadge(order) }}
+                </div>
+                <div
                   class="order-card-scroll"
+                  [class.order-card-scroll-needs-review]="ticketRequiresReview(order)"
                   tabindex="0"
                   [attr.aria-label]="'Items and requests for order ' + order.id"
+                  [attr.data-order-scroll]="order.id"
+                  (scroll)="onTicketScroll(order.id)"
                 >
                   <ul class="order-items">
                     @for (item of getSortedItems(order.items); track item.id) {
                       @if (!item.removed_by_customer) {
-                        <li class="order-item">
+                        <li class="order-item" [attr.data-item-key]="itemReviewKey(item)">
                           <span class="item-qty">{{ item.quantity }}×</span>
                           <span class="item-copy">
-                            <strong class="item-name">{{ item.product_name }}</strong>
+                            <span class="item-name-row">
+                              <strong class="item-name">{{ item.product_name }}</strong>
+                              @if (isNewOrderItem(order.id, item)) {
+                                <span class="item-new-badge">NEW</span>
+                              }
+                            </span>
                             @if (hasCustomization(item)) {
                               <small class="item-customization">
                                 <strong>Modifiers:</strong> {{ formatCustomizationItem(item) }}
@@ -342,33 +369,54 @@ const VIEW_CATEGORY: Record<string, string> = {
                     </section>
                   }
                 </div>
+                @if (ticketRequiresReview(order)) {
+                  <button
+                    type="button"
+                    class="ticket-review-more"
+                    [attr.data-testid]="'kitchen-review-more-' + order.id"
+                    (click)="reviewNextTicketItems(order)"
+                  >
+                    {{ ticketReviewButtonLabel(order) }}
+                  </button>
+                }
                 <footer class="order-actions">
                   @if (getOrderActionTarget(order)) {
-                    <button
-                      type="button"
-                      class="order-primary-action"
-                      [class]="getOrderActionClass(order)"
-                      [class.order-hold-active]="isOrderHoldActive(order.id)"
-                      [style.--hold-duration]="orderHoldDurationMs() + 'ms'"
-                      [disabled]="isOrderInteractionDisabled(order.id)"
-                      [attr.aria-label]="'Press and hold for ' + actionHoldSeconds() + ' second' + (actionHoldSeconds() === 1 ? '' : 's') + ' to ' + getOrderActionLabel(order)"
-                      [attr.data-testid]="'kitchen-order-action-' + order.id"
-                      (pointerdown)="startOrderHold($event, order)"
-                      (pointerup)="cancelOrderHold(order.id)"
-                      (pointercancel)="cancelOrderHold(order.id)"
-                      (keydown.enter)="startKeyboardOrderHold($event, order)"
-                      (keyup.enter)="cancelOrderHold(order.id)"
-                      (keydown.space)="startKeyboardOrderHold($event, order)"
-                      (keyup.space)="cancelOrderHold(order.id)"
-                      (contextmenu)="$event.preventDefault()"
-                    >
-                      @if (isOrderHoldActive(order.id)) {
-                        <span class="order-hold-progress" aria-hidden="true"></span>
-                      }
-                      <span class="order-action-label">
-                        {{ getOrderActionButtonLabel(order) }}
-                      </span>
-                    </button>
+                    @if (ticketRequiresReview(order)) {
+                      <button
+                        type="button"
+                        class="order-primary-action order-action-review"
+                        [attr.data-testid]="'kitchen-order-action-' + order.id"
+                        (click)="reviewNextTicketItems(order)"
+                      >
+                        <span class="order-action-label">Review remaining items</span>
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="order-primary-action"
+                        [class]="getOrderActionClass(order)"
+                        [class.order-hold-active]="isOrderHoldActive(order.id)"
+                        [style.--hold-duration]="orderHoldDurationMs() + 'ms'"
+                        [disabled]="isOrderInteractionDisabled(order.id)"
+                        [attr.aria-label]="'Press and hold for ' + actionHoldSeconds() + ' second' + (actionHoldSeconds() === 1 ? '' : 's') + ' to ' + getOrderActionLabel(order)"
+                        [attr.data-testid]="'kitchen-order-action-' + order.id"
+                        (pointerdown)="startOrderHold($event, order)"
+                        (pointerup)="cancelOrderHold(order.id)"
+                        (pointercancel)="cancelOrderHold(order.id)"
+                        (keydown.enter)="startKeyboardOrderHold($event, order)"
+                        (keyup.enter)="cancelOrderHold(order.id)"
+                        (keydown.space)="startKeyboardOrderHold($event, order)"
+                        (keyup.space)="cancelOrderHold(order.id)"
+                        (contextmenu)="$event.preventDefault()"
+                      >
+                        @if (isOrderHoldActive(order.id)) {
+                          <span class="order-hold-progress" aria-hidden="true"></span>
+                        }
+                        <span class="order-action-label">
+                          {{ getOrderActionButtonLabel(order) }}
+                        </span>
+                      </button>
+                    }
                   }
                   <button type="button" class="order-details-toggle" (click)="toggleOrderDetails(order.id)" [attr.aria-expanded]="isOrderDetailsOpen(order.id)">
                     {{ isOrderDetailsOpen(order.id) ? 'Show less' : 'Show more' }}
@@ -1030,6 +1078,27 @@ const VIEW_CATEGORY: Record<string, string> = {
       transition: width 0.35s ease-out, background 0.25s;
       min-width: 0;
     }
+    .ticket-review-summary {
+      flex: 0 0 auto;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--ticket-border);
+      background: rgba(15, 23, 42, .36);
+      color: #cbd5e1;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .045em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .ticket-review-summary-needed {
+      border-block-color: #f59e0b;
+      background: #78350f;
+      color: #fef3c7;
+    }
+    .ticket-review-summary-complete {
+      background: rgba(20, 83, 45, .72);
+      color: #dcfce7;
+    }
     .timer-fill-green { background: linear-gradient(90deg, #16a34a, #22c55e); }
     .timer-fill-yellow { background: linear-gradient(90deg, #ca8a04, #eab308); }
     .timer-fill-orange { background: linear-gradient(90deg, #ea580c, #f97316); }
@@ -1132,18 +1201,22 @@ const VIEW_CATEGORY: Record<string, string> = {
       touch-action: auto;
       -webkit-overflow-scrolling: touch;
     }
+    .order-card-scroll-needs-review {
+      box-shadow: inset 0 -30px 24px -24px rgba(245, 158, 11, .95);
+    }
     .order-card-scroll:focus-visible {
       outline: 2px solid #93c5fd;
       outline-offset: -3px;
     }
-    .order-card-scroll::-webkit-scrollbar { width: 9px; }
+    .order-card-scroll::-webkit-scrollbar { width: 12px; }
     .order-card-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, .3); }
     .order-card-scroll::-webkit-scrollbar-thumb {
       border: 2px solid transparent;
       border-radius: 8px;
-      background: rgba(226, 232, 240, .62);
+      background: rgba(226, 232, 240, .78);
       background-clip: padding-box;
     }
+    .order-card-scroll-needs-review::-webkit-scrollbar-thumb { background: #f59e0b; }
     .order-items {
       list-style: none;
       margin: 0;
@@ -1167,12 +1240,31 @@ const VIEW_CATEGORY: Record<string, string> = {
       font-size: 1.125rem;
     }
     .item-copy { display: grid; min-width: 0; gap: 5px; }
+    .item-name-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 9px;
+      min-width: 0;
+    }
     .item-name {
       overflow-wrap: anywhere;
       color: #f8fafc;
       font-size: 1.125rem;
       font-weight: 600;
       line-height: 1.35;
+    }
+    .item-new-badge {
+      flex: 0 0 auto;
+      padding: 3px 7px;
+      border: 1px solid #fbbf24;
+      border-radius: 5px;
+      background: #f59e0b;
+      color: #271300;
+      font-size: .66rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      line-height: 1.2;
     }
     .item-notes {
       display: block;
@@ -1224,6 +1316,28 @@ const VIEW_CATEGORY: Record<string, string> = {
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .ticket-review-more {
+      flex: 0 0 auto;
+      min-height: 48px;
+      margin: 0;
+      border: 0;
+      border-top: 1px solid #f59e0b;
+      border-bottom: 1px solid #f59e0b;
+      background: #92400e;
+      box-shadow: 0 -10px 24px rgba(15, 23, 42, .52);
+      color: #fff7d6;
+      font: inherit;
+      font-size: .9rem;
+      font-weight: 700;
+      letter-spacing: .015em;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .ticket-review-more:active { background: #78350f; transform: translateY(1px); }
+    .ticket-review-more:focus-visible {
+      outline: 3px solid #fde68a;
+      outline-offset: -4px;
+    }
     .order-actions {
       flex: 0 0 auto;
       display: grid;
@@ -1272,6 +1386,11 @@ const VIEW_CATEGORY: Record<string, string> = {
     @keyframes kitchen-hold-fill { from { width: 0; } to { width: 100%; } }
     .order-primary-action.order-action-ready { border-color: #16a34a; background: #16a34a; }
     .order-primary-action.order-action-complete { border-color: #64748b; background: #475569; }
+    .order-primary-action.order-action-review {
+      border-color: #f59e0b;
+      background: #92400e;
+      color: #fff7d6;
+    }
     .order-primary-action:disabled { cursor: wait; opacity: .55; }
     .order-details-toggle {
       min-width: 102px;
@@ -1747,6 +1866,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private orderAlertsReady = false;
   private lastOrderAlertAt = 0;
   private orderNavigationFrameId: number | null = null;
+  private ticketReviewFrameId: number | null = null;
+  private knownTicketItemKeys = new Map<number, Set<string>>();
+  private pendingTicketReviewResets = new Set<number>();
 
   orders = signal<Order[]>([]);
   loading = signal(true);
@@ -1830,6 +1952,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   ordersToRight = signal(0);
   visibleOrderStart = signal(0);
   visibleOrderEnd = signal(0);
+  ticketReviewStates = signal<Record<number, TicketReviewState>>({});
+  newTicketItemKeys = signal<Record<number, string[]>>({});
 
   /** True when this view’s root element is the browser fullscreen element. */
   isFullscreen = signal(false);
@@ -2068,6 +2192,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.syncFullscreenState();
     void this.requestScreenWakeLock();
     this.scheduleOrderNavigationUpdate();
+    this.scheduleTicketReviewMeasurement();
   }
 
   ngOnDestroy(): void {
@@ -2101,6 +2226,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.orderNavigationFrameId != null) {
       window.cancelAnimationFrame(this.orderNavigationFrameId);
       this.orderNavigationFrameId = null;
+    }
+    if (this.ticketReviewFrameId != null) {
+      window.cancelAnimationFrame(this.ticketReviewFrameId);
+      this.ticketReviewFrameId = null;
     }
     void this.releaseScreenWakeLock();
     void this.exitFullscreenIfActive();
@@ -2178,16 +2307,244 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     scroller.scrollBy({ left: direction * pageStep, behavior: 'smooth' });
   }
 
+  itemReviewKey(item: OrderItem): string {
+    if (item.id != null) return String(item.id);
+    return [
+      item.product_name,
+      item.quantity,
+      item.notes || '',
+      item.customization_summary || '',
+      item.line_modifiers_summary || '',
+    ].join('|');
+  }
+
+  isNewOrderItem(orderId: number, item: OrderItem): boolean {
+    return (this.newTicketItemKeys()[orderId] || []).includes(this.itemReviewKey(item));
+  }
+
+  ticketRequiresReview(order: Order): boolean {
+    const state = this.ticketReviewState(order);
+    return this.ticketNewItemCount(order.id) > 0 || (state.hasOverflow && !state.reviewed);
+  }
+
+  ticketReviewComplete(order: Order): boolean {
+    const state = this.ticketReviewState(order);
+    return state.hasOverflow && state.reviewed && this.ticketNewItemCount(order.id) === 0;
+  }
+
+  ticketReviewBadge(order: Order): string {
+    const state = this.ticketReviewState(order);
+    const itemWord = state.itemCount === 1 ? 'ITEM' : 'ITEMS';
+    const newCount = this.ticketNewItemCount(order.id);
+    if (this.ticketRequiresReview(order)) {
+      const below = state.remainingBelow > 0
+        ? ` – ${state.remainingBelow} MORE BELOW`
+        : state.hasOverflow
+          ? ' – MORE BELOW'
+          : '';
+      const added = newCount > 0 ? ` · ${newCount} NEW` : '';
+      return `${state.itemCount} ${itemWord}${below}${added}`;
+    }
+    if (state.hasOverflow && state.reviewed) return `${state.itemCount} ${itemWord} · REVIEWED`;
+    return `${state.itemCount} ${itemWord}`;
+  }
+
+  ticketReviewButtonLabel(order: Order): string {
+    const state = this.ticketReviewState(order);
+    if (state.remainingBelow > 0) {
+      const word = state.remainingBelow === 1 ? 'item' : 'items';
+      return `↓ Review ${state.remainingBelow} more ${word}`;
+    }
+    const newCount = this.ticketNewItemCount(order.id);
+    if (newCount === 0) return '↓ Review remaining details';
+    const word = newCount === 1 ? 'item' : 'items';
+    return `Review ${newCount} new ${word}`;
+  }
+
+  onTicketScroll(_orderId: number): void {
+    this.scheduleTicketReviewMeasurement();
+  }
+
+  reviewNextTicketItems(order: Order): void {
+    const scroller = this.getTicketScroller(order.id);
+    const state = this.ticketReviewState(order);
+    if (!scroller || !state.hasOverflow || state.remainingBelow === 0) {
+      this.markTicketReviewed(order.id);
+      return;
+    }
+
+    const viewport = scroller.getBoundingClientRect();
+    const itemElements = Array.from(scroller.querySelectorAll<HTMLElement>('.order-item'));
+    const firstBelow = itemElements.find(
+      (item) => item.getBoundingClientRect().bottom > viewport.bottom + 4,
+    );
+    const desiredStep = Math.max(scroller.clientHeight * 0.72, 96);
+    const targetDelta = firstBelow
+      ? Math.max(firstBelow.getBoundingClientRect().top - viewport.top - 12, desiredStep)
+      : desiredStep;
+    scroller.scrollBy({ top: targetDelta, behavior: 'smooth' });
+    window.setTimeout(() => this.scheduleTicketReviewMeasurement(), 360);
+  }
+
+  private ticketReviewState(order: Order): TicketReviewState {
+    const itemCount = this.getSortedItems(order.items || []).length;
+    const saved = this.ticketReviewStates()[order.id];
+    if (saved && saved.itemCount === itemCount) return saved;
+    const estimatedBelow = Math.max(0, itemCount - (LONG_TICKET_REVIEW_THRESHOLD - 1));
+    return {
+      itemCount,
+      remainingBelow: estimatedBelow,
+      hasOverflow: itemCount >= LONG_TICKET_REVIEW_THRESHOLD,
+      reviewed: itemCount < LONG_TICKET_REVIEW_THRESHOLD,
+      measured: false,
+    };
+  }
+
+  private ticketNewItemCount(orderId: number): number {
+    return (this.newTicketItemKeys()[orderId] || []).length;
+  }
+
+  private reconcileTicketItemChanges(orders: Order[]): Set<number> {
+    const activeOrderIds = new Set(orders.map((order) => order.id));
+    const resetReviewOrderIds = new Set<number>();
+    const nextNewItems: Record<number, string[]> = {};
+
+    for (const order of orders) {
+      const keys = new Set(this.getSortedItems(order.items || []).map((item) => this.itemReviewKey(item)));
+      const previous = this.knownTicketItemKeys.get(order.id);
+      const retainedNew = (this.newTicketItemKeys()[order.id] || []).filter((key) => keys.has(key));
+      const additions = previous ? [...keys].filter((key) => !previous.has(key)) : [];
+      const combinedNew = [...new Set([...retainedNew, ...additions])];
+      if (combinedNew.length > 0) nextNewItems[order.id] = combinedNew;
+      if (additions.length > 0) resetReviewOrderIds.add(order.id);
+      this.knownTicketItemKeys.set(order.id, keys);
+    }
+
+    for (const orderId of [...this.knownTicketItemKeys.keys()]) {
+      if (!activeOrderIds.has(orderId)) this.knownTicketItemKeys.delete(orderId);
+    }
+    this.newTicketItemKeys.set(nextNewItems);
+
+    if (resetReviewOrderIds.size > 0) {
+      this.ticketReviewStates.update((current) => {
+        const next = { ...current };
+        for (const orderId of resetReviewOrderIds) {
+          const order = orders.find((row) => row.id === orderId);
+          const itemCount = order ? this.getSortedItems(order.items || []).length : 0;
+          next[orderId] = {
+            itemCount,
+            remainingBelow: Math.max(0, itemCount - (LONG_TICKET_REVIEW_THRESHOLD - 1)),
+            hasOverflow: itemCount >= LONG_TICKET_REVIEW_THRESHOLD,
+            reviewed: false,
+            measured: false,
+          };
+        }
+        return next;
+      });
+    }
+
+    return resetReviewOrderIds;
+  }
+
+  private scheduleTicketReviewMeasurement(resetOrderIds: Set<number> = new Set()): void {
+    for (const orderId of resetOrderIds) this.pendingTicketReviewResets.add(orderId);
+    if (this.ticketReviewFrameId != null) return;
+    this.ticketReviewFrameId = window.requestAnimationFrame(() => {
+      this.ticketReviewFrameId = window.requestAnimationFrame(() => {
+        this.ticketReviewFrameId = null;
+        const resets = new Set(this.pendingTicketReviewResets);
+        this.pendingTicketReviewResets.clear();
+        for (const orderId of resets) {
+          const scroller = this.getTicketScroller(orderId);
+          if (scroller) scroller.scrollTop = 0;
+        }
+        for (const order of this.activeOrders()) this.measureTicketReview(order);
+      });
+    });
+  }
+
+  private measureTicketReview(order: Order): void {
+    const scroller = this.getTicketScroller(order.id);
+    if (!scroller) return;
+    const itemElements = Array.from(scroller.querySelectorAll<HTMLElement>('.order-item'));
+    const itemCount = itemElements.length;
+    const hasOverflow = scroller.scrollHeight > scroller.clientHeight + TICKET_BOTTOM_TOLERANCE_PX;
+    const atBottom =
+      !hasOverflow ||
+      scroller.scrollTop + scroller.clientHeight >=
+        scroller.scrollHeight - TICKET_BOTTOM_TOLERANCE_PX;
+    const viewport = scroller.getBoundingClientRect();
+    const remainingBelow = hasOverflow
+      ? itemElements.filter((item) => item.getBoundingClientRect().bottom > viewport.bottom + 4).length
+      : 0;
+    const previous = this.ticketReviewStates()[order.id];
+    const hasNewItems = this.ticketNewItemCount(order.id) > 0;
+    const reviewed = hasOverflow
+      ? !!previous?.reviewed || atBottom
+      : hasNewItems
+        ? !!previous?.reviewed
+        : true;
+    const nextState: TicketReviewState = {
+      itemCount,
+      remainingBelow,
+      hasOverflow,
+      reviewed,
+      measured: true,
+    };
+    if (
+      !previous ||
+      previous.itemCount !== nextState.itemCount ||
+      previous.remainingBelow !== nextState.remainingBelow ||
+      previous.hasOverflow !== nextState.hasOverflow ||
+      previous.reviewed !== nextState.reviewed ||
+      previous.measured !== nextState.measured
+    ) {
+      this.ticketReviewStates.update((current) => ({ ...current, [order.id]: nextState }));
+    }
+    if (atBottom && hasOverflow && hasNewItems) this.clearNewItemMarkers(order.id);
+  }
+
+  private markTicketReviewed(orderId: number): void {
+    const previous = this.ticketReviewStates()[orderId];
+    if (previous) {
+      this.ticketReviewStates.update((current) => ({
+        ...current,
+        [orderId]: { ...previous, remainingBelow: 0, reviewed: true, measured: true },
+      }));
+    }
+    this.clearNewItemMarkers(orderId);
+    this.vibrate([45]);
+  }
+
+  private clearNewItemMarkers(orderId: number): void {
+    if (!(this.newTicketItemKeys()[orderId] || []).length) return;
+    this.newTicketItemKeys.update((current) => {
+      const next = { ...current };
+      delete next[orderId];
+      return next;
+    });
+  }
+
+  private getTicketScroller(orderId: number): HTMLElement | null {
+    return (
+      this.kitchenRootRef?.nativeElement.querySelector<HTMLElement>(
+        `[data-order-scroll="${orderId}"]`,
+      ) ?? null
+    );
+  }
+
   private resetOrderScroller(): void {
     window.requestAnimationFrame(() => {
       const scroller = this.orderScrollerRef?.nativeElement;
       if (scroller) scroller.scrollLeft = 0;
       this.scheduleOrderNavigationUpdate();
+      this.scheduleTicketReviewMeasurement();
     });
   }
 
   private onWindowResize = (): void => {
     this.scheduleOrderNavigationUpdate();
+    this.scheduleTicketReviewMeasurement();
   };
 
   stockScopeLabel(): string {
@@ -2519,6 +2876,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.api.getOrders(false, true).subscribe({
       next: (list) => {
         this.orders.set(list);
+        const resetReviewOrderIds = this.reconcileTicketItemChanges(this.activeOrders());
+        this.scheduleTicketReviewMeasurement(resetReviewOrderIds);
         this.scheduleOrderNavigationUpdate();
         const activeIds = new Set(this.activeOrders().map((order) => order.id));
         if (
@@ -2816,7 +3175,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     const cooldown = this.orderCooldownSeconds(order.id);
     if (cooldown > 0) return `Wait ${cooldown}s`;
     if (this.isOrderHoldActive(order.id)) return `Keep holding... ${this.actionHoldSeconds()}s`;
-    return this.getOrderActionLabel(order);
+    return `Hold to ${this.getOrderActionLabel(order)}`;
   }
 
   isOrderHoldActive(orderId: number): boolean {
@@ -2837,6 +3196,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   startOrderHold(event: PointerEvent, order: Order): void {
+    if (this.ticketRequiresReview(order)) {
+      this.reviewNextTicketItems(order);
+      return;
+    }
     if (event.button !== 0 || this.isOrderInteractionDisabled(order.id)) return;
     event.preventDefault();
     const button = event.currentTarget as HTMLElement | null;
@@ -2849,6 +3212,11 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   startKeyboardOrderHold(event: Event, order: Order): void {
+    if (this.ticketRequiresReview(order)) {
+      event.preventDefault();
+      this.reviewNextTicketItems(order);
+      return;
+    }
     const keyboardEvent = event as KeyboardEvent;
     if (keyboardEvent.repeat || this.isOrderInteractionDisabled(order.id)) return;
     keyboardEvent.preventDefault();
@@ -2856,6 +3224,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   private beginOrderHold(order: Order): void {
+    if (this.ticketRequiresReview(order)) return;
     this.clearOrderHoldTimer();
     this.orderHold.set({ orderId: order.id, startedAt: Date.now() });
     this.orderHoldTimeoutId = setTimeout(() => {
@@ -2887,6 +3256,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   advanceOrder(order: Order): void {
+    if (this.ticketRequiresReview(order)) {
+      this.reviewNextTicketItems(order);
+      return;
+    }
     const target = this.getOrderActionTarget(order);
     if (!target || this.isOrderInteractionDisabled(order.id)) return;
     const sourceStatus = target === 'preparing' ? 'pending' : target === 'ready' ? 'preparing' : 'ready';
