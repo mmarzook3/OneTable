@@ -6,6 +6,7 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlmodel import Session, select
@@ -50,7 +51,7 @@ def _channel_value(order: models.Order) -> str:
 
 
 @router.get("/orders/kitchen-feed")
-def kitchen_order_feed(
+async def kitchen_order_feed(
     current_user: Annotated[
         models.User,
         Depends(require_permission(Permission.ORDER_READ)),
@@ -59,7 +60,11 @@ def kitchen_order_feed(
     session: Session = Depends(get_session),
 ) -> Response:
     """Return only fields required by Kitchen/Bar, using a bounded query count."""
-    tenant_id = current_user.tenant_id
+    tenant_id = int(current_user.tenant_id)
+    # Authentication and this route share FastAPI's request-scoped Session.
+    # End the read-only authentication transaction before cache waiting so a
+    # large reconnect burst cannot pin the SQL pool while doing no DB work.
+    session.commit()
     cached = get_kds_feed(tenant_id, limit)
     if cached is not None:
         return Response(
@@ -70,7 +75,7 @@ def kitchen_order_feed(
 
     ownership = begin_kds_feed_build(tenant_id, limit)
     if ownership is None:
-        cached = wait_for_kds_feed(tenant_id, limit)
+        cached = await wait_for_kds_feed(tenant_id, limit)
         if cached is not None:
             return Response(
                 content=cached,
@@ -78,7 +83,7 @@ def kitchen_order_feed(
                 headers={"X-KDS-Feed-Cache": "coalesced"},
             )
 
-    result = _build_kitchen_order_feed(current_user, limit, session)
+    result = await run_in_threadpool(_build_kitchen_order_feed, tenant_id, limit, session)
     payload = json.dumps(result, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     finish_kds_feed_build(tenant_id, limit, payload, ownership)
     return Response(
@@ -86,21 +91,19 @@ def kitchen_order_feed(
         media_type="application/json",
         headers={"X-KDS-Feed-Cache": "miss"},
     )
-
-
 def _build_kitchen_order_feed(
-    current_user: models.User,
+    tenant_id: int,
     limit: int,
     session: Session,
 ) -> list[dict]:
-    tenant = session.get(models.Tenant, current_user.tenant_id)
+    tenant = session.get(models.Tenant, tenant_id)
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     orders = session.exec(
         select(models.Order)
         .where(
-            models.Order.tenant_id == current_user.tenant_id,
+            models.Order.tenant_id == tenant_id,
             models.Order.deleted_at.is_(None),
             models.Order.status.in_(_ACTIVE_ORDER_STATUSES),
             or_(
@@ -164,7 +167,7 @@ def _build_kitchen_order_feed(
 
     stations = session.exec(
         select(models.KitchenStation).where(
-            models.KitchenStation.tenant_id == current_user.tenant_id
+            models.KitchenStation.tenant_id == tenant_id
         )
     ).all()
     station_by_id = {row.id: row for row in stations if row.id is not None}

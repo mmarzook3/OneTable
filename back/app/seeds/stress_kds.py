@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 
 from app import models, security
 from app.db import engine
+from app.kds_feed_cache import invalidate_kds_feed
 
 
 STRESS_PREFIXES = ("scanaki-load30-", "scanaki-load100-", "scanaki-stress-")
@@ -136,6 +137,9 @@ async def _run(args: argparse.Namespace) -> dict:
         limits=limits,
     ) as client:
         for tier in args.tiers:
+            # Each tier models all displays reconnecting immediately after an
+            # order update, not an artificially warm-cache happy path.
+            invalidate_kds_feed(args.tenant_id)
             rows = await asyncio.gather(
                 *[_request(client, "GET", feed_path) for _ in range(tier)],
                 *[
