@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
-import time
 from uuid import uuid4
 
 import redis
@@ -75,20 +75,21 @@ def begin_kds_feed_build(tenant_id: int, limit: int) -> tuple[str, str, int] | N
     return None
 
 
-def wait_for_kds_feed(tenant_id: int, limit: int) -> bytes | None:
-    """Wait briefly for the concurrent request that owns the build lock."""
+async def wait_for_kds_feed(tenant_id: int, limit: int) -> bytes | None:
+    """Wait without occupying a server worker for the request owning the build lock."""
     client = _redis()
     if client is None:
         return None
-    deadline = time.monotonic() + _WAIT_SECONDS
-    while time.monotonic() < deadline:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _WAIT_SECONDS
+    while loop.time() < deadline:
         try:
             cached = client.get(_cache_key(tenant_id, limit, _version(client, tenant_id)))
             if cached is not None:
                 return cached
         except Exception:
             return None
-        time.sleep(0.02)
+        await asyncio.sleep(0.02)
     return None
 
 
