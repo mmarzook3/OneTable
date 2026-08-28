@@ -35,6 +35,7 @@ const HEARTBEAT_INTERVAL_MS = 10000;
 const HEARTBEAT_FAILURE_THRESHOLD = 3;
 const HEARTBEAT_OFFLINE_AFTER_MS = 25000;
 const HEARTBEAT_DIAGNOSTICS_STORAGE_KEY = 'scanaki-kds-heartbeat-diagnostics';
+const ORDER_SWIPE_COMPLETE_THRESHOLD = 0.72;
 const DEFAULT_ORDER_HOLD_SECONDS = 1;
 const DEFAULT_ORDER_COOLDOWN_SECONDS = 2;
 const SOUND_STORAGE_KEY = 'kitchen-display-sound';
@@ -76,6 +77,15 @@ type TicketReviewState = {
   hasOverflow: boolean;
   reviewed: boolean;
   measured: boolean;
+};
+
+type OrderSwipeState = {
+  orderId: number;
+  pointerId: number;
+  startX: number;
+  offsetPx: number;
+  maxOffsetPx: number;
+  progress: number;
 };
 
 type NavigatorWithConnection = Navigator & {
@@ -402,28 +412,34 @@ const VIEW_CATEGORY: Record<string, string> = {
                     } @else {
                       <button
                         type="button"
-                        class="order-primary-action"
-                        [class]="getOrderActionClass(order)"
-                        [class.order-hold-active]="isOrderHoldActive(order.id)"
-                        [style.--hold-duration]="orderHoldDurationMs() + 'ms'"
+                        class="order-swipe-action"
+                        [class]="getOrderSwipeClass(order)"
+                        [class.order-swipe-dragging]="isOrderSwipeActive(order.id)"
                         [disabled]="isOrderInteractionDisabled(order.id)"
-                        [attr.aria-label]="'Press and hold for ' + actionHoldSeconds() + ' second' + (actionHoldSeconds() === 1 ? '' : 's') + ' to ' + getOrderActionLabel(order)"
+                        [attr.aria-label]="'Swipe right to ' + getOrderActionLabel(order)"
                         [attr.data-testid]="'kitchen-order-action-' + order.id"
-                        (pointerdown)="startOrderHold($event, order)"
-                        (pointerup)="cancelOrderHold(order.id)"
-                        (pointercancel)="cancelOrderHold(order.id)"
-                        (keydown.enter)="startKeyboardOrderHold($event, order)"
-                        (keyup.enter)="cancelOrderHold(order.id)"
-                        (keydown.space)="startKeyboardOrderHold($event, order)"
-                        (keyup.space)="cancelOrderHold(order.id)"
+                        (pointerdown)="startOrderSwipe($event, order)"
+                        (pointermove)="moveOrderSwipe($event, order)"
+                        (pointerup)="finishOrderSwipe($event, order)"
+                        (pointercancel)="cancelOrderSwipe(order.id)"
+                        (keydown.enter)="activateOrderSwipeFromKeyboard($event, order)"
+                        (keydown.space)="activateOrderSwipeFromKeyboard($event, order)"
                         (contextmenu)="$event.preventDefault()"
                       >
-                        @if (isOrderHoldActive(order.id)) {
-                          <span class="order-hold-progress" aria-hidden="true"></span>
-                        }
-                        <span class="order-action-label">
-                          {{ getOrderActionButtonLabel(order) }}
+                        <span
+                          class="order-swipe-fill"
+                          [style.width.%]="orderSwipeProgress(order.id) * 100"
+                          aria-hidden="true"
+                        ></span>
+                        <span
+                          class="order-swipe-handle"
+                          [style.transform]="'translateX(' + orderSwipeOffset(order.id) + 'px)'"
+                          aria-hidden="true"
+                        >
+                          <span class="order-swipe-handle-arrow">→</span>
                         </span>
+                        <span class="order-swipe-label">{{ getOrderSwipeLabel(order) }}</span>
+                        <span class="order-swipe-hint" aria-hidden="true"><i>›</i><i>›</i><i>›</i></span>
                       </button>
                     }
                   }
@@ -537,7 +553,7 @@ const VIEW_CATEGORY: Record<string, string> = {
         <div class="modal-backdrop" (click)="closeTimerSettingsModal()"></div>
         <div class="modal timer-settings-modal" role="dialog" aria-labelledby="timer-settings-title" appFocusFirstInput>
           <h2 id="timer-settings-title" class="modal-title">Display settings</h2>
-          <p class="modal-desc">Set order routing, action safety delays and wait-time colours.</p>
+          <p class="modal-desc">Set order routing and wait-time colours.</p>
           <label class="routing-mode-control">
             <span>Order display routing</span>
             <select [ngModel]="timerSettingsForm().routing_mode" (ngModelChange)="updateTimerFormRouting($event)">
@@ -546,22 +562,6 @@ const VIEW_CATEGORY: Record<string, string> = {
             </select>
             <small>Use one combined kitchen queue or send drinks separately to Bar.</small>
           </label>
-          <section class="action-delay-settings" aria-labelledby="action-delay-title">
-            <h3 id="action-delay-title">Action safety delays</h3>
-            <div class="timer-settings-form action-delay-form">
-              <label>
-                <span>Press-and-hold duration</span>
-                <input type="number" min="1" max="5" step="1" [ngModel]="timerSettingsForm().action_hold_seconds" (ngModelChange)="updateTimerFormHoldSeconds($event)" />
-                <small>seconds</small>
-              </label>
-              <label>
-                <span>Delay before next status</span>
-                <input type="number" min="0" max="30" step="1" [ngModel]="timerSettingsForm().action_cooldown_seconds" (ngModelChange)="updateTimerFormCooldownSeconds($event)" />
-                <small>seconds</small>
-              </label>
-            </div>
-            <p>Prevents accidental taps and immediately advancing the same ticket twice.</p>
-          </section>
           <div class="timer-settings-form">
             <label>
               <span>{{ 'KITCHEN_DISPLAY.TIMER_YELLOW_MINUTES' | translate }}</span>
@@ -669,7 +669,7 @@ const VIEW_CATEGORY: Record<string, string> = {
                         <select
                           [ngModel]="getProductionStatus(order)"
                           (ngModelChange)="requestOrderStatusChange(order, $event)"
-                          [disabled]="isOrderActionBusy(order.id) || orderCooldownSeconds(order.id) > 0"
+                          [disabled]="isOrderActionBusy(order.id)"
                           [attr.data-testid]="'kitchen-order-status-select-' + order.id"
                         >
                           <option value="pending">New</option>
@@ -1357,6 +1357,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       background: var(--ticket-panel);
     }
     .order-primary-action,
+    .order-swipe-action,
     .order-details-toggle {
       min-width: 0;
       min-height: 56px;
@@ -1380,27 +1381,92 @@ const VIEW_CATEGORY: Record<string, string> = {
       touch-action: none;
     }
     .order-action-label { position: relative; z-index: 2; pointer-events: none; }
-    .order-hold-progress {
+    .order-swipe-action {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 60px;
+      padding: 0 62px;
+      border: 1px solid #3b82f6;
+      background: #172033;
+      color: #fff;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .order-swipe-fill {
       position: absolute;
-      z-index: 1;
+      z-index: 0;
       inset: 0 auto 0 0;
       width: 0;
-      background: rgba(255, 255, 255, .28);
+      background: rgba(59, 130, 246, .34);
       pointer-events: none;
-      animation: kitchen-hold-fill var(--hold-duration, 1000ms) linear forwards;
+      transition: width .2s ease-out;
     }
-    .order-primary-action.order-hold-active {
-      box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55);
+    .order-swipe-dragging .order-swipe-fill { transition: none; }
+    .order-swipe-handle {
+      position: absolute;
+      z-index: 3;
+      top: 5px;
+      bottom: 5px;
+      left: 5px;
+      display: grid;
+      place-items: center;
+      width: 50px;
+      border: 1px solid rgba(255, 255, 255, .7);
+      border-radius: 8px;
+      background: #2563eb;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, .28);
+      color: #fff;
+      font-size: 1.45rem;
+      line-height: 1;
+      pointer-events: none;
+      transition: transform .24s cubic-bezier(.2, .8, .2, 1);
     }
-    @keyframes kitchen-hold-fill { from { width: 0; } to { width: 100%; } }
-    .order-primary-action.order-action-ready { border-color: #16a34a; background: #16a34a; }
-    .order-primary-action.order-action-complete { border-color: #64748b; background: #475569; }
+    .order-swipe-dragging .order-swipe-handle { transition: none; }
+    .order-swipe-handle-arrow { animation: kitchen-swipe-handle-hint 1.35s ease-in-out infinite; }
+    .order-swipe-label {
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .order-swipe-hint {
+      position: absolute;
+      z-index: 2;
+      top: 0;
+      right: 16px;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      gap: 1px;
+      color: rgba(255, 255, 255, .56);
+      font-size: 1.35rem;
+      pointer-events: none;
+    }
+    .order-swipe-hint i { font-style: normal; animation: kitchen-swipe-chevron 1.45s ease-in-out infinite; }
+    .order-swipe-hint i:nth-child(2) { animation-delay: .14s; }
+    .order-swipe-hint i:nth-child(3) { animation-delay: .28s; }
+    .order-swipe-action.order-swipe-ready { border-color: #22c55e; }
+    .order-swipe-ready .order-swipe-handle { background: #16a34a; }
+    .order-swipe-ready .order-swipe-fill { background: rgba(34, 197, 94, .35); }
+    .order-swipe-action.order-swipe-complete { border-color: #94a3b8; }
+    .order-swipe-complete .order-swipe-handle { background: #475569; }
+    .order-swipe-complete .order-swipe-fill { background: rgba(148, 163, 184, .32); }
+    @keyframes kitchen-swipe-handle-hint {
+      0%, 100% { transform: translateX(0); }
+      45% { transform: translateX(7px); }
+    }
+    @keyframes kitchen-swipe-chevron {
+      0%, 100% { opacity: .22; transform: translateX(-3px); }
+      50% { opacity: 1; transform: translateX(3px); }
+    }
     .order-primary-action.order-action-review {
       border-color: #f59e0b;
       background: #92400e;
       color: #fff7d6;
     }
-    .order-primary-action:disabled { cursor: wait; opacity: .55; }
+    .order-primary-action:disabled,
+    .order-swipe-action:disabled { cursor: wait; opacity: .55; }
     .order-details-toggle {
       min-width: 102px;
       padding: 0 12px;
@@ -1638,17 +1704,6 @@ const VIEW_CATEGORY: Record<string, string> = {
       font: inherit;
     }
     .routing-mode-control small { color: var(--color-text-muted); font-size: .78rem; font-weight: 500; }
-    .action-delay-settings {
-      margin-bottom: 18px;
-      padding: 14px;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-md);
-      background: var(--color-bg);
-    }
-    .action-delay-settings h3 { margin: 0 0 12px; font-size: .95rem; }
-    .action-delay-settings p { margin: 10px 0 0; color: var(--color-text-muted); font-size: .75rem; }
-    .action-delay-form { margin-bottom: 0 !important; }
-    .action-delay-form small { color: var(--color-text-muted); }
     .timer-settings-form {
       display: flex;
       flex-direction: column;
@@ -1873,7 +1928,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   private queuedOrdersRefresh = false;
   private orderEventRefreshTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private stockNoticeTimeoutId: ReturnType<typeof setTimeout> | null = null;
-  private orderHoldTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private knownActiveOrderIds = new Set<number>();
   private orderAlertsReady = false;
   private lastOrderAlertAt = 0;
@@ -1929,26 +1983,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     action_hold_seconds: DEFAULT_ORDER_HOLD_SECONDS,
     action_cooldown_seconds: DEFAULT_ORDER_COOLDOWN_SECONDS,
   });
-  actionHoldSeconds = computed(() =>
-    Math.max(
-      1,
-      Math.min(
-        5,
-        Number(this.timerSettings().action_hold_seconds ?? DEFAULT_ORDER_HOLD_SECONDS) ||
-          DEFAULT_ORDER_HOLD_SECONDS,
-      ),
-    ),
-  );
-  actionCooldownSeconds = computed(() =>
-    Math.max(
-      0,
-      Math.min(
-        30,
-        Number(this.timerSettings().action_cooldown_seconds ?? DEFAULT_ORDER_COOLDOWN_SECONDS),
-      ),
-    ),
-  );
-  orderHoldDurationMs = computed(() => this.actionHoldSeconds() * 1000);
   private tickIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
   private deviceKey = '';
@@ -1957,8 +1991,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   strictFifo = signal(true);
   expandedOrderDetails = signal<Set<number>>(new Set());
   orderActionBusy = signal<Set<number>>(new Set());
-  orderHold = signal<{ orderId: number; startedAt: number } | null>(null);
-  orderCooldownUntil = signal<Record<number, number>>({});
+  orderSwipe = signal<OrderSwipeState | null>(null);
   allOrdersModalOpen = signal(false);
   orderHistorySearch = signal('');
   orderHistoryStatusFilter = signal<'all' | KitchenOrderHistoryStatus>('all');
@@ -2234,7 +2267,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       clearTimeout(this.orderEventRefreshTimeoutId);
       this.orderEventRefreshTimeoutId = null;
     }
-    this.clearOrderHoldTimer();
+    this.orderSwipe.set(null);
     this.wsSub?.unsubscribe();
     this.routeDataSub?.unsubscribe();
     this.queryParamSub?.unsubscribe();
@@ -2889,16 +2922,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     }));
   }
 
-  updateTimerFormHoldSeconds(value: number): void {
-    const normalized = Math.max(1, Math.min(5, Math.round(Number(value) || 1)));
-    this.timerSettingsForm.update((form) => ({ ...form, action_hold_seconds: normalized }));
-  }
-
-  updateTimerFormCooldownSeconds(value: number): void {
-    const normalized = Math.max(0, Math.min(30, Math.round(Number(value) || 0)));
-    this.timerSettingsForm.update((form) => ({ ...form, action_cooldown_seconds: normalized }));
-  }
-
   saveTimerSettings(): void {
     const form = this.timerSettingsForm();
     this.api.updateKitchenDisplaySettings(form).subscribe({
@@ -3097,7 +3120,6 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   requestOrderStatusChange(order: Order, status: KitchenOrderStatus): void {
-    if (this.orderCooldownSeconds(order.id) > 0) return;
     if (!['pending', 'preparing', 'ready', 'completed'].includes(status)) return;
     if (this.getProductionStatus(order) === status) {
       this.pendingOrderStatusChange.set(null);
@@ -3126,8 +3148,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     if (
       !pending ||
       pending.orderId !== order.id ||
-      this.isOrderActionBusy(order.id) ||
-      this.orderCooldownSeconds(order.id) > 0
+      this.isOrderActionBusy(order.id)
     ) return;
     const itemStatus = pending.status === 'completed' ? 'delivered' : pending.status;
     const label = this.kitchenOrderStatusLabel(pending.status);
@@ -3137,7 +3158,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       next: () => {
         this.pendingOrderStatusChange.set(null);
         this.orderHistoryNotice.set(`Order #${order.id} moved to ${label}. Payment status was not changed.`);
-        this.completeOrderStatusFeedback(order.id);
+        this.completeOrderStatusFeedback();
         this.finishOrderAction(order.id);
       },
       error: (err) => {
@@ -3315,89 +3336,106 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return '';
   }
 
-  getOrderActionButtonLabel(order: Order): string {
+  getOrderSwipeLabel(order: Order): string {
     if (this.isOrderActionBusy(order.id)) return 'Updating...';
-    const cooldown = this.orderCooldownSeconds(order.id);
-    if (cooldown > 0) return `Wait ${cooldown}s`;
-    if (this.isOrderHoldActive(order.id)) return `Keep holding... ${this.actionHoldSeconds()}s`;
-    return `Hold to ${this.getOrderActionLabel(order)}`;
+    if (this.orderSwipeProgress(order.id) >= ORDER_SWIPE_COMPLETE_THRESHOLD) {
+      return `Release to ${this.getOrderActionLabel(order)}`;
+    }
+    return `Swipe to ${this.getOrderActionLabel(order)}`;
   }
 
-  isOrderHoldActive(orderId: number): boolean {
-    return this.orderHold()?.orderId === orderId;
+  isOrderSwipeActive(orderId: number): boolean {
+    return this.orderSwipe()?.orderId === orderId;
   }
 
-  orderCooldownSeconds(orderId: number): number {
-    const remaining = (this.orderCooldownUntil()[orderId] || 0) - this.now();
-    return remaining > 0 ? Math.ceil(remaining / 1000) : 0;
+  orderSwipeProgress(orderId: number): number {
+    const swipe = this.orderSwipe();
+    return swipe?.orderId === orderId ? swipe.progress : 0;
+  }
+
+  orderSwipeOffset(orderId: number): number {
+    const swipe = this.orderSwipe();
+    return swipe?.orderId === orderId ? swipe.offsetPx : 0;
   }
 
   isOrderInteractionDisabled(orderId: number): boolean {
     return (
       this.isOrderActionBusy(orderId) ||
-      this.orderCooldownSeconds(orderId) > 0 ||
       !this.canUpdateItemStatus()
     );
   }
 
-  startOrderHold(event: PointerEvent, order: Order): void {
+  startOrderSwipe(event: PointerEvent, order: Order): void {
     if (this.ticketRequiresReview(order)) {
       this.reviewNextTicketItems(order);
       return;
     }
     if (event.button !== 0 || this.isOrderInteractionDisabled(order.id)) return;
     event.preventDefault();
-    const button = event.currentTarget as HTMLElement | null;
+    const control = event.currentTarget as HTMLElement | null;
+    const maxOffsetPx = Math.max(1, (control?.clientWidth || 1) - 60);
     try {
-      button?.setPointerCapture?.(event.pointerId);
+      control?.setPointerCapture?.(event.pointerId);
     } catch {
-      // Pointer capture is an enhancement; the hold timer remains safe without it.
+      // Pointer capture is an enhancement; pointer-up still safely validates progress.
     }
-    this.beginOrderHold(order);
+    this.orderSwipe.set({
+      orderId: order.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      offsetPx: 0,
+      maxOffsetPx,
+      progress: 0,
+    });
   }
 
-  startKeyboardOrderHold(event: Event, order: Order): void {
-    if (this.ticketRequiresReview(order)) {
-      event.preventDefault();
-      this.reviewNextTicketItems(order);
-      return;
+  moveOrderSwipe(event: PointerEvent, order: Order): void {
+    const swipe = this.orderSwipe();
+    if (!swipe || swipe.orderId !== order.id || swipe.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const offsetPx = Math.max(0, Math.min(swipe.maxOffsetPx, event.clientX - swipe.startX));
+    this.orderSwipe.set({
+      ...swipe,
+      offsetPx,
+      progress: Math.max(0, Math.min(1, offsetPx / swipe.maxOffsetPx)),
+    });
+  }
+
+  finishOrderSwipe(event: PointerEvent, order: Order): void {
+    const swipe = this.orderSwipe();
+    if (!swipe || swipe.orderId !== order.id || swipe.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const offsetPx = Math.max(0, Math.min(swipe.maxOffsetPx, event.clientX - swipe.startX));
+    const progress = Math.max(0, Math.min(1, offsetPx / swipe.maxOffsetPx));
+    try {
+      (event.currentTarget as HTMLElement | null)?.releasePointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture may already have been released by Android WebView.
     }
+    this.orderSwipe.set(null);
+    if (progress >= ORDER_SWIPE_COMPLETE_THRESHOLD) {
+      this.vibrate([45]);
+      this.advanceOrder(order);
+    }
+  }
+
+  cancelOrderSwipe(orderId: number): void {
+    if (this.orderSwipe()?.orderId === orderId) this.orderSwipe.set(null);
+  }
+
+  activateOrderSwipeFromKeyboard(event: Event, order: Order): void {
     const keyboardEvent = event as KeyboardEvent;
     if (keyboardEvent.repeat || this.isOrderInteractionDisabled(order.id)) return;
     keyboardEvent.preventDefault();
-    this.beginOrderHold(order);
+    if (this.ticketRequiresReview(order)) this.reviewNextTicketItems(order);
+    else this.advanceOrder(order);
   }
 
-  private beginOrderHold(order: Order): void {
-    if (this.ticketRequiresReview(order)) return;
-    this.clearOrderHoldTimer();
-    this.orderHold.set({ orderId: order.id, startedAt: Date.now() });
-    this.orderHoldTimeoutId = setTimeout(() => {
-      if (this.orderHold()?.orderId !== order.id) return;
-      this.orderHold.set(null);
-      this.orderHoldTimeoutId = null;
-      this.advanceOrder(order);
-    }, this.orderHoldDurationMs());
-  }
-
-  cancelOrderHold(orderId: number): void {
-    if (this.orderHold()?.orderId !== orderId) return;
-    this.clearOrderHoldTimer();
-    this.orderHold.set(null);
-  }
-
-  private clearOrderHoldTimer(): void {
-    if (this.orderHoldTimeoutId) {
-      clearTimeout(this.orderHoldTimeoutId);
-      this.orderHoldTimeoutId = null;
-    }
-  }
-
-  getOrderActionClass(order: Order): string {
+  getOrderSwipeClass(order: Order): string {
     const target = this.getOrderActionTarget(order);
-    if (target === 'ready') return 'order-primary-action order-action-ready';
-    if (target === 'delivered') return 'order-primary-action order-action-complete';
-    return 'order-primary-action order-action-start';
+    if (target === 'ready') return 'order-swipe-action order-swipe-ready';
+    if (target === 'delivered') return 'order-swipe-action order-swipe-complete';
+    return 'order-swipe-action order-swipe-start';
   }
 
   advanceOrder(order: Order): void {
@@ -3415,7 +3453,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.orderActionBusy.update((current) => new Set(current).add(order.id));
     this.api.updateOrderKitchenStatus(order.id, target).subscribe({
       next: () => {
-        this.completeOrderStatusFeedback(order.id);
+        this.completeOrderStatusFeedback();
         this.finishOrderAction(order.id);
       },
       error: () => {
@@ -3425,11 +3463,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     });
   }
 
-  private completeOrderStatusFeedback(orderId: number): void {
-    this.orderCooldownUntil.update((current) => ({
-      ...current,
-      [orderId]: Date.now() + this.actionCooldownSeconds() * 1000,
-    }));
+  private completeOrderStatusFeedback(): void {
     if (this.soundEnabled()) this.audio.playKitchenStatusConfirmed();
     this.vibrate([90, 45, 150]);
   }
@@ -3507,11 +3541,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   updateItemStatus(orderId: number, itemId: number, status: string): void {
-    if (this.orderCooldownSeconds(orderId) > 0) return;
     this.itemStatusDropdownOpen.set(null);
     this.api.updateOrderItemStatus(orderId, itemId, status).subscribe({
       next: () => {
-        this.completeOrderStatusFeedback(orderId);
+        this.completeOrderStatusFeedback();
         this.loadOrders({ background: true });
       },
       error: () => this.loadOrders({ background: true }),
