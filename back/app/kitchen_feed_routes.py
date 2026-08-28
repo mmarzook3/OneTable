@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from . import models
 from .db import get_session
+from .kds_feed_cache import (
+    begin_kds_feed_build,
+    finish_kds_feed_build,
+    get_kds_feed,
+    wait_for_kds_feed,
+)
 from .kitchen_stations_util import resolve_order_item_kds
 from .permissions import Permission, require_permission
 
@@ -49,8 +57,42 @@ def kitchen_order_feed(
     ],
     limit: int = Query(default=500, ge=1, le=1000),
     session: Session = Depends(get_session),
-) -> list[dict]:
+) -> Response:
     """Return only fields required by Kitchen/Bar, using a bounded query count."""
+    tenant_id = current_user.tenant_id
+    cached = get_kds_feed(tenant_id, limit)
+    if cached is not None:
+        return Response(
+            content=cached,
+            media_type="application/json",
+            headers={"X-KDS-Feed-Cache": "hit"},
+        )
+
+    ownership = begin_kds_feed_build(tenant_id, limit)
+    if ownership is None:
+        cached = wait_for_kds_feed(tenant_id, limit)
+        if cached is not None:
+            return Response(
+                content=cached,
+                media_type="application/json",
+                headers={"X-KDS-Feed-Cache": "coalesced"},
+            )
+
+    result = _build_kitchen_order_feed(current_user, limit, session)
+    payload = json.dumps(result, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    finish_kds_feed_build(tenant_id, limit, payload, ownership)
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={"X-KDS-Feed-Cache": "miss"},
+    )
+
+
+def _build_kitchen_order_feed(
+    current_user: models.User,
+    limit: int,
+    session: Session,
+) -> list[dict]:
     tenant = session.get(models.Tenant, current_user.tenant_id)
     if tenant is None:
         raise HTTPException(status_code=404, detail="Tenant not found")

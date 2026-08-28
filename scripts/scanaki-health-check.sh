@@ -52,6 +52,7 @@ fi
 
 curl --fail --silent --show-error --max-time 15 "$BASE_URL/" >/dev/null
 curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/health" >/dev/null
+curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/health/ready" >/dev/null
 "${COMPOSE[@]}" exec -T back python -m app.seeds.check_onetable_payment_reconciliation
 
 BACKUP_DIR="${SCANAKI_BACKUP_DIR:-$ROOT_DIR/backups/scanaki}"

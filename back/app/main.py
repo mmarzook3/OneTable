@@ -31,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Res
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel as _BaseModel, Field
-from sqlalchemy import event, exists, func, or_
+from sqlalchemy import event, exists, func, or_, text
 from sqlalchemy.exc import (
     IntegrityError,
     InvalidRequestError,
@@ -838,6 +838,9 @@ def publish_order_update(tenant_id: int, order_data: dict, table_id: int | None 
     - orders:tenant:{tenant_id} - for restaurant owners (all tenant orders)
     - orders:table:{table_id} - for customers (table-specific orders, if table_id provided)
     """
+    from .kds_feed_cache import invalidate_kds_feed
+
+    invalidate_kds_feed(tenant_id)
     r = get_redis()
     if r:
         try:
@@ -866,6 +869,23 @@ def publish_reservation_update(tenant_id: int, reservation_data: dict) -> None:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness(session: Session = Depends(get_session)) -> dict:
+    """Verify the stateful dependencies required for ordering and Kitchen display."""
+    try:
+        session.exec(text("SELECT 1")).one()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database is not ready") from exc
+    redis_connection = get_redis()
+    if redis_connection is None:
+        raise HTTPException(status_code=503, detail="Redis is not ready")
+    try:
+        redis_connection.ping()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Redis is not ready") from exc
+    return {"status": "ready", "database": "ok", "redis": "ok"}
 
 
 def _changelog_path() -> Path | None:
