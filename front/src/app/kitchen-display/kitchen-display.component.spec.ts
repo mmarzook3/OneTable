@@ -232,6 +232,79 @@ describe('KitchenDisplayComponent', () => {
     expect(getComputedStyle(ticketScroll).touchAction).toBe('auto');
     expect(getComputedStyle(ticketScroll).overscrollBehaviorX).toBe('auto');
     expect(getComputedStyle(orderGrid).overflowY).toBe('hidden');
+    expect(fixture.nativeElement.querySelector('.ticket-review-summary').textContent).toContain('15 ITEMS');
+    expect(fixture.nativeElement.querySelector('.ticket-review-more')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
+      'Review remaining items',
+    );
+
+    fixture.componentInstance.ticketReviewStates.set({
+      67: {
+        itemCount: 15,
+        remainingBelow: 0,
+        hasOverflow: true,
+        reviewed: true,
+        measured: true,
+      },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.ticket-review-summary').textContent).toContain(
+      'REVIEWED',
+    );
+    expect(fixture.nativeElement.querySelector('.ticket-review-more')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
+      'Hold to Start',
+    );
+  });
+
+  it('should mark later additions as new and require acknowledgement', () => {
+    const baseOrder = {
+      id: 68,
+      status: 'paid',
+      table_name: 'Indoor Table 2',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      items: [
+        { id: 2001, product_name: 'Pie', quantity: 1, status: 'pending', price_cents: 1200, category: 'Main Course' },
+        { id: 2002, product_name: 'Chips', quantity: 1, status: 'pending', price_cents: 400, category: 'Main Course' },
+      ],
+      total_cents: 1600,
+    };
+    mockApi.getOrders.and.returnValue(of([baseOrder]));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+
+    const addedItem = {
+      id: 2003,
+      product_name: 'Peas',
+      quantity: 1,
+      status: 'pending',
+      price_cents: 250,
+      category: 'Main Course',
+    };
+    mockApi.getOrders.and.returnValue(of([{
+      ...baseOrder,
+      items: [...baseOrder.items, addedItem],
+      total_cents: 1850,
+    }]));
+    fixture.componentInstance.loadOrders({ background: true });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.isNewOrderItem(68, addedItem)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.item-new-badge').textContent.trim()).toBe('NEW');
+    expect(fixture.nativeElement.querySelector('.ticket-review-summary').textContent).toContain('1 NEW');
+    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
+      'Review remaining items',
+    );
+
+    fixture.componentInstance.reviewNextTicketItems(fixture.componentInstance.activeOrders()[0]);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.item-new-badge')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
+      'Hold to Start',
+    );
   });
 
   it('should advance all pending ticket items with one Start action', () => {
