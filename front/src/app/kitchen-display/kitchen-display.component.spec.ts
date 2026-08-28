@@ -278,8 +278,8 @@ describe('KitchenDisplayComponent', () => {
       'REVIEWED',
     );
     expect(fixture.nativeElement.querySelector('.ticket-review-more')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
-      'Hold to Start',
+    expect(fixture.nativeElement.querySelector('.order-swipe-action').textContent).toContain(
+      'Swipe to Start',
     );
   });
 
@@ -327,8 +327,8 @@ describe('KitchenDisplayComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.item-new-badge')).toBeNull();
-    expect(fixture.nativeElement.querySelector('.order-primary-action').textContent).toContain(
-      'Hold to Start',
+    expect(fixture.nativeElement.querySelector('.order-swipe-action').textContent).toContain(
+      'Swipe to Start',
     );
   });
 
@@ -416,7 +416,7 @@ describe('KitchenDisplayComponent', () => {
     fixture.destroy();
   }));
 
-  it('should require a one-second hold and enforce a two-second cooldown', fakeAsync(() => {
+  it('should require a right swipe and allow the next action without a cooldown', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
     fixture.detectChanges();
     const order = {
@@ -431,27 +431,39 @@ describe('KitchenDisplayComponent', () => {
       total_cents: 1200,
     };
     fixture.componentInstance.orders.set([order]);
-    const event = {
+    const control = {
+      clientWidth: 300,
+      setPointerCapture: jasmine.createSpy('setPointerCapture'),
+      releasePointerCapture: jasmine.createSpy('releasePointerCapture'),
+    };
+    const pointer = (pointerId: number, clientX: number) => ({
       button: 0,
-      pointerId: 1,
+      pointerId,
+      clientX,
       preventDefault: jasmine.createSpy('preventDefault'),
-      currentTarget: { setPointerCapture: jasmine.createSpy('setPointerCapture') },
-    } as unknown as PointerEvent;
+      currentTarget: control,
+    }) as unknown as PointerEvent;
 
-    fixture.componentInstance.startOrderHold(event, order);
-    tick(999);
-    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalledWith(93, 'preparing');
-    tick(1);
+    fixture.componentInstance.startOrderSwipe(pointer(1, 10), order);
+    fixture.componentInstance.moveOrderSwipe(pointer(1, 100), order);
+    expect(fixture.componentInstance.orderSwipeProgress(93)).toBeGreaterThan(0);
+    expect(fixture.componentInstance.orderSwipeProgress(93)).toBeLessThan(0.72);
+    fixture.componentInstance.finishOrderSwipe(pointer(1, 100), order);
+    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+
+    fixture.componentInstance.startOrderSwipe(pointer(2, 10), order);
+    fixture.componentInstance.moveOrderSwipe(pointer(2, 210), order);
+    expect(fixture.componentInstance.getOrderSwipeLabel(order)).toBe('Release to Start');
+    fixture.componentInstance.finishOrderSwipe(pointer(2, 210), order);
     expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledWith(93, 'preparing');
     expect(mockAudio.playKitchenStatusConfirmed).toHaveBeenCalled();
-    expect(fixture.componentInstance.orderCooldownSeconds(93)).toBe(2);
 
     mockApi.updateOrderKitchenStatus.calls.reset();
-    fixture.componentInstance.startOrderHold(event, order);
-    tick(1000);
-    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+    fixture.componentInstance.startOrderSwipe(pointer(3, 10), order);
+    fixture.componentInstance.finishOrderSwipe(pointer(3, 210), order);
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledWith(93, 'preparing');
     fixture.destroy();
-  }));
+  });
 
   it('should hide secondary ticket details until Show more is selected', () => {
     const fixture = TestBed.createComponent(KitchenDisplayComponent);
