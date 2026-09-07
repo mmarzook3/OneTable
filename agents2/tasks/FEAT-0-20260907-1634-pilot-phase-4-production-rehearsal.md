@@ -1,0 +1,59 @@
+# Pilot phase 4: production rehearsal and go/no-go
+
+## GitHub Issue
+
+- **Number:** 0
+- **Title:** Pilot phase 4 production rehearsal and go/no-go
+- **URL:** None
+- **Labels:** pilot-readiness, phase-4
+
+## Meta
+
+- **Status:** `blocked-by-prior-phases-and-human-approval`
+- **Generated:** 2026-09-07
+- **Assigned Agent:** `coding-agent`
+- **Prerequisite:** Phases 0-2 verified; Phase 3 verified or explicitly excluded; human deployment approval
+- **Plan:** `docs/0093-pilot-customer-phased-readiness.md`
+
+## Dependency Gate
+
+Do not promote, deploy, mutate production, or rename this task until every prerequisite is satisfied and human approval is recorded in this file.
+
+## 1. Objective
+
+Perform a controlled production rehearsal and issue a defensible pilot launch decision.
+
+## 2. Acceptance Criteria
+
+- [ ] Human approval identifies the exact release SHA.
+- [ ] `development` is promoted through the documented controlled workflow.
+- [ ] Production deployment succeeds and readiness returns HTTP 200.
+- [ ] Safe production browser smokes pass.
+- [ ] A real low-value payment and refund pass only when explicitly approved.
+- [ ] Kitchen/bar, receipt, printing, reconciliation, and reports agree.
+- [ ] Backup age, restore-check, alerts, TLS, and disk are healthy.
+- [ ] Disabled modules and known limitations are recorded.
+- [ ] Rollback command and responsible operator are confirmed.
+- [ ] The test report declares `GO`, `CONDITIONAL GO`, or `NO-GO` with evidence.
+
+## 3. Human Approval Record
+
+- **Approved by:** Pending
+- **Approved release SHA:** Pending
+- **Approved production mutations:** None
+- **Approval time:** Pending
+
+## 4. Testing Instructions
+
+Run read-only production health and browser checks first. Stop immediately on failure. Real payment/refund and persistent data creation remain separate, explicit actions. Attach safe command summaries and links to deployment evidence without secrets or customer data.
+
+## Status Tracker
+
+| Phase | Status | Notes |
+|---|---|---|
+| Created | Complete | |
+| Prerequisites | Blocked | Prior phases and approval required |
+| Deployment | Pending | |
+| Testing | Pending | |
+| Go/no-go | Pending | |
+
