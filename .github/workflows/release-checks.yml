@@ -1,0 +1,42 @@
+name: Release checks
+
+on:
+  pull_request:
+    branches: [development, master]
+  push:
+    branches: [development]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  release-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release revision
+        uses: actions/checkout@v6
+
+      - name: Build backend test image
+        run: docker build --tag pos-release-back ./back
+
+      # These tests use in-memory SQLite or settings metadata, not a live database.
+      - name: Run targeted backend tests
+        run: >-
+          docker run --rm --network none
+          pos-release-back python -m pytest -x -q --tb=short
+          tests/test_reservable_capacity_turn_walkin.py
+          tests/test_settings_defaults.py
+
+      - name: Build frontend check image
+        run: docker build --tag pos-release-front ./front
+
+      # Override the dev entrypoint to avoid starting servers or fetching marketing artifacts.
+      - name: Build production frontend
+        env:
+          COMMIT_HASH: ${{ github.sha }}
+        run: >-
+          docker run --rm --env COMMIT_HASH --entrypoint npm
+          pos-release-front run build -- --configuration production-static

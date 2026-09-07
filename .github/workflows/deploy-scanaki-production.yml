@@ -18,7 +18,11 @@ permissions:
   contents: read
 
 jobs:
+  release-checks:
+    uses: ./.github/workflows/release-checks.yml
+
   deploy:
+    needs: release-checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
