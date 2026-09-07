@@ -18,10 +18,11 @@ _RECONCILIATION_SQL = text(
     WHERE requires_prepayment = true
       AND deleted_at IS NULL
       AND (
-        (payment_state IN ('succeeded', 'refunded')
+        (payment_state IN ('succeeded', 'partially_refunded')
             AND (paid_at IS NULL OR kitchen_released_at IS NULL))
+        OR (payment_state = 'refunded' AND paid_at IS NULL)
         OR (kitchen_released_at IS NOT NULL
-            AND (paid_at IS NULL OR payment_state NOT IN ('succeeded', 'refunded')))
+            AND (paid_at IS NULL OR payment_state NOT IN ('succeeded', 'refunded', 'partially_refunded')))
         OR (payment_state IN ('created', 'awaiting_payment', 'processing')
             AND created_at < :cutoff)
       )

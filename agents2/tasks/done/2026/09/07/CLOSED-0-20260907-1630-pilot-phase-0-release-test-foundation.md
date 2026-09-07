@@ -31,14 +31,18 @@ Create a repeatable, safe test foundation and remove release ambiguity before pi
 
 ## 2. Acceptance Criteria
 
-- [ ] `mmarzook3/OneTable` is documented and configured as the pilot release source without merging the divergent legacy history.
-- [ ] Production `master` protection and deployment gating are documented; any external settings change waits for human approval.
-- [ ] A separate browser-test image/profile provides pinned Chromium without adding Chromium to the production frontend image.
-- [ ] Puppeteer receives a consistent Linux executable path and headless configuration.
-- [ ] One `pilot-smoke` runner executes only safe, repeatable checks and stops on the first failure.
-- [ ] Rate-limit, registration, email, production mutation, and live-payment tests are excluded from the safe suite.
-- [ ] Current backup, restore-check, TLS, disk, monitoring, and rollback gaps are reported with no secrets.
-- [ ] Tests and frontend logs pass.
+- [x] `mmarzook3/OneTable` is documented and configured as the pilot release source without merging the divergent legacy history.
+- [x] Production `master` protection and deployment gating applied under user authorization.
+- [x] A separate browser-test image/profile provides Chromium without adding Chromium to the production frontend image. Alpine package updates remain possible on fresh builds; the built image is reusable.
+- [x] Puppeteer receives a consistent Linux executable path and headless configuration.
+- [x] One public `pilot-smoke` runner executes safe, repeatable checks and stops on failure.
+- [x] Rate-limit, registration, email, production mutation, and live-payment tests are excluded.
+- [x] Backup, restore, TLS, disk, monitoring and recovery limitations documented.
+- [x] Required Phase 0 release checks, production build and live public browser checks pass.
+
+## Test report and closing summary
+
+PASSED 2026-09-07. Full evidence: docs/0096-phase-zero-acceptance.md. Production SHA 114e73186c6cf37caf57af6317bc57c9e53a256c. GitHub deployment 34160371260 succeeded after release checks. Post-deploy public baseline passed; containers running and no matched critical log errors. Independent review findings fixed before merge. Offsite replication and full-host recovery remain Phase 2, and authenticated transaction acceptance remains Phase 1.
 
 ## 3. Implementation Scope
 

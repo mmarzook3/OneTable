@@ -17247,17 +17247,19 @@ def _release_paid_stripe_order(
         )
 
     was_unpaid = order.paid_at is None
+    fully_refunded = order.payment_state == "refunded"
     first_kitchen_release = bool(
-        order.requires_prepayment and order.kitchen_released_at is None
+        order.requires_prepayment and order.kitchen_released_at is None and not fully_refunded
     )
     if order.paid_at is None:
         order.paid_at = datetime.now(timezone.utc)
     order.payment_method = "stripe"
-    order.payment_state = "succeeded"
+    if order.payment_state not in {"refunded", "partially_refunded"}:
+        order.payment_state = "succeeded"
     order.stripe_payment_intent_id = intent_id
     order.bill_requested_at = None
     order.status = order_pay_svc.status_after_full_payment(session, order)
-    if order.requires_prepayment and order.kitchen_released_at is None:
+    if first_kitchen_release:
         order.kitchen_released_at = datetime.now(timezone.utc)
     paid_marker = f"[PAID: {intent_id}]"
     if paid_marker not in (order.notes or ""):
@@ -17591,8 +17593,12 @@ async def stripe_guest_webhook(
                 models.Order.tenant_id == tenant_id,
                 models.Order.stripe_payment_intent_id == intent_id,
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         ).first()
-        if order:
+        if order and order.paid_at is None and order.payment_state not in {
+            "succeeded", "refunded", "partially_refunded"
+        }:
             order.payment_state = {
                 "payment_intent.payment_failed": "failed",
                 "payment_intent.canceled": "cancelled",
@@ -17608,10 +17614,31 @@ async def stripe_guest_webhook(
             select(models.Order).where(
                 models.Order.tenant_id == tenant_id,
                 models.Order.stripe_payment_intent_id == intent_id,
+                models.Order.deleted_at.is_(None),
             )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         ).first()
         if order:
-            order.payment_state = "refunded"
+            amount = _stripe_object_value(payment_object, "amount_refunded")
+            charged = _stripe_object_value(payment_object, "amount")
+            currency = _stripe_object_value(payment_object, "currency")
+            if (
+                type(amount) is not int or type(charged) is not int
+                or not 0 < amount <= charged
+                or charged != order.payment_amount_cents
+                or not isinstance(currency, str)
+                or currency.lower() != (order.payment_currency or "").lower()
+                or (metadata_tenant_id is not None and str(metadata_tenant_id) != str(tenant_id))
+                or (metadata_order_id is not None and str(metadata_order_id) != str(order.id))
+            ):
+                raise HTTPException(status_code=400, detail="Refund does not match order payment")
+            # Stripe sends cumulative charge totals, not a per-event delta.
+            # Lock + max makes duplicates and out-of-order delivery harmless.
+            order.refunded_amount_cents = max(order.refunded_amount_cents or 0, amount)
+            order.payment_state = (
+                "refunded" if order.refunded_amount_cents == charged else "partially_refunded"
+            )
             session.add(order)
             session.commit()
         return {"received": True, "handled": bool(order)}
