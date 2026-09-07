@@ -1824,6 +1824,8 @@ class Order(TenantMixin, table=True):
     kitchen_released_at: datetime | None = Field(default=None, index=True)
     payment_state: str | None = Field(default=None, max_length=32, index=True)
     payment_amount_cents: int | None = Field(default=None, ge=0)
+    # NULL means a legacy refund whose amount has not yet been reconciled.
+    refunded_amount_cents: int | None = Field(default=0, ge=0)
     payment_currency: str | None = Field(default=None, max_length=3)
     stripe_payment_intent_id: str | None = Field(default=None, max_length=128, unique=True, index=True)
     public_idempotency_key: str | None = Field(default=None, max_length=64, index=True)

@@ -992,15 +992,24 @@ def location_analytics(
     for order in orders:
         key = order.location_id
         group = grouped.setdefault(key, {"location_id": key, "location_name": order.location_name_snapshot or names.get(key) or "Legacy", "order_ids": set(), "gross_sales_cents": 0, "failed_or_cancelled": 0, "refund_count": 0, "prep_seconds_total": 0, "prep_sample_count": 0})
+        group.setdefault("refund_amount_cents", 0)
+        group.setdefault("unknown_refund_count", 0)
         if order.payment_state in {"refunded", "partially_refunded"}:
             group["refund_count"] += 1
+        if order.refunded_amount_cents is None:
+            group["unknown_refund_count"] += 1
+        else:
+            group["refund_amount_cents"] += order.refunded_amount_cents
         if order.status == models.OrderStatus.cancelled or order.payment_state in {"failed", "cancelled"}:
             group["failed_or_cancelled"] += 1
-            continue
+            if order.paid_at is None:
+                continue
         if order.status not in {models.OrderStatus.paid, models.OrderStatus.completed} and order.paid_at is None:
             continue
         items = session.exec(select(models.OrderItem).where(models.OrderItem.order_id == order.id, models.OrderItem.removed_by_customer == False, models.OrderItem.status != models.OrderItemStatus.cancelled)).all()  # noqa: E712
         gross = sum(item.price_cents * item.quantity for item in items) + int(order.tip_amount_cents or 0)
+        if order.payment_method == "stripe" and order.payment_amount_cents is not None:
+            gross = order.payment_amount_cents
         group["order_ids"].add(order.id)
         group["gross_sales_cents"] += gross
         completed_times = [item.status_updated_at for item in items if item.status_updated_at]
@@ -1021,6 +1030,10 @@ def location_analytics(
     for group in grouped.values():
         count = len(group.pop("order_ids"))
         group["order_count"] = count
+        group["net_sales_cents"] = (
+            None if group["unknown_refund_count"] else
+            group["gross_sales_cents"] - group["refund_amount_cents"]
+        )
         group["average_order_value_cents"] = round(group["gross_sales_cents"] / count) if count else 0
         group["average_kitchen_prep_seconds"] = (
             round(group.pop("prep_seconds_total") / group["prep_sample_count"])
@@ -1031,11 +1044,15 @@ def location_analytics(
     output.sort(key=lambda row: (row["location_name"], row["location_id"] or 0))
     total_orders = sum(row["order_count"] for row in output)
     total_sales = sum(row["gross_sales_cents"] for row in output)
+    total_refunds = sum(row["refund_amount_cents"] for row in output)
+    unknown_refunds = sum(row["unknown_refund_count"] for row in output)
     tenant = session.get(models.Tenant, tenant_id)
     used = locations.active_point_usage(session, tenant_id)
     limit = tenant_table_limit(tenant)
     return {
-        "combined": {"order_count": total_orders, "gross_sales_cents": total_sales, "average_order_value_cents": round(total_sales / total_orders) if total_orders else 0},
+        "combined": {"order_count": total_orders, "gross_sales_cents": total_sales, "average_order_value_cents": round(total_sales / total_orders) if total_orders else 0,
+                     "refund_amount_cents": total_refunds, "unknown_refund_count": unknown_refunds,
+                     "net_sales_cents": None if unknown_refunds else total_sales - total_refunds},
         "by_location": output,
         "busiest_ordering_points": [
             {"location_id": key[0], "service_point_label": key[1], "order_count": count}
