@@ -1,0 +1,9 @@
+FROM node:24-alpine3.23
+WORKDIR /app
+RUN apk add --no-cache chromium
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci --ignore-scripts
+COPY scripts ./scripts
+COPY public/i18n/en.json ./public/i18n/en.json
+ENV HEADLESS=1 PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium LANDING_VERSION_ONLY=1
+CMD ["node", "scripts/test-pilot-smoke.mjs"]

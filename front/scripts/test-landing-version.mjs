@@ -337,6 +337,13 @@ async function main() {
       process.exit(1);
     }
     await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="landing-mobile-menu-toggle"]')
+          ?.getAttribute('aria-expanded') === 'true',
+      { timeout: 5000 },
+    );
     const mobileNavOpen = await page.evaluate(() => {
       const toggle = document.querySelector('[data-testid="landing-mobile-menu-toggle"]');
       const visibleLinks = Array.from(document.querySelectorAll('.landing-nav__links a')).filter(
@@ -360,6 +367,13 @@ async function main() {
       process.exit(1);
     }
     await page.click('[data-testid="landing-mobile-menu-toggle"]');
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="landing-mobile-menu-toggle"]')
+          ?.getAttribute('aria-expanded') === 'false',
+      { timeout: 5000 },
+    );
     await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
     console.log('   OK: Accessible 44px menu control opens the complete navigation.');
 
