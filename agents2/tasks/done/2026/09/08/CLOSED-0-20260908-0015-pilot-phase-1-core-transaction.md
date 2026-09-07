@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `in-progress`
+- **Status:** `verified`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 0 task archived under `agents2/tasks/done/`
@@ -37,18 +37,20 @@ Build one deterministic test journey that traces a unique order through the comp
 
 ## 2. Acceptance Criteria
 
-- [ ] A read-only readiness check reports missing tenant configuration.
-- [ ] Pilot roles verify allowed and forbidden routes.
-- [ ] A known QR/plaque resolves the correct tenant, location, and table/room context.
-- [ ] The browser adds products/modifiers/notes and verifies prices, tax, and totals.
-- [ ] The order is submitted idempotently and its ID is retained across every stage.
-- [ ] Sandbox payment releases exactly one kitchen/bar ticket.
-- [ ] WebSocket delivery is proven without a page refresh.
-- [ ] The ticket completes through required kitchen states without skips.
-- [ ] Receipt content and print jobs match the order.
-- [ ] An authorized sandbox refund updates payment state and reconciliation.
-- [ ] Reports show gross, refund, net, location, point, and products for the same order.
-- [ ] Test data is safely cleaned up or explicitly marked for disposable environments.
+All criteria below verified across the transaction, role, receipt, readiness and signed-refund checks. Evidence: docs/0098-phase-one-acceptance.md. Production deployment 34169110562 succeeded and final VPS checks passed. Customer launch readiness remains explicitly separate.
+
+- [x] A read-only readiness check reports missing tenant configuration.
+- [x] Pilot roles verify allowed and forbidden routes.
+- [x] A known QR/plaque resolves the correct tenant, location, and table/room context.
+- [x] The browser adds products/modifiers/notes and verifies prices, tax, and totals.
+- [x] The order is submitted idempotently and its ID is retained across every stage.
+- [x] Sandbox payment releases exactly one kitchen/bar ticket.
+- [x] WebSocket delivery is proven without a page refresh.
+- [x] The ticket completes through required kitchen states without skips.
+- [x] Receipt content and print jobs match the order.
+- [x] An authorized sandbox refund updates payment state and reconciliation.
+- [x] Reports show gross, refund, net, location, point, and products for the same order.
+- [x] Test data is safely cleaned up or explicitly marked for disposable environments.
 
 ## 3. Implementation Scope
 
