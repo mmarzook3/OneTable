@@ -81,6 +81,9 @@ async function main() {
   assert.equal(fixture.tenant_name, `Scanaki Phase 1 ${fixture.run_id}`);
   assert.equal(fixture.owner_email, `phase1-${fixture.run_id}@amvara.de`);
   assert.equal(fixture.product_name, `Synthetic Soup ${fixture.run_id}`);
+  assert(Number.isSafeInteger(fixture.question_id) && fixture.question_id > 0, 'Invalid question_id');
+  assert.equal(fixture.question_label, 'Soup finish');
+  assert.equal(fixture.question_option, 'No garnish');
   assert.equal(fixture.amount_cents, 500);
   assert.equal(fixture.currency, 'gbp');
   assert(/^[a-f0-9]{64}$/.test(fixture.publishable_key_sha256), 'Missing publishable-key fingerprint');
@@ -250,6 +253,14 @@ async function main() {
     assert(!menu.tenant_stripe_connected_account_id, 'Guest Connect mode refused');
     assert(menu.products.some(p => p.id === fixture.product_id && p.price_cents === 500),
       'Synthetic menu product contract mismatch');
+    const questions = menu.products.find(p => p.id === fixture.product_id).questions;
+    assert.equal(questions?.length, 1, 'Expected exactly one customization question');
+    assert.equal(questions[0].id, fixture.question_id);
+    assert.equal(questions[0].label, fixture.question_label);
+    assert.equal(questions[0].type, 'choice');
+    assert.equal(questions[0].required, true);
+    assert.deepEqual(questions[0].options, ['With garnish', fixture.question_option]);
+    const customizationAnswers = { [fixture.question_id]: fixture.question_option };
     const orderPath = `/menu/${encodeURIComponent(fixture.table_token)}/order`;
     // Use native UI interactions; never inject cart state or call Angular methods.
     if (await guest.$('.name-input')) {
@@ -258,6 +269,14 @@ async function main() {
       await guest.waitForSelector('.name-input', { hidden: true });
     }
     await guest.click(`[data-testid="ordering-product-card"][data-product-name="${fixture.product_name}"] .add-to-cart-btn`);
+    await guest.waitForSelector('.customization-question .question-select', { visible: true });
+    assert.equal(await guest.$eval('.customization-question .question-label', el => el.textContent.replace(/\s+/g, ' ').trim()),
+      `${fixture.question_label} *`);
+    await guest.select('.customization-question .question-select', fixture.question_option);
+    assert.equal(await guest.$eval('.customization-question .question-select', el => el.value),
+      fixture.question_option);
+    await guest.locator('.modal-sheet .modal-actions .btn-primary').click();
+    await guest.waitForSelector('.customization-question', { hidden: true });
     await guest.waitForSelector('.cart-sheet');
     if (!await guest.$('.cart-expanded-content')) await guest.click('.cart-summary');
     await guest.waitForSelector('.cart-expanded-content', { visible: true });
@@ -267,6 +286,8 @@ async function main() {
       'Basket product mismatch');
     assert.equal(await guest.$eval('.qty-display', el => el.textContent.trim()), '1',
       'Basket quantity mismatch');
+    assert((await guest.$eval('.cart-item-customization', el => el.textContent))
+      .includes(fixture.question_option), 'Basket customization missing');
     const itemNote = `Item ${fixture.run_id}`;
     const orderNote = `Order ${fixture.run_id}`;
     await guest.click('.cart-item-card .comment-toggle-btn');
@@ -303,6 +324,8 @@ async function main() {
     assert.equal(body.items.length, 1, 'Submitted basket line count mismatch');
     assert.equal(body.items[0].product_id, fixture.product_id, 'Submitted product mismatch');
     assert.equal(body.items[0].quantity, 1, 'Submitted quantity mismatch');
+    assert.deepEqual(body.items[0].customization_answers, customizationAnswers,
+      'UI submission customization mismatch');
     assert.equal(body.items[0].notes, itemNote,
       `Item note mismatch: expected ${itemNote.length} characters, got ${body.items[0].notes?.length ?? 0}`);
     assert.equal(body.notes, orderNote, 'Order note was not submitted');
@@ -401,13 +424,14 @@ async function main() {
     stage = 'paid KDS ticket and notes without reload';
     const ticket = `[data-order-id="${orderId}"]`;
     await staff.waitForSelector(ticket, { visible: true, timeout: 30000 });
-    await staff.waitForFunction(({ ticket, name, itemNote, orderNote }) => {
+    await staff.waitForFunction(({ ticket, name, itemNote, orderNote, option }) => {
       const el = document.querySelector(ticket);
       return el?.querySelector('.item-name')?.textContent.trim() === name &&
         el.querySelector('.item-notes')?.textContent.includes(itemNote) &&
+        el.querySelector('.item-customization')?.textContent.includes(option) &&
         el.querySelector('.customer-request')?.textContent.includes(orderNote) &&
         el.querySelector('.payment-badge-paid')?.textContent.trim() === 'PAID';
-    }, {}, { ticket, name: fixture.product_name, itemNote, orderNote });
+    }, {}, { ticket, name: fixture.product_name, itemNote, orderNote, option: fixture.question_option });
     assert.equal(kdsNavigations, 0, 'KDS navigated or reloaded before paid ticket appeared');
     assert.equal(await staff.evaluate(() => window.__phase1DocumentMarker), documentMarker,
       'KDS document was replaced');
@@ -420,6 +444,10 @@ async function main() {
       rows => rows.some(o => o.id === orderId), 'paid order in KDS');
     const order = feed.find(o => o.id === orderId);
     assert.equal(order.items.length, 1);
+    assert.deepEqual(order.items[0].customization_answers, customizationAnswers,
+      'KDS customization answers mismatch');
+    assert(order.items[0].customization_summary?.includes(fixture.question_option),
+      'KDS customization summary missing');
     for (const status of ['preparing', 'ready', 'delivered']) {
       await api(staff, `/orders/${orderId}/items/${order.items[0].id}/status`, 'PUT', { status });
     }
