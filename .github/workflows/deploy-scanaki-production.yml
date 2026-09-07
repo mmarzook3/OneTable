@@ -44,10 +44,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          [ "$GITHUB_REF" = "refs/heads/master" ] || {
+            echo "::error::Production deployment requires the protected master branch"
+            exit 1
+          }
           LATEST_MASTER_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)"
           if [ "$GITHUB_SHA" = "$LATEST_MASTER_SHA" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"

@@ -26,7 +26,7 @@ cd "$REPO_ROOT"
 
 # The Scanaki fork uses protected pull requests and its own deployment workflow.
 # Never let the legacy daily loop deploy the unrelated origin repository.
-if git remote get-url scanaki 2>/dev/null | grep -q 'mmarzook3/OneTable'; then
+if git remote -v | grep -qi 'mmarzook3/OneTable'; then
   echo "Scanaki promotion requires a checked pull request from development to master in mmarzook3/OneTable." >&2
   exit 2
 fi
