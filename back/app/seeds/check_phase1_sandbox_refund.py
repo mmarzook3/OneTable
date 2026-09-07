@@ -45,7 +45,8 @@ def main():
                 or tenant.name != f"Scanaki Phase 1 {fixture.get('run_id')}"
                 or order.table_id != fixture.get('table_id')
                 or order.location_id != fixture.get('location_id')
-                or order.notes not in (fixture.get('run_id'), f"Order {fixture.get('run_id')}")):
+                or (order.notes or '').replace(f'[PAID: {order.stripe_payment_intent_id}]', '').strip()
+                not in (fixture.get('run_id'), f"Order {fixture.get('run_id')}")):
             raise SystemExit('Order must belong to the signed synthetic test run')
         intent = stripe.PaymentIntent.retrieve(order.stripe_payment_intent_id, api_key=key)
         if (intent.livemode or intent.status != 'succeeded' or intent.amount != 500
