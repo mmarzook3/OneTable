@@ -13,8 +13,8 @@
  *   Retains fixture/order/print job for inspection; never silently cleans up.
  *
  * Coverage: UI login/basket/notes/submission/no-refresh KDS/reports; API retry idempotency, Stripe
- * test settlement, KDS item transition, receipt payload, report reconciliation.
- * Not covered: browser card entry/3DS, webhooks, restricted staff roles, hardware
+ * browser test-card settlement, exact WebSocket events, KDS item transition, receipt payload, report reconciliation.
+ * Not covered: 3DS, webhooks, restricted staff roles, hardware
  * printing, browser receipt layout, refunds, offline operation, production.
  */
 import assert from 'node:assert/strict';
@@ -25,7 +25,7 @@ import { createRequire } from 'node:module';
 import { loginStaff } from './staff-login.mjs';
 
 const passed = [];
-const uncovered = ['card-entry UI/3DS', 'Stripe webhook delivery/retries',
+const uncovered = ['3DS', 'Stripe webhook delivery/retries',
   'restricted staff permissions', 'physical printing/browser receipt layout',
   'refunds/offline/production'];
 let browser;
@@ -33,7 +33,9 @@ let fixture;
 let stage = 'configuration';
 let orderId;
 const screenshots = [];
+let paymentUiError;
 const transport = { websocket_connections: 0, websocket_frames: 0, sse_events: 0,
+  matched_new_order: false, matched_order_paid: false,
   interpretation: 'Observed traffic only; no-refresh visibility does not prove push caused the update (KDS also polls).' };
 
 function localOrigin(raw) {
@@ -108,13 +110,10 @@ async function main() {
     return;
   }
 
-  async function stripe(path, body) {
+  async function stripe(path) {
     const response = await fetch(`https://api.stripe.com/v1/${path}`, {
-      method: body ? 'POST' : 'GET', redirect: 'error',
-      headers: { Authorization: `Bearer ${secret}`,
-        ...(body ? { 'Content-Type': 'application/x-www-form-urlencoded',
-          'Idempotency-Key': `phase1-${fixture.run_id}-confirm` } : {}) },
-      body: body ? new URLSearchParams(body) : undefined,
+      method: 'GET', redirect: 'error',
+      headers: { Authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(20000),
     });
     assert(response.ok, `Stripe ${path.split('/')[0]} HTTP ${response.status}`);
@@ -145,13 +144,24 @@ async function main() {
   try {
     const staff = await staffContext.newPage();
     const guest = await guestContext.newPage();
-    // Capture protocol counts only, never URLs, tokens, headers or event payloads.
+    // Parse frames transiently; retain only counts and exact order/type match booleans.
     const network = await staff.createCDPSession();
     await network.send('Network.enable');
     network.on('Network.webSocketHandshakeResponseReceived', event => {
       if (event.response.status === 101) transport.websocket_connections++;
     });
-    network.on('Network.webSocketFrameReceived', () => transport.websocket_frames++);
+    network.on('Network.webSocketFrameReceived', event => {
+      transport.websocket_frames++;
+      if (!Number.isSafeInteger(orderId) || event.response.opcode !== 1) return;
+      try {
+        const message = JSON.parse(event.response.payloadData);
+        if (message?.order_id !== orderId) return;
+        if (message.type === 'new_order') transport.matched_new_order = true;
+        if (message.type === 'order_paid') transport.matched_order_paid = true;
+      } catch {
+        // Non-JSON frames are not evidence; never log their contents.
+      }
+    });
     network.on('Network.eventSourceMessageReceived', () => transport.sse_events++);
     const pageErrors = [];
     for (const page of [staff, guest]) {
@@ -233,6 +243,11 @@ async function main() {
     await guest.waitForSelector('[data-testid="ordering-product-card"]');
     await guest.waitForFunction(name => document.body.innerText.includes(name), {}, fixture.product_name);
     const menu = await api(guest, `/menu/${encodeURIComponent(fixture.table_token)}`);
+    assert(menu.tenant_stripe_publishable_key?.startsWith('pk_test_'),
+      'Guest publishable key is not test mode');
+    assert.equal(createHash('sha256').update(menu.tenant_stripe_publishable_key).digest('hex'),
+      fixture.publishable_key_sha256, 'Guest publishable key mismatch');
+    assert(!menu.tenant_stripe_connected_account_id, 'Guest Connect mode refused');
     assert(menu.products.some(p => p.id === fixture.product_id && p.price_cents === 500),
       'Synthetic menu product contract mismatch');
     const orderPath = `/menu/${encodeURIComponent(fixture.table_token)}/order`;
@@ -311,9 +326,19 @@ async function main() {
       'Unpaid order visible in KDS UI');
     passed.push(stage);
 
-    stage = 'Stripe test settlement and server confirmation';
-    const query = new URLSearchParams({ table_token: fixture.table_token, session_id: body.session_id });
-    const intent = await api(guest, `/orders/${orderId}/create-payment-intent?${query}`, 'POST');
+    stage = 'browser Stripe test-card checkout: create intent';
+    await guest.waitForSelector('.payment-options-sheet .payment-option-btn', { visible: true });
+    const matchesPaymentEndpoint = (res, endpoint) => {
+      const url = new URL(res.url());
+      return url.origin === base && url.pathname === `/api/orders/${orderId}/${endpoint}` &&
+        res.request().method() === 'POST';
+    };
+    const [intentResponse] = await Promise.all([
+      guest.waitForResponse(res => matchesPaymentEndpoint(res, 'create-payment-intent')),
+      guest.locator('.payment-options-sheet .payment-option-btn').click(),
+    ]);
+    assert(intentResponse.ok(), `UI create-payment-intent HTTP ${intentResponse.status()}`);
+    const intent = await intentResponse.json();
     assert.equal(intent.amount, 500);
     assert(/^pi_[A-Za-z0-9]+$/.test(intent.payment_intent_id), 'Invalid payment intent ID');
     const payment = await stripe(`payment_intents/${intent.payment_intent_id}`);
@@ -324,16 +349,53 @@ async function main() {
     assert.equal(payment.metadata.location_id, String(fixture.location_id));
     assert.equal(payment.metadata.payment_account_snapshot, 'tenant-default');
     assert.equal(payment.status, 'requires_payment_method');
-    const confirmed = await stripe(`payment_intents/${payment.id}/confirm`, {
-      payment_method: 'pm_card_visa', return_url: `${base}/menu/${fixture.table_token}/payment-success`,
-    });
-    assert.equal(confirmed.status, 'succeeded', 'Stripe test confirmation did not succeed');
-    query.set('payment_intent_id', payment.id);
-    const settlement = await api(guest, `/orders/${orderId}/confirm-payment?${query}`, 'POST');
+    assert.equal(intent.client_secret, payment.client_secret, 'UI PaymentIntent secret mismatch');
+    stage = 'browser Stripe test-card entry';
+    const cardFrame = await poll(async () => {
+      const element = await guest.$('.payment-modal #card-element iframe');
+      if (!element) return null;
+      try { return await element.contentFrame(); } finally { await element.dispose(); }
+    }, frame => Boolean(frame?.url()?.startsWith('https://js.stripe.com/')),
+    'Stripe Card Element iframe unavailable');
+    assert.equal(new URL(cardFrame.url()).origin, 'https://js.stripe.com',
+      'Unexpected card iframe origin');
+    await cardFrame.waitForSelector('input[name="cardnumber"]', { visible: true });
+    await cardFrame.type('input[name="cardnumber"]', '4242424242424242');
+    const expiryYear = String((new Date().getUTCFullYear() + 3) % 100).padStart(2, '0');
+    await cardFrame.type('input[name="exp-date"]', `12${expiryYear}`);
+    await cardFrame.type('input[name="cvc"]', '123');
+    await cardFrame.waitForSelector('input[name="postal"]', { visible: true });
+    if (await cardFrame.$('input[name="postal"]')) {
+      const placeholder = await cardFrame.$eval('input[name="postal"]', el => el.placeholder);
+      await cardFrame.locator('input[name="postal"]').fill(/zip/i.test(placeholder) ? '12345' : 'SW1A 1AA');
+    }
+    stage = 'browser Stripe confirmation and server settlement';
+    const [settlementResponse] = await Promise.all([
+      guest.waitForResponse(res => matchesPaymentEndpoint(res, 'confirm-payment'), { timeout: 30000 }),
+      guest.locator('.payment-modal .modal-actions .btn-primary').click(),
+    ]);
+    assert(settlementResponse.ok(), `UI confirm-payment HTTP ${settlementResponse.status()}`);
+    const confirmationUrl = new URL(settlementResponse.url());
+    assert.equal(confirmationUrl.searchParams.get('payment_intent_id'), payment.id,
+      'UI confirmed a different PaymentIntent');
+    const settlement = await settlementResponse.json();
     assert.equal(settlement.status, 'paid');
+    await guest.waitForSelector('.payment-modal .payment-success', { visible: true });
+    const confirmed = await stripe(`payment_intents/${payment.id}`);
+    assert.equal(confirmed.id, payment.id);
+    assert.equal(confirmed.status, 'succeeded', 'Browser test-card payment did not succeed');
+    assert.equal(confirmed.amount, fixture.amount_cents);
+    assert.equal(confirmed.amount_received, fixture.amount_cents);
+    assert.equal(confirmed.currency, fixture.currency);
+    assert.deepEqual(confirmed.metadata, payment.metadata, 'PaymentIntent metadata changed');
     const ledger = await api(staff, `/orders/${orderId}/payments`);
     assert.equal(ledger.amount_paid_cents, 500);
     assert.equal(ledger.amount_remaining_cents, 0);
+    passed.push(stage);
+
+    stage = 'exact paid-order WebSocket event verification';
+    await poll(async () => transport.matched_new_order && transport.matched_order_paid,
+      matched => matched, 'matching new_order and order_paid WebSocket events');
     passed.push(stage);
 
     stage = 'paid KDS ticket and notes without reload';
@@ -389,6 +451,12 @@ async function main() {
       tenant_id: fixture.tenant_id, order_id: orderId, passed, uncovered, transport,
       retained: 'Synthetic tenant, test payment, order and receipt job; no cleanup performed' }));
   } catch (error) {
+    const [failedGuest] = await guestContext.pages();
+    if (failedGuest) {
+      paymentUiError = await failedGuest.$eval('.card-error', el => el.textContent.trim())
+        .catch(() => undefined);
+      paymentUiError = paymentUiError?.replace(/(?:sk|rk|pk)_(?:test|live)_\w+|whsec_\w+|pi_\w+_secret_\w+|https?:\/\/\S+/g, '[redacted]');
+    }
     // Fail closed: only screenshot after replacing unknown text and hiding all
     // inputs/embedded content. No raw screenshot, HTML or network dump is saved.
     for (const [label, context] of [['guest', guestContext], ['staff', staffContext]]) {
@@ -439,7 +507,7 @@ try {
 } catch (error) {
   // Do not dump responses, browser URLs, credentials, client secrets or stacks.
   console.error(JSON.stringify({ result: 'failed', stage, run_id: fixture?.run_id,
-    order_id: orderId, passed, uncovered, transport, screenshots,
+    order_id: orderId, passed, uncovered, transport, screenshots, paymentUiError,
     reason: error instanceof assert.AssertionError ? error.message.split('\n')[0]
       : error.message?.startsWith('No element found for selector:') ? error.message
       : error.message?.startsWith('Timed out:') || error.message?.startsWith('Staff login failed at ')
