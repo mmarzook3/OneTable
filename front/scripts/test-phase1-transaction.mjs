@@ -12,14 +12,15 @@
  *   Explicitly creates a local synthetic order and a real Stripe TEST payment.
  *   Retains fixture/order/print job for inspection; never silently cleans up.
  *
- * Coverage: UI login/menu/KDS/reports; API checkout, retry idempotency, Stripe
+ * Coverage: UI login/basket/notes/submission/no-refresh KDS/reports; API retry idempotency, Stripe
  * test settlement, KDS item transition, receipt payload, report reconciliation.
  * Not covered: browser card entry/3DS, webhooks, restricted staff roles, hardware
  * printing, browser receipt layout, refunds, offline operation, production.
  */
 import assert from 'node:assert/strict';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { loginStaff } from './staff-login.mjs';
 
@@ -31,6 +32,9 @@ let browser;
 let fixture;
 let stage = 'configuration';
 let orderId;
+const screenshots = [];
+const transport = { websocket_connections: 0, websocket_frames: 0, sse_events: 0,
+  interpretation: 'Observed traffic only; no-refresh visibility does not prove push caused the update (KDS also polls).' };
 
 function localOrigin(raw) {
   const url = new URL(raw);
@@ -141,6 +145,14 @@ async function main() {
   try {
     const staff = await staffContext.newPage();
     const guest = await guestContext.newPage();
+    // Capture protocol counts only, never URLs, tokens, headers or event payloads.
+    const network = await staff.createCDPSession();
+    await network.send('Network.enable');
+    network.on('Network.webSocketHandshakeResponseReceived', event => {
+      if (event.response.status === 101) transport.websocket_connections++;
+    });
+    network.on('Network.webSocketFrameReceived', () => transport.websocket_frames++);
+    network.on('Network.eventSourceMessageReceived', () => transport.sse_events++);
     const pageErrors = [];
     for (const page of [staff, guest]) {
       page.on('pageerror', () => pageErrors.push('browser pageerror'));
@@ -202,7 +214,21 @@ async function main() {
     const before = await api(staff, reportPath);
     assert.equal(before.summary.total_orders, 0);
     assert.equal(before.summary.total_revenue_cents, 0);
-    stage = 'guest menu UI and API checkout/idempotency';
+    stage = 'KDS open before checkout';
+    await goto(staff, '/kitchen');
+    await staff.waitForSelector('[data-testid="kds-active-count"]');
+    await staff.waitForFunction(() =>
+      document.querySelector('[data-testid="kds-active-count"]')?.textContent.trim() === '0');
+    const documentMarker = await staff.evaluate(() => {
+      window.__phase1DocumentMarker = `${Date.now()}-${Math.random()}`;
+      return window.__phase1DocumentMarker;
+    });
+    let kdsNavigations = 0;
+    const onNavigation = frame => { if (frame === staff.mainFrame()) kdsNavigations++; };
+    staff.on('framenavigated', onNavigation);
+    passed.push(stage);
+
+    stage = 'guest basket UI and notes';
     await goto(guest, `/menu/${encodeURIComponent(fixture.table_token)}`);
     await guest.waitForSelector('[data-testid="ordering-product-card"]');
     await guest.waitForFunction(name => document.body.innerText.includes(name), {}, fixture.product_name);
@@ -210,20 +236,83 @@ async function main() {
     assert(menu.products.some(p => p.id === fixture.product_id && p.price_cents === 500),
       'Synthetic menu product contract mismatch');
     const orderPath = `/menu/${encodeURIComponent(fixture.table_token)}/order`;
-    const body = { items: [{ product_id: fixture.product_id, source: 'product', quantity: 1 }],
-      session_id: fixture.run_id, idempotency_key: fixture.run_id,
-      customer_name: `Synthetic ${fixture.run_id}`, notes: fixture.run_id };
-    const created = await api(guest, orderPath, 'POST', body);
+    // Use native UI interactions; never inject cart state or call Angular methods.
+    if (await guest.$('.name-input')) {
+      await guest.type('.name-input', `Synthetic ${fixture.run_id}`);
+      await guest.keyboard.press('Enter');
+      await guest.waitForSelector('.name-input', { hidden: true });
+    }
+    await guest.click(`[data-testid="ordering-product-card"][data-product-name="${fixture.product_name}"] .add-to-cart-btn`);
+    await guest.waitForSelector('.cart-sheet');
+    if (!await guest.$('.cart-expanded-content')) await guest.click('.cart-summary');
+    await guest.waitForSelector('.cart-expanded-content', { visible: true });
+    assert.equal(await guest.$$eval('.cart-item-card', rows => rows.length), 1,
+      'Basket must contain exactly one line');
+    assert.equal(await guest.$eval('.cart-item-name', el => el.textContent.trim()), fixture.product_name,
+      'Basket product mismatch');
+    assert.equal(await guest.$eval('.qty-display', el => el.textContent.trim()), '1',
+      'Basket quantity mismatch');
+    const itemNote = `Item ${fixture.run_id}`;
+    const orderNote = `Order ${fixture.run_id}`;
+    await guest.click('.cart-item-card .comment-toggle-btn');
+    await guest.waitForSelector('.cart-item-comment-field textarea', { visible: true });
+    await guest.type('.cart-item-comment-field textarea', itemNote);
+    const typedNote = await guest.$eval('.cart-item-comment-field textarea', el => el.value);
+    assert.equal(typedNote, itemNote, `Typed item note length ${typedNote.length}, expected ${itemNote.length}`);
+    await guest.type('#cart-order-notes', orderNote);
+    await guest.click('.table-confirmation input');
+    passed.push(stage);
+
+    stage = 'single UI submission and API retry idempotency';
+    const orderUrl = `${base}/api${orderPath}`;
+    let uiSubmissions = 0;
+    let replaying = false;
+    guest.on('request', request => {
+      if (!replaying && request.method() === 'POST' && request.url() === orderUrl) uiSubmissions++;
+    });
+    const [response] = await Promise.all([
+      guest.waitForResponse(res => res.url() === orderUrl && res.request().method() === 'POST'),
+      (async () => {
+        await guest.click('.place-order-btn');
+        // Some menu configurations ask for the optional name on submission.
+        await guest.waitForFunction(() => document.querySelector('.name-input') ||
+          !document.querySelector('.cart-item-card'));
+        if (await guest.$('.name-input')) {
+          await guest.type('.name-input', `Synthetic ${fixture.run_id}`);
+          await guest.keyboard.press('Enter');
+        }
+      })(),
+    ]);
+    assert(response.ok(), 'UI order submission HTTP failure');
+    const body = JSON.parse(response.request().postData());
+    assert.equal(body.items.length, 1, 'Submitted basket line count mismatch');
+    assert.equal(body.items[0].product_id, fixture.product_id, 'Submitted product mismatch');
+    assert.equal(body.items[0].quantity, 1, 'Submitted quantity mismatch');
+    assert.equal(body.items[0].notes, itemNote,
+      `Item note mismatch: expected ${itemNote.length} characters, got ${body.items[0].notes?.length ?? 0}`);
+    assert.equal(body.notes, orderNote, 'Order note was not submitted');
+    assert(typeof body.session_id === 'string' && body.session_id.length > 0, 'UI session missing');
+    assert(typeof body.idempotency_key === 'string' && body.idempotency_key.length > 0,
+      'UI idempotency key missing');
+    const created = await response.json();
     orderId = created.order_id;
     assert(Number.isSafeInteger(orderId) && orderId > 0, 'Missing order_id');
     assert.equal(created.payment_required, true);
-    assert.equal((await api(guest, orderPath, 'POST', body)).order_id, orderId);
+    replaying = true;
+    try {
+      assert.equal((await api(guest, orderPath, 'POST', body)).order_id, orderId);
+    } finally {
+      replaying = false;
+    }
+    assert.equal(uiSubmissions, 1, 'UI submitted more than once');
     const hidden = await api(staff, '/orders/kitchen-feed');
     assert(!hidden.some(o => o.id === orderId), 'Unpaid order leaked to KDS');
+    assert.equal(await staff.$(`[data-order-id="${orderId}"]`), null,
+      'Unpaid order visible in KDS UI');
     passed.push(stage);
 
     stage = 'Stripe test settlement and server confirmation';
-    const query = new URLSearchParams({ table_token: fixture.table_token, session_id: fixture.run_id });
+    const query = new URLSearchParams({ table_token: fixture.table_token, session_id: body.session_id });
     const intent = await api(guest, `/orders/${orderId}/create-payment-intent?${query}`, 'POST');
     assert.equal(intent.amount, 500);
     assert(/^pi_[A-Za-z0-9]+$/.test(intent.payment_intent_id), 'Invalid payment intent ID');
@@ -247,13 +336,28 @@ async function main() {
     assert.equal(ledger.amount_remaining_cents, 0);
     passed.push(stage);
 
-    stage = 'KDS UI visibility and API fulfillment';
+    stage = 'paid KDS ticket and notes without reload';
+    const ticket = `[data-order-id="${orderId}"]`;
+    await staff.waitForSelector(ticket, { visible: true, timeout: 30000 });
+    await staff.waitForFunction(({ ticket, name, itemNote, orderNote }) => {
+      const el = document.querySelector(ticket);
+      return el?.querySelector('.item-name')?.textContent.trim() === name &&
+        el.querySelector('.item-notes')?.textContent.includes(itemNote) &&
+        el.querySelector('.customer-request')?.textContent.includes(orderNote) &&
+        el.querySelector('.payment-badge-paid')?.textContent.trim() === 'PAID';
+    }, {}, { ticket, name: fixture.product_name, itemNote, orderNote });
+    assert.equal(kdsNavigations, 0, 'KDS navigated or reloaded before paid ticket appeared');
+    assert.equal(await staff.evaluate(() => window.__phase1DocumentMarker), documentMarker,
+      'KDS document was replaced');
+    staff.off('framenavigated', onNavigation);
+    assert.equal(uiSubmissions, 1, 'UI submitted more than once during payment');
+    passed.push(stage);
+
+    stage = 'KDS API fulfillment';
     const feed = await poll(() => api(staff, '/orders/kitchen-feed'),
       rows => rows.some(o => o.id === orderId), 'paid order in KDS');
     const order = feed.find(o => o.id === orderId);
     assert.equal(order.items.length, 1);
-    await goto(staff, '/kitchen');
-    await staff.waitForFunction(name => document.body.innerText.includes(name), {}, fixture.product_name);
     for (const status of ['preparing', 'ready', 'delivered']) {
       await api(staff, `/orders/${orderId}/items/${order.items[0].id}/status`, 'PUT', { status });
     }
@@ -282,8 +386,48 @@ async function main() {
     assert.equal(pageErrors.length, 0, 'Browser JavaScript errors occurred');
     passed.push(stage);
     console.log(JSON.stringify({ result: 'passed-bounded-coverage', run_id: fixture.run_id,
-      tenant_id: fixture.tenant_id, order_id: orderId, passed, uncovered,
+      tenant_id: fixture.tenant_id, order_id: orderId, passed, uncovered, transport,
       retained: 'Synthetic tenant, test payment, order and receipt job; no cleanup performed' }));
+  } catch (error) {
+    // Fail closed: only screenshot after replacing unknown text and hiding all
+    // inputs/embedded content. No raw screenshot, HTML or network dump is saved.
+    for (const [label, context] of [['guest', guestContext], ['staff', staffContext]]) {
+      try {
+        const [page] = await context.pages();
+        assert(page && new URL(page.url()).origin === base);
+        await page.evaluate(({ product, runId }) => {
+          const allowed = new Set([product, `Item ${runId}`, `Order ${runId}`,
+            'PAID', 'NOT PAID', 'Customer request', 'Total', 'Place order']);
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          const nodes = [];
+          while (walker.nextNode()) nodes.push(walker.currentNode);
+          for (const node of nodes) {
+            if (node.parentElement?.closest('style,script')) continue;
+            if (node.textContent.trim() && !allowed.has(node.textContent.trim())) node.textContent = '[redacted]';
+          }
+          for (const el of document.querySelectorAll('*')) {
+            el.removeAttribute('title');
+            el.removeAttribute('placeholder');
+            el.style.setProperty('background-image', 'none', 'important');
+          }
+          const style = document.createElement('style');
+          style.textContent = 'input,textarea,select,iframe,img,svg,canvas,video,object,embed{visibility:hidden!important}*::before,*::after{content:none!important}';
+          document.head.append(style);
+          // Freeze the redacted DOM so Angular cannot repopulate secret text.
+          const clone = document.body.cloneNode(true);
+          document.body.replaceWith(clone);
+        }, { product: fixture.product_name, runId: fixture.run_id });
+        assert(process.env.PHASE1_EVIDENCE_DIR, 'Explicit evidence directory required');
+        const directory = resolve(process.env.PHASE1_EVIDENCE_DIR, fixture.run_id);
+        mkdirSync(directory, { recursive: true });
+        const path = resolve(directory, `${label}-failure.png`);
+        await page.screenshot({ path, fullPage: true });
+        screenshots.push({ page: label, path, redacted: true });
+      } catch {
+        screenshots.push({ page: label, unavailable: 'Safe screenshot capture failed' });
+      }
+    }
+    throw error;
   } finally {
     await guestContext.close();
     await staffContext.close();
@@ -295,8 +439,9 @@ try {
 } catch (error) {
   // Do not dump responses, browser URLs, credentials, client secrets or stacks.
   console.error(JSON.stringify({ result: 'failed', stage, run_id: fixture?.run_id,
-    order_id: orderId, passed, uncovered,
+    order_id: orderId, passed, uncovered, transport, screenshots,
     reason: error instanceof assert.AssertionError ? error.message.split('\n')[0]
+      : error.message?.startsWith('No element found for selector:') ? error.message
       : error.message?.startsWith('Timed out:') || error.message?.startsWith('Staff login failed at ')
         ? error.message : error.name }));
   process.exitCode = 1;
