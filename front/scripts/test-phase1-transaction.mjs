@@ -190,7 +190,7 @@ async function main() {
     assert(!settings.stripe_connected_account_id, 'Connect mode refused');
     assert.equal(settings.ordering_mode, 'automatic');
     assert.equal(settings.immediate_payment_required, true);
-    const tables = await api(staff, '/tables/with-status');
+    const tables = await api(staff, '/tables');
     assert(tables.some(t => t.id === fixture.table_id && t.token === fixture.table_token &&
       t.location_id === fixture.location_id),
       'Fixture table mismatch');
