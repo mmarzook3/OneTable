@@ -1,5 +1,15 @@
 # Pilot phase 0: release and test foundation
 
+## Checkpoint 2026-09-07
+
+Implementation commits: 0fdc54e02, 56ad72f94, 8d31291e7. Release PR: https://github.com/mmarzook3/OneTable/pull/1.
+
+The standalone browser image and public baseline pass locally and on production. The readiness assertion now checks the real API contract. The live server-owned CSP was fixed, the frontend container recreated, and the shared edge reloaded; the subsequent live browser baseline reported no CSP font errors. Production master requires the release-checks status, PRs, no force push/deletion, and applies restrictions to administrators. A reusable release workflow runs backend regressions and the production Angular build before deployment. The sync helper uses scanaki; the legacy promotion helper refuses this fork.
+
+Backup SHA-256 verified, latest backup within 24h. Fresh isolated restore passed (2 tenants, 5 locations, 42 points, 79 schema tables). Cron health and payment reconciliation pass. Disk 79%, 21 GB free. Operator confirmed direct and group SMTP inbox delivery. Recovery procedure: docs/0095-scanaki-recovery-runbook.md.
+
+Do not close until release PR checks and deployment are complete. Offsite replication and full-host recovery rehearsal remain Phase 2 requirements; their absence is explicitly documented, not treated as verified recovery.
+
 ## GitHub Issue
 
 - **Number:** 0
@@ -73,4 +83,3 @@ Pass when the image is reproducible after recreation, the safe suite passes, no 
 | Implementation | Pending | |
 | Testing | Pending | |
 | Human release review | Pending | Required before production changes |
-
