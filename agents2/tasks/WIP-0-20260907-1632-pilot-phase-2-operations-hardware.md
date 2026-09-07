@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `blocked-by-phase-1`
+- **Status:** `in-progress`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,8 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Initial inventory 2026-09-08: authorized ADB tablet ALDMJV6429H00568 is connected. Installed uk.scanaki.kitchen reports versionName 0.3.1/versionCode6. Bluetooth manager reports STATE_DISCONNECTED at inspection time; this is not proof that printing cannot connect on demand. Physical printer, QR/NFC and connectivity acceptance remain unverified. Phase1 predecessor is archived with deployed evidence in docs/0098-phase-one-acceptance.md.
 
 Verify that the pilot can operate and recover on customer hardware and production infrastructure.
 
@@ -55,7 +57,7 @@ Pass when automated evidence and required on-site evidence are both attached to 
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
-| Prerequisite | Blocked | Phase 1 must close first |
-| Implementation | Pending | |
+| Prerequisite | Passed | Phase 1 archived |
+| Implementation | In progress | Tablet inventory checked; operational and physical acceptance pending |
 | Testing | Pending | |
 
