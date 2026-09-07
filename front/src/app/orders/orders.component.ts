@@ -4006,6 +4006,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     th:nth-child(2) { text-align: center; }
     th:nth-child(3), th:nth-child(4), th:nth-child(5) { text-align: right; }
     td { padding: 10px 4px; border-bottom: 1px solid #eee; }
+    td:first-child, .header h1 { overflow-wrap: anywhere; }
     .total-row { font-weight: 700; font-size: 1.1rem; border-top: 2px solid #333; }
     .total-row td { padding-top: 12px; }
     .footer { margin-top: 24px; font-size: 11px; color: #888; text-align: center; }

@@ -151,6 +151,13 @@ def main() -> None:
             session.add(table)
             session.add(product)
             session.flush()
+            question = models.ProductQuestion(
+                tenant_id=tenant.id, product_id=product.id,
+                type=models.ProductQuestionType.choice, label="Soup finish",
+                options=["With garnish", "No garnish"], required=True, sort_order=0,
+            )
+            session.add(question)
+            session.flush()
             payload = json.dumps({
                 "schema": 1, "synthetic": True, "livemode": False,
                 "target": "remote" if remote else "local",
@@ -159,6 +166,8 @@ def main() -> None:
                 "location_id": location.id, "floor_id": floor.id,
                 "owner_email": email, "table_id": table.id, "table_token": table.token,
                 "product_id": product.id, "product_name": product_name,
+                "question_id": question.id, "question_label": question.label,
+                "question_option": "No garnish",
                 "amount_cents": 500, "currency": "gbp",
                 "publishable_key_sha256": hashlib.sha256(publishable.encode()).hexdigest(),
             }, separators=(",", ":"), sort_keys=True)
