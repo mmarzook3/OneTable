@@ -17,6 +17,12 @@ Prepare Scanaki for a controlled dine-in pilot through small, independently test
 
 The active phase files live in `agents2/tasks/` and follow the normal pipeline:
 
+- Codex heartbeat automation: `scanaki-pilot-phased-readiness` (hourly)
+- Human input and evidence tracker: [Scanaki Pilot Readiness](https://docs.google.com/spreadsheets/d/1Cq9GTEMMPhpEMv0dL_g-Atx3tT-OU2aIxdciXuoDJm4/edit)
+- Google Drive folder: [Scanaki](https://drive.google.com/drive/folders/1YzVpTQCXrs83SgnNfF1cg0vwZ4FT3HTw)
+
+The heartbeat reads the tracker before every phase and human-gated action. On a failed test, failed deployment, unhealthy live check, missing required answer, or missing approval, it records the evidence, pauses itself, and reports the exact user action required in the current Codex thread.
+
 ```text
 FEAT -> WIP -> UNTESTED -> TESTING -> CLOSED -> done/YYYY/MM/DD
 ```
@@ -91,4 +97,3 @@ Phase 4 must provide:
 - Known limitations and disabled modules.
 - Rollback command and responsible operator.
 - Final `GO`, `CONDITIONAL GO`, or `NO-GO` decision.
-
