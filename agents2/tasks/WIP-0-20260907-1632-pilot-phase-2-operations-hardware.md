@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `in-progress`
+- **Status:** `blocked-on-tablet-unlock`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,8 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Checkpoint 2026-09-08: encrypted backup scanaki_20260907_231202.sql.gz.enc and checksum copied from VPS to G:\My Drive\Scanaki\Backup. Local destination SHA256 matches. Google Drive connector did not yet find the cloud object; cloud upload/retrieval is NOT verified. The authorized USB tablet is online but its lock screen is showing (ADB window state and screenshot). Scheduler paused for user unlock; do not bypass the lock screen. Leave the Kitchen app visible to resume device testing. Physical print and NFC acceptance remain unverified.
 
 Initial inventory 2026-09-08: authorized ADB tablet ALDMJV6429H00568 is connected. Installed uk.scanaki.kitchen reports versionName 0.3.1/versionCode6. Bluetooth manager reports STATE_DISCONNECTED at inspection time; this is not proof that printing cannot connect on demand. Physical printer, QR/NFC and connectivity acceptance remain unverified. Phase1 predecessor is archived with deployed evidence in docs/0098-phase-one-acceptance.md.
 
