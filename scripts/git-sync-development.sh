@@ -16,9 +16,14 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-git fetch origin
+REMOTE="${SCANAKI_GIT_REMOTE:-scanaki}"
+[[ "$(git remote get-url "$REMOTE")" == "git@github.com:mmarzook3/OneTable.git" ]] || {
+  echo "Refusing sync from an unrecognized Scanaki remote" >&2
+  exit 1
+}
+git fetch "$REMOTE"
 
-if ! git rev-parse --verify --quiet origin/development >/dev/null; then
+if ! git rev-parse --verify --quiet "$REMOTE/development" >/dev/null; then
   echo "git-sync-development: origin/development missing after fetch" >&2
   exit 1
 fi
@@ -28,8 +33,8 @@ if [[ "$current" != "development" ]]; then
   if git show-ref --verify --quiet refs/heads/development; then
     git checkout development
   else
-    git checkout -b development origin/development
+    git checkout -b development "$REMOTE/development"
   fi
 fi
 
-git pull --rebase --autostash origin development
+git pull --rebase --autostash "$REMOTE" development
