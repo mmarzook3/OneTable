@@ -12,6 +12,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { getSubcategoryLabel as resolveSubcategoryLabel } from '../shared/product-subcategory-label.util';
 
 interface CartItem {
+  uiKey?: string;
   product: Product;
   quantity: number;
   notes: string;
@@ -729,6 +730,13 @@ export class MenuComponent implements OnInit, OnDestroy {
     return `${source}-${id}-${name}-${price}${answersKey ? '-' + answersKey : ''}`;
   }
 
+  private cartUiSequence = 0;
+  private cartUiPrefix = Math.random().toString(36).slice(2);
+
+  getCartRenderKey(item: CartItem): string {
+    return item.lineId || (item.uiKey ??= `local-cart-${this.cartUiPrefix}-${++this.cartUiSequence}`);
+  }
+
   getCartLineKey(item: Pick<CartItem, 'product' | 'customization_answers' | 'notes' | 'lineId' | 'sessionId'>): string {
     if (item.lineId) {
       return `line:${item.lineId}`;
@@ -806,21 +814,23 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   updateCartItemNotes(item: CartItem, notes: string): void {
     const trimmed = notes.slice(0, this.maxNoteLength);
-    const oldKey = this.getCartLineKey(item);
+    const renderKey = this.getCartRenderKey(item);
+    const current = this.cart().find(i => this.getCartRenderKey(i) === renderKey);
+    if (!current) return;
+    const oldKey = this.getCartLineKey(current);
     if (!this.isMyCartItem(item)) {
       return;
     }
     this.cart.update(items =>
-      items.map(i => (this.getCartLineKey(i) === oldKey ? { ...i, notes: trimmed } : i))
+      items.map(i => (this.getCartRenderKey(i) === renderKey ? { ...i, notes: trimmed } : i))
     );
-    if (trimmed.trim()) {
-      this.expandedCommentKeys.update(set => {
-        const next = new Set(set);
-        next.add(this.getCartLineKey({ ...item, notes: trimmed }));
-        next.delete(oldKey);
-        return next;
-      });
-    }
+    this.expandedCommentKeys.update(set => {
+      if (!set.has(oldKey)) return set;
+      const next = new Set(set);
+      next.delete(oldKey);
+      next.add(this.getCartLineKey({ ...current, notes: trimmed }));
+      return next;
+    });
     if (this.sharedCartEnabled() && item.lineId) {
       const lineId = item.lineId;
       const prev = this.notesSyncTimers.get(lineId);

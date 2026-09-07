@@ -529,7 +529,7 @@
       <p class="cart-shared-hint">{{ 'MENU.SHARED_CART_HINT' | translate }}</p>
       }
       <div class="cart-items-list">
-        @for (item of cart(); track getCartLineKey(item)) {
+        @for (item of cart(); track getCartRenderKey(item)) {
         <div class="cart-item-card" [class.just-added]="isCartLineJustAdded(item)" [class.cart-item-other]="!isMyCartItem(item)">
           <div class="cart-item-main">
           <div class="cart-item-info">

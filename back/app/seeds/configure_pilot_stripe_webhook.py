@@ -60,9 +60,12 @@ def main():
         matches = [e for e in stripe.WebhookEndpoint.list(api_key=secret, limit=100).auto_paging_iter()
                    if e.url == url]
         if matches:
+            metadata = matches[0].metadata
+            if not isinstance(metadata, dict):
+                metadata = metadata.to_dict()
             if (len(matches) != 1 or matches[0].livemode or matches[0].status != 'enabled'
                     or set(matches[0].enabled_events) != set(EVENTS)
-                    or matches[0].metadata.get('scanaki_phase1_run_id') != fixture['run_id']):
+                    or metadata.get('scanaki_phase1_run_id') != fixture['run_id']):
                 raise SystemExit('Existing test destination needs review; no credentials rotated')
         # Replay the same create within the fresh manifest window to recover the
         # signing secret after an interrupted database commit, without rotation.
