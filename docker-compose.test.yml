@@ -1,0 +1,11 @@
+services:
+  browser-test:
+    profiles: [test]
+    build:
+      context: ./front
+      dockerfile: Dockerfile.test
+    environment:
+      BASE_URL: ${PILOT_TEST_BASE_URL:-http://haproxy:4202}
+    shm_size: 512mb
+    networks:
+      - pos2_net
