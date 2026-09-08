@@ -148,6 +148,55 @@ class TestStripeRefundAccounting(PgClientTestCase):
         self.assertEqual(self.order.refunded_amount_cents, 0)
         self.assertEqual(self.summary(self.other.id)["combined"]["gross_sales_cents"], 0)
 
+    def test_signed_other_tenant_events_are_ignored_without_mutation(self):
+        self.session.refresh(self.order)
+        before = (self.order.payment_state, self.order.refunded_amount_cents,
+                  self.order.paid_at, self.order.kitchen_released_at)
+        events = [self.success(), self.event()]
+        for kind in ("processing", "payment_failed", "canceled"):
+            event = self.success()
+            event["type"] = f"payment_intent.{kind}"
+            events.append(event)
+        for event in events:
+            with self.subTest(event_type=event["type"]):
+                response = self.post(event, tenant_id=self.other.id)
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertFalse(response.json()["handled"])
+        self.session.refresh(self.order)
+        self.assertEqual(before, (self.order.payment_state, self.order.refunded_amount_cents,
+                                 self.order.paid_at, self.order.kitchen_released_at))
+        self.publish.assert_not_called()
+        self.assertEqual(self.session.execute(text(
+            'SELECT count(*) FROM order_payment WHERE order_id=:id'
+        ), {"id": self.order.id}).scalar_one(), 0)
+
+    def test_foreign_ack_requires_valid_signature_and_consistent_binding(self):
+        event = self.success()
+        self.assertEqual(self.post(event, tenant_id=self.other.id,
+                                   signing_key=b"wrong_fixture_secret").status_code, 400)
+        for field, value in (("tenant_id", "invalid"), ("order_id", "invalid"),
+                             ("order_id", "999999999"), ("order_id", None)):
+            event = self.success()
+            event["data"]["object"]["metadata"][field] = value
+            self.assertEqual(self.post(event, tenant_id=self.other.id).status_code, 400)
+        event = self.success()
+        event["data"]["object"]["id"] = "pi_wrong_binding"
+        self.assertEqual(self.post(event, tenant_id=self.other.id).status_code, 400)
+        event = self.success()
+        event["data"]["object"]["metadata"]["tenant_id"] = str(self.other.id)
+        self.assertEqual(self.post(event).status_code, 400)
+        self.publish.assert_not_called()
+
+    def test_wrong_connect_account_is_not_ignored(self):
+        self.other.stripe_payment_mode = "connect"
+        self.other.stripe_connected_account_id = "acct_expected_fixture"
+        self.session.commit()
+        event = self.success()
+        event["account"] = "acct_wrong_fixture"
+        with patch("app.main.settings.stripe_guest_webhook_secret", "whsec_refund_fixture"):
+            self.assertEqual(self.post(event, tenant_id=self.other.id).status_code, 400)
+        self.publish.assert_not_called()
+
     def test_invalid_amount_currency_or_metadata_is_rejected(self):
         for overrides in (
             {"amount_refunded": -1}, {"amount_refunded": 1201},
