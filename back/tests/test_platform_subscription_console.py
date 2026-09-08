@@ -167,7 +167,17 @@ class TestPlatformSubscriptionConsole(PgClientTestCase):
                 models.SaasPlanPricing.plan_code == "pro",
                 models.SaasPlanPricing.is_active == True,
             )
-        ).one()
+        ).one_or_none()
+        if current is None:
+            # The isolated metadata-created database deliberately has no migration seeds.
+            current = models.SaasPlanPricing(
+                plan_code="pro", version=1, name="Pro fixture",
+                regular_price_cents=3999, offer_price_cents=None, currency="gbp",
+                included_tables=20, extra_table_price_cents=399, trial_days=14,
+                is_active=True,
+            )
+            self.session.add(current)
+            self.session.flush()
         current.stripe_regular_price_id = "price_pro_new"
         current.stripe_offer_price_id = "price_pro_new"
         current.stripe_extra_table_price_id = "price_extra_new"
