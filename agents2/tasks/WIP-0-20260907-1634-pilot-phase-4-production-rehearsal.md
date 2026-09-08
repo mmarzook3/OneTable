@@ -58,6 +58,13 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
+Latest checkpoint: `docs/0112-phase-four-isolated-database-checkpoint.md`.
+Isolated database restoration/model-column readback passed for the executed run;
+runner cleanup/deployment-lock corrections remain. The local transaction harness
+stopped on its tip-field mismatch. Neither draft is accepted tooling, and Phase4
+is not complete. Full application recovery/rollback and transaction reconciliation
+remain required.
+
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
