@@ -1266,7 +1266,7 @@ ModuleRegistry.registerModules([
                   </div>
                   <p class="modal-hint payment-tip-preview">
                     {{ 'ORDERS.TIP_AMOUNT' | translate }}: {{ formatPrice(paymentTipAmountDisplayCents()) }}
-                    — {{ 'ORDERS.AMOUNT_DUE' | translate }}: {{ formatPrice(paymentOverpaymentGrandTotalCents()) }}
+                    — {{ 'ORDERS.AMOUNT_DUE' | translate }}: {{ paymentOverpaymentGrandTotalCents() == null ? '...' : formatPrice(paymentOverpaymentGrandTotalCents()!) }}
                   </p>
                 } @else if (tipPresetsForPayment().length > 0) {
                   <div class="form-group payment-tip-group">
@@ -4659,10 +4659,22 @@ export class OrdersComponent implements OnInit, OnDestroy {
   onPaymentAmountPaidChange(): void {
     const order = this.orderToMarkPaid();
     if (!order) return;
-    const sub = this.orderPaymentSubtotal(order);
+    const base = this.paymentNetBaseCents(order);
+    if (base == null) {
+      this.paymentTipAmountInput = '';
+      return;
+    }
     const paid = this.parseMoneyMajorToCents(this.paymentAmountPaidInput);
-    const tip = Math.max(0, paid - sub);
+    const tip = Math.max(0, (order.amount_paid_cents || 0) + paid - base);
     this.paymentTipAmountInput = (tip / 100).toFixed(2);
+  }
+
+  private paymentNetBaseCents(order: Order): number | null {
+    // The server summary includes delivery fees and capped order discounts.
+    if (order.amount_before_tip_cents != null && order.amount_before_tip_cents >= 0) {
+      return order.amount_before_tip_cents;
+    }
+    return null;
   }
 
   tipPresetsForPayment(): number[] {
@@ -4703,12 +4715,13 @@ export class OrdersComponent implements OnInit, OnDestroy {
     return Math.max(0, this.orderPaymentSubtotal(order) - discount) + this.paymentTipPreviewCents(order);
   }
 
-  paymentOverpaymentGrandTotalCents(): number {
+  paymentOverpaymentGrandTotalCents(): number | null {
     const order = this.orderToMarkPaid();
     if (!order) return 0;
-    const discount = Math.max(0, order.loyalty_discount_cents || 0);
+    const base = this.paymentNetBaseCents(order);
+    if (base == null) return null;
     return (
-      Math.max(0, this.orderPaymentSubtotal(order) - discount) +
+      base +
       this.parseMoneyMajorToCents(this.paymentTipAmountInput)
     );
   }
@@ -4730,6 +4743,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
               loyalty_units_redeemed: res.units_redeemed,
               loyalty_membership_id: res.membership_id,
               total_cents: summary.amount_due_cents,
+              amount_before_tip_cents: summary.amount_before_tip_cents,
               amount_due_cents: summary.amount_due_cents,
               amount_paid_cents: summary.amount_paid_cents,
               amount_remaining_cents: summary.amount_remaining_cents,
@@ -4759,16 +4773,47 @@ export class OrdersComponent implements OnInit, OnDestroy {
     });
   }
 
-  confirmMarkAsPaid() {
-    if (this.loyaltyRedeeming()) return;
+  confirmMarkAsPaid(paymentSummaryLoaded = false) {
+    if (this.loyaltyRedeeming() || this.processingPayment()) return;
     const order = this.orderToMarkPaid();
     if (!order || !this.paymentMethod) return;
 
     if (this.tipEntryModeOverpayment()) {
-      const sub = this.orderPaymentSubtotal(order);
+      if (!paymentSummaryLoaded) {
+        this.processingPayment.set(true);
+        this.api.getOrderPayments(order.id).subscribe({
+          next: (summary) => {
+            if (this.orderToMarkPaid()?.id !== order.id) return;
+            this.orderToMarkPaid.update(current => current ? {
+              ...current,
+              amount_before_tip_cents: summary.amount_before_tip_cents,
+              amount_due_cents: summary.amount_due_cents,
+              amount_paid_cents: summary.amount_paid_cents,
+              amount_remaining_cents: summary.amount_remaining_cents,
+              payments: summary.payments,
+            } : null);
+            this.processingPayment.set(false);
+            if (!this.paymentTipAmountInput.trim()) this.onPaymentAmountPaidChange();
+            this.confirmMarkAsPaid(true);
+          },
+          error: () => {
+            if (this.orderToMarkPaid()?.id !== order.id) return;
+            this.closePaymentModal();
+            this.showToast(this.translate.instant('COMMON.RETRY'), 'error');
+          },
+        });
+        return;
+      }
+      const base = this.paymentNetBaseCents(order);
+      if (base == null) {
+        this.closePaymentModal();
+        this.showToast(this.translate.instant('COMMON.RETRY'), 'error');
+        return;
+      }
       const paid = this.parseMoneyMajorToCents(this.paymentAmountPaidInput);
       const tip = this.parseMoneyMajorToCents(this.paymentTipAmountInput);
-      if (paid < sub + tip) {
+      const remaining = Math.max(0, base + tip - (order.amount_paid_cents || 0));
+      if (paid < remaining) {
         this.showToast(
           this.translate.instant('ORDERS.OVERPAYMENT_VALIDATE') || 'Amount charged must cover subtotal and tip',
           'error'
@@ -4779,7 +4824,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
       const opts = {
         tipEntryMode: 'overpayment' as const,
         tipAmountCents: tip,
-        amountPaidCents: paid > 0 ? paid : undefined,
+        amountPaidCents: paid,
       };
       const req = this.paymentModalFinishMode()
         ? this.api.finishOrder(order.id, this.paymentMethod, opts)

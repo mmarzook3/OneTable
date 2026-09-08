@@ -2410,7 +2410,8 @@ class OrderMarkPaid(SQLModel):
     tip_percent: int | None = None  # 0 or omitted = no tip; otherwise must be in tenant tip_preset_percents
     # When tenant tip_entry_mode is "overpayment": required explicit tip in cents (0 = no tip)
     tip_amount_cents: int | None = None
-    # Optional: amount charged on card/terminal (cents); must be >= subtotal + tip when set
+    # Optional NEW tender for this settlement (cents), not cumulative prior payments.
+    # Must cover the remaining discounted total, including fees and the selected total tip.
     amount_paid_cents: int | None = None
 
 

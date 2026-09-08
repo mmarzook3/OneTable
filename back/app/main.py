@@ -14716,15 +14716,30 @@ def _resolve_tip_for_mark_paid(
             raise HTTPException(status_code=400, detail="Invalid tip_amount_cents")
         if tip_amt > 100_000_000:
             raise HTTPException(status_code=400, detail="tip_amount_cents too large")
+        order = session.exec(
+            select(models.Order).where(
+                models.Order.id == order_id,
+                models.Order.tenant_id == tenant.id,
+                models.Order.deleted_at.is_(None),
+            )
+        ).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
         subtotal = _active_order_subtotal_cents(session, order_id)
         if subtotal <= 0 and tip_amt > 0:
             raise HTTPException(status_code=400, detail="Cannot add a tip to an empty order")
         if payment_data.amount_paid_cents is not None:
             ap = int(payment_data.amount_paid_cents)
-            if ap < subtotal + tip_amt:
+            # The supplied amount is new tender, not the cumulative amount paid.
+            # Discount caps apply before the selected total tip; voided legs do
+            # not contribute to the active payments already covering this order.
+            base = order_pay_svc.order_due_cents(session, order, include_tip=False)
+            prior = order_pay_svc.amount_paid_cents(session, order.id)
+            remaining = max(0, base + tip_amt - prior)
+            if ap < remaining:
                 raise HTTPException(
                     status_code=400,
-                    detail="amount_paid_cents must cover subtotal and tip",
+                    detail="amount_paid_cents must cover remaining balance and tip",
                 )
         return None, tip_amt
     if payment_data.tip_amount_cents is not None:
@@ -15300,6 +15315,7 @@ def list_orders(
             "can_request_hub_fulfillment": can_request_hub and order.id not in hub_by_order,
         }
         recon = order_pay_svc.reconciliation_dict(session, order)
+        row_out["amount_before_tip_cents"] = recon["amount_before_tip_cents"]
         row_out["amount_due_cents"] = recon["amount_due_cents"]
         row_out["amount_paid_cents"] = recon["amount_paid_cents"]
         row_out["amount_remaining_cents"] = recon["amount_remaining_cents"]

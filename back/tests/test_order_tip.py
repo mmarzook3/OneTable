@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 from pg_client_mixin import PgClientTestCase
+from sqlmodel import select
 
 from app import models, security
 from app.main import (
@@ -260,6 +261,203 @@ class TestOrderTip(PgClientTestCase):
         assert order is not None
         self.assertEqual(order.tip_amount_cents, 200)
         self.assertEqual(order.tip_attributed_user_id, waiter.id)
+
+    def _overpayment_fixture(
+        self, *, basket=500, discount=200, fee=0, existing_tip=0, prior=0, voided=0,
+    ):
+        self.tenant.tip_entry_mode = "overpayment"
+        self.session.add(self.tenant)
+        order = models.Order(
+            tenant_id=self.tenant.id,
+            table_id=None if fee else self.table.id,
+            order_channel=(models.OrderChannel.satisfecho_delivery if fee else models.OrderChannel.table),
+            status=models.OrderStatus.pending,
+            delivery_fee_cents=fee,
+            loyalty_discount_cents=discount,
+            tip_amount_cents=existing_tip or None,
+        )
+        self.session.add(order)
+        self.session.flush()
+        self.session.add(models.OrderItem(
+            order_id=order.id, product_id=self.product.id,
+            product_name=self.product.name, quantity=1, price_cents=basket,
+            status=models.OrderItemStatus.pending,
+        ))
+        for amount, is_voided in ((prior, False), (voided, True)):
+            if amount:
+                self.session.add(models.OrderPayment(
+                    tenant_id=self.tenant.id, order_id=order.id,
+                    amount_cents=amount, payment_method="cash",
+                    voided_at=datetime.now(timezone.utc) if is_voided else None,
+                ))
+        self.session.commit()
+        self.session.refresh(order)
+        return order
+
+    def test_overpayment_new_tender_uses_canonical_net_balance(self):
+        cases = [
+            ("discount", {}, 0, 300),
+            ("delivery_fee_and_tip", {"fee": 100}, 50, 450),
+            ("prior_payment", {"fee": 100, "prior": 100}, 50, 350),
+            ("capped_discount_keeps_tip", {"basket": 100}, 50, 50),
+            ("voided_payment_not_credit", {"voided": 100}, 0, 300),
+            ("active_and_voided", {"prior": 100, "voided": 100}, 0, 200),
+            ("selected_tip_replaces_old_tip", {"existing_tip": 70, "prior": 100}, 20, 220),
+            ("discount_covers_remaining", {"prior": 350}, 0, 0),
+        ]
+        for name, options, tip, required in cases:
+            with self.subTest(case=name):
+                order = self._overpayment_fixture(**options)
+                before = order.model_dump()
+                for supplied in (required, required + 10):
+                    self.assertEqual(
+                        _resolve_tip_for_mark_paid(
+                            self.session, self.tenant, order.id,
+                            models.OrderMarkPaid(payment_method="cash", tip_amount_cents=tip,
+                                                 amount_paid_cents=supplied),
+                        ), (None, tip),
+                    )
+                with self.assertRaises(HTTPException) as rejected:
+                    _resolve_tip_for_mark_paid(
+                        self.session, self.tenant, order.id,
+                        models.OrderMarkPaid(payment_method="cash", tip_amount_cents=tip,
+                                             amount_paid_cents=required - 1),
+                    )
+                self.assertEqual(rejected.exception.status_code, 400)
+                self.assertEqual(order.model_dump(), before)
+
+    def test_overpayment_optional_new_tender_and_tip_safeguards(self):
+        order = self._overpayment_fixture()
+        self.assertEqual(_resolve_tip_for_mark_paid(
+            self.session, self.tenant, order.id,
+            models.OrderMarkPaid(payment_method="cash", tip_amount_cents=0),
+        ), (None, 0))
+        for tip in (-1, 100_000_001):
+            with self.subTest(tip=tip), self.assertRaises(HTTPException) as rejected:
+                _resolve_tip_for_mark_paid(
+                    self.session, self.tenant, order.id,
+                    models.OrderMarkPaid(payment_method="cash", tip_amount_cents=tip,
+                                         amount_paid_cents=200_000_000),
+                )
+            self.assertEqual(rejected.exception.status_code, 400)
+
+    def test_overpayment_empty_or_inactive_basket_cannot_receive_tip(self):
+        for inactive in (None, "removed_by_customer", "removed_by_user_id", "cancelled"):
+            with self.subTest(inactive=inactive):
+                order = self._overpayment_fixture(basket=0 if inactive is None else 500)
+                item = self.session.exec(select(models.OrderItem).where(
+                    models.OrderItem.order_id == order.id,
+                )).one()
+                if inactive == "cancelled":
+                    item.status = models.OrderItemStatus.cancelled
+                elif inactive == "removed_by_customer":
+                    item.removed_by_customer = True
+                elif inactive == "removed_by_user_id":
+                    item.removed_by_user_id = self.user.id
+                self.session.add(item)
+                self.session.commit()
+                with self.assertRaises(HTTPException) as rejected:
+                    _resolve_tip_for_mark_paid(
+                        self.session, self.tenant, order.id,
+                        models.OrderMarkPaid(payment_method="cash", tip_amount_cents=50,
+                                             amount_paid_cents=50),
+                    )
+                self.assertEqual(rejected.exception.status_code, 400)
+
+    def test_overpayment_missing_foreign_and_deleted_order_rejected(self):
+        order = self._overpayment_fixture()
+        other = models.Tenant(name="Other tip tenant")
+        self.session.add(other)
+        self.session.flush()
+        foreign = models.Order(tenant_id=other.id)
+        self.session.add(foreign)
+        order.deleted_at = datetime.now(timezone.utc)
+        self.session.add(order)
+        self.session.commit()
+        for order_id in (-1, foreign.id, order.id):
+            with self.subTest(order_id=order_id), self.assertRaises(HTTPException) as rejected:
+                _resolve_tip_for_mark_paid(
+                    self.session, self.tenant, order_id,
+                    models.OrderMarkPaid(payment_method="cash", tip_amount_cents=0,
+                                         amount_paid_cents=0),
+                )
+            self.assertEqual(rejected.exception.status_code, 404)
+
+    def test_overpayment_mark_paid_and_finish_record_only_new_tender(self):
+        scenarios = [
+            ({}, 0, 300),
+            ({"fee": 100, "prior": 100, "voided": 75, "existing_tip": 80}, 50, 350),
+            ({"basket": 100}, 50, 50),
+        ]
+        headers = _bearer_headers(self.user)
+        for endpoint in ("mark-paid", "finish"):
+            for options, tip, new_tender in scenarios:
+                with self.subTest(endpoint=endpoint, options=options):
+                    order = self._overpayment_fixture(**options)
+                    path = f"/orders/{order.id}/{endpoint}"
+                    rejected = self.client.put(path, headers=headers, json={
+                        "payment_method": "cash", "tip_amount_cents": tip,
+                        "amount_paid_cents": new_tender - 1,
+                    })
+                    self.assertEqual(rejected.status_code, 400, rejected.text)
+                    self.session.refresh(order)
+                    self.assertIsNone(order.paid_at)
+                    item = self.session.exec(select(models.OrderItem).where(
+                        models.OrderItem.order_id == order.id,
+                    )).one()
+                    self.session.refresh(item)
+                    self.assertEqual(item.status, models.OrderItemStatus.pending)
+
+                    accepted = self.client.put(path, headers=headers, json={
+                        "payment_method": "cash", "tip_amount_cents": tip,
+                        "amount_paid_cents": new_tender,
+                    })
+                    self.assertEqual(accepted.status_code, 200, accepted.text)
+                    summary = self.client.get(f"/orders/{order.id}/payments", headers=headers)
+                    self.assertEqual(summary.status_code, 200, summary.text)
+                    self.assertEqual(summary.json()["amount_before_tip_cents"],
+                                     max(0, options.get("basket", 500) + options.get("fee", 0) - 200))
+                    self.session.refresh(order)
+                    self.assertIsNotNone(order.paid_at)
+                    self.assertEqual(order.tip_amount_cents or 0, tip)
+                    self.assertEqual(order.loyalty_discount_cents, 200)
+                    self.assertEqual(order.delivery_fee_cents, options.get("fee", 0))
+                    payments = self.session.exec(select(models.OrderPayment).where(
+                        models.OrderPayment.order_id == order.id,
+                        models.OrderPayment.voided_at.is_(None),
+                    )).all()
+                    self.assertEqual(sum(p.amount_cents for p in payments),
+                                     options.get("prior", 0) + new_tender)
+                    self.assertEqual(len(payments), 1 + bool(options.get("prior")))
+                    self.assertEqual(payments[-1].amount_cents, new_tender)
+                    self.session.refresh(item)
+                    self.assertEqual(item.status, models.OrderItemStatus.delivered
+                                     if endpoint == "finish" else models.OrderItemStatus.pending)
+                    duplicate = self.client.put(path, headers=headers, json={
+                        "payment_method": "cash", "tip_amount_cents": tip,
+                        "amount_paid_cents": new_tender,
+                    })
+                    self.assertEqual(duplicate.status_code, 400)
+
+    def test_overpayment_api_rejects_foreign_tenant(self):
+        order = self._overpayment_fixture()
+        other = models.Tenant(name="Foreign cash tenant")
+        self.session.add(other)
+        self.session.flush()
+        outsider = models.User(
+            tenant_id=other.id, email="tip-foreign@test.local",
+            hashed_password=self.user.hashed_password, role=models.UserRole.owner,
+        )
+        self.session.add(outsider)
+        self.session.commit()
+        for endpoint in ("mark-paid", "finish"):
+            response = self.client.put(
+                f"/orders/{order.id}/{endpoint}", headers=_bearer_headers(outsider),
+                json={"payment_method": "cash", "tip_amount_cents": 0, "amount_paid_cents": 300},
+            )
+            self.assertEqual(response.status_code, 404)
+        self.session.refresh(order)
+        self.assertIsNone(order.paid_at)
 
 
 if __name__ == "__main__":
