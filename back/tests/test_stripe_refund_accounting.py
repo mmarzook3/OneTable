@@ -164,6 +164,58 @@ class TestStripeRefundAccounting(PgClientTestCase):
         self.assertIsNotNone(self.order.kitchen_released_at)
         self.assertEqual(sum(call.args[1]["type"] == "new_order" for call in self.publish.call_args_list), 1)
 
+    def test_cancelled_refunded_delivery_skips_fulfillment_side_effects(self):
+        self.order.order_channel = models.OrderChannel.satisfecho_delivery
+        self.order.requires_prepayment = False
+        self.order.status = models.OrderStatus.cancelled
+        self.order.payment_state = "refunded"
+        self.order.refunded_amount_cents = 1200
+        self.order.paid_at = None
+        self.order.kitchen_released_at = None
+        self.session.commit()
+        # Force the optional hook switch without adding a production model field.
+        with patch.object(models.Tenant, "inventory_tracking_enabled", True, create=True), patch(
+            "app.main.deduct_inventory_for_order"
+        ) as stock, patch(
+            "app.main.loyalty_svc.award_on_order_paid", return_value=False
+        ) as loyalty, patch(
+            "app.delivery_order_service.publish_satisfecho_delivery_order"
+        ) as delivery:
+            self.accept(self.success())
+            stock.assert_not_called()
+            loyalty.assert_not_called()
+            delivery.assert_not_called()
+        self.assertEqual(self.order.status, models.OrderStatus.cancelled)
+        self.assertEqual(self.order.payment_state, "refunded")
+        self.assertIsNotNone(self.order.paid_at)
+        self.assertIsNone(self.order.kitchen_released_at)
+        self.assertFalse(any(call.args[1]["type"] == "new_order" for call in self.publish.call_args_list))
+
+    def test_locked_settlement_refreshes_preloaded_order_state(self):
+        for status, already_paid in (
+            (models.OrderStatus.cancelled, False),
+            (models.OrderStatus.out_for_delivery, True),
+        ):
+            with self.subTest(status=status):
+                self.order.status = models.OrderStatus.pending
+                self.order.paid_at = None
+                self.order.kitchen_released_at = None
+                self.order.payment_state = "awaiting_payment"
+                self.session.commit()
+                self.session.refresh(self.order)
+                event = self.success()
+                paid = "CURRENT_TIMESTAMP" if already_paid else "NULL"
+                self.session.execute(text(
+                    f'UPDATE "order" SET status=:status, paid_at={paid}, '
+                    f'kitchen_released_at={paid} WHERE id=:id'
+                ), {"status": status.value, "id": self.order.id})
+                self.assertEqual(self.order.status, models.OrderStatus.pending)
+                self.publish.reset_mock()
+                self.accept(event)
+                self.assertEqual(self.order.status, status)
+                self.assertFalse(any(call.args[1]["type"] == "new_order"
+                                     for call in self.publish.call_args_list))
+
     def test_tenant_isolation_and_signature(self):
         response = self.post(self.event(), tenant_id=self.other.id)
         self.assertEqual(response.status_code, 200, response.text)
