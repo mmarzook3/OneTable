@@ -1,10 +1,12 @@
 param(
     [ValidateSet('local', 'vps')][string]$Target = 'local',
-    [ValidateSet('core', 'extended', 'reservations', 'saas')][string]$Suite = 'core'
+    [ValidateSet('core', 'extended', 'reservations', 'saas', 'bootstrap')][string]$Suite = 'core'
 )
 $ErrorActionPreference = 'Stop'
 $tests = if ($Suite -eq 'core') {
     @('tests/test_offline_cash_order.py', 'tests/test_restaurant_groups.py')
+} elseif ($Suite -eq 'bootstrap') {
+    @('tests/test_fresh_bootstrap.py')
 } elseif ($Suite -eq 'saas') {
     @('tests/test_saas_billing.py')
 } elseif ($Suite -eq 'reservations') {

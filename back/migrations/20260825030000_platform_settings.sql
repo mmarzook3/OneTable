@@ -36,6 +36,25 @@ ALTER TABLE platform_settings
     ALTER COLUMN created_at SET DEFAULT NOW(),
     ALTER COLUMN updated_at SET DEFAULT NOW();
 
+-- A metadata-first bootstrap may already contain fields introduced by later
+-- migrations. Their Python defaults do not apply to this historical SQL insert.
+-- Keep legacy schemas valid and preserve every existing singleton value.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema()
+               AND table_name = 'platform_settings' AND column_name = 'smtp_auth_required') THEN
+        ALTER TABLE platform_settings ALTER COLUMN smtp_auth_required SET DEFAULT TRUE;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema()
+               AND table_name = 'platform_settings' AND column_name = 'remember_session_days') THEN
+        ALTER TABLE platform_settings ALTER COLUMN remember_session_days SET DEFAULT 10;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema()
+               AND table_name = 'platform_settings' AND column_name = 'remember_inactivity_days') THEN
+        ALTER TABLE platform_settings ALTER COLUMN remember_inactivity_days SET DEFAULT 5;
+    END IF;
+END $$;
+
 INSERT INTO platform_settings (id, smtp_use_tls)
 VALUES (1, TRUE)
 ON CONFLICT (id) DO NOTHING;

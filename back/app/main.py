@@ -341,7 +341,8 @@ async def _app_lifespan(app: FastAPI):
             if migrated_secrets:
                 logger.info("Encrypted %s legacy tenant Stripe key(s)", migrated_secrets)
     except Exception as e:
-        logger.warning(f"Migration check failed: {e}", exc_info=True)
+        logger.error("Database initialization failed; refusing application startup")
+        raise
     from .reservation_reminder_heartbeat import reservation_reminder_heartbeat_loop
 
     stop_heartbeat = asyncio.Event()
