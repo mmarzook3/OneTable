@@ -289,6 +289,54 @@ class TestPublicSatisfechoDelivery(PgClientTestCase):
         self.assertEqual(items[0].product_id, linked.id)
         self.assertEqual(items[0].quantity, 2)
 
+    @patch("app.main.publish_order_update")
+    @patch("stripe.PaymentIntent.retrieve")
+    @patch("stripe.PaymentIntent.create")
+    def test_delivery_checkout_persists_account_binding(self, create, retrieve, publish) -> None:
+        for initial in (None, "existing-account-fixture"):
+            with self.subTest(initial=initial):
+                body, status = self._create_public()
+                self.assertEqual(status, 200, body)
+                order = self.session.get(models.Order, body["id"])
+                order.payment_account_snapshot = initial
+                self.session.commit()
+                expected = initial or "tenant-default"
+                intent = MagicMock()
+                intent.id = f"pi_delivery_snapshot_{order.id}"
+                intent.client_secret = "synthetic-client-secret"
+                intent.amount = 1200
+                intent.currency = "gbp"
+                intent.status = "requires_payment_method"
+
+                def create_intent(**kwargs):
+                    self.session.refresh(order)
+                    self.assertEqual(order.payment_account_snapshot, expected)
+                    self.assertEqual(kwargs["metadata"]["payment_account_snapshot"], expected)
+                    intent.metadata = dict(kwargs["metadata"])
+                    return intent
+
+                create.side_effect = create_intent
+                response = self.client.post(
+                    f"/orders/{order.id}/create-payment-intent",
+                    params={"public_order_token": body["public_order_token"]},
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                intent.status = "succeeded"
+                retrieve.return_value = intent
+                intent.metadata["payment_account_snapshot"] = "wrong-account-fixture"
+                params = {"public_order_token": body["public_order_token"],
+                          "payment_intent_id": intent.id}
+                rejected = self.client.post(f"/orders/{order.id}/confirm-payment", params=params)
+                self.assertEqual(rejected.status_code, 400, rejected.text)
+                self.session.refresh(order)
+                self.assertIsNone(order.paid_at)
+                intent.metadata["payment_account_snapshot"] = expected
+                accepted = self.client.post(f"/orders/{order.id}/confirm-payment", params=params)
+                self.assertEqual(accepted.status_code, 200, accepted.text)
+                self.session.refresh(order)
+                self.assertIsNotNone(order.paid_at)
+                self.assertEqual(order.payment_account_snapshot, expected)
+
     @patch("stripe.PaymentIntent.retrieve")
     def test_public_stripe_pay_happy_path(self, mock_retrieve) -> None:
         body, status = self._create_public()
