@@ -3,7 +3,9 @@
     <p>{{ 'DELIVERY_TRACK.LOADING' | translate }}</p>
   } @else if (error()) {
     <p class="error">{{ error() }}</p>
-    <a [routerLink]="['/delivery', tenantId()]">{{ 'DELIVERY_CHECKOUT.ORDER_AGAIN' | translate }}</a>
+    @if (tenantId() > 0) {
+      <a [routerLink]="['/delivery', tenantId()]">{{ 'DELIVERY_CHECKOUT.ORDER_AGAIN' | translate }}</a>
+    }
   } @else if (status(); as s) {
     <h1>{{ 'DELIVERY_TRACK.TITLE' | translate }}</h1>
     @if (s.tenant_name) {

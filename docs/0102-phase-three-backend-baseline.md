@@ -42,3 +42,18 @@ restaurant groups, with affected live verification. Warehouses remain deferred;
 fiscal integrations remain excluded. The four hands-on checks retain their
 approved final-session deferral. No Phase 3 completion or customer go-live is
 claimed by this checkpoint.
+
+## Reservation follow-up, 2026-09-08
+
+The reusable runner now accepts `-Suite reservations` for public booking zones,
+floor seating preferences and closing a table with seated reservations.
+Results: **6 passed locally** (3.13 seconds) and **6 passed against the deployed
+VPS backend image** (3.14 seconds). Both runner invocations exited successfully;
+the remote line-ending transport issue described above has been corrected.
+The SQLite cases use in-memory databases; the PostgreSQL API case uses the
+disposable isolated database. No real booking, email or payment was created.
+
+Runner implementation: `92a0940d0`; deployed application tested:
+`8bf1720c025c075b35dd429e4f1b570a2a56bdd7`. This adds backend coverage, not
+interactive booking or notification-delivery acceptance. Delivery, loyalty and
+offline browser verification remain independent work.

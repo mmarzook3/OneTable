@@ -41,12 +41,13 @@ export class DeliveryTrackComponent implements OnInit, OnDestroy {
     const token = this.route.snapshot.queryParamMap.get('public_order_token') || '';
     const tid = tidParam ? parseInt(tidParam, 10) : NaN;
     const oid = orderParam ? parseInt(orderParam, 10) : NaN;
+    // Keep the restaurant context even when the tracking link is incomplete.
+    if (Number.isFinite(tid) && tid >= 1) this.tenantId.set(tid);
     if (!Number.isFinite(tid) || tid < 1 || !Number.isFinite(oid) || oid < 1 || !token.trim()) {
       this.error.set(this.translate.instant('DELIVERY_TRACK.MISSING_PARAMS'));
       this.loading.set(false);
       return;
     }
-    this.tenantId.set(tid);
     this.orderId.set(oid);
     this.token = token.trim();
     this.refresh();
