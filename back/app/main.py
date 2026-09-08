@@ -17180,6 +17180,7 @@ def _release_paid_stripe_order(
     """Validate a successful intent and atomically release its checkout to the kitchen."""
     order = session.exec(
         select(models.Order).where(models.Order.id == order_id).with_for_update()
+        .execution_options(populate_existing=True)
     ).first()
     if not order or order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -17249,8 +17250,9 @@ def _release_paid_stripe_order(
 
     was_unpaid = order.paid_at is None
     fully_refunded = order.payment_state == "refunded"
+    fulfillment_allowed = not fully_refunded and order.status != models.OrderStatus.cancelled
     first_kitchen_release = bool(
-        order.requires_prepayment and order.kitchen_released_at is None and not fully_refunded
+        order.requires_prepayment and order.kitchen_released_at is None and fulfillment_allowed
     )
     if order.paid_at is None:
         order.paid_at = datetime.now(timezone.utc)
@@ -17259,7 +17261,8 @@ def _release_paid_stripe_order(
         order.payment_state = "succeeded"
     order.stripe_payment_intent_id = intent_id
     order.bill_requested_at = None
-    order.status = order_pay_svc.status_after_full_payment(session, order)
+    if was_unpaid and fulfillment_allowed:
+        order.status = order_pay_svc.status_after_full_payment(session, order)
     if first_kitchen_release:
         order.kitchen_released_at = datetime.now(timezone.utc)
     paid_marker = f"[PAID: {intent_id}]"
@@ -17276,7 +17279,7 @@ def _release_paid_stripe_order(
     )
 
     tenant = session.get(models.Tenant, order.tenant_id)
-    if tenant and getattr(tenant, "inventory_tracking_enabled", False):
+    if fulfillment_allowed and tenant and getattr(tenant, "inventory_tracking_enabled", False):
         try:
             deduct_inventory_for_order(session, order, tenant)
         except Exception:
@@ -17285,7 +17288,7 @@ def _release_paid_stripe_order(
     session.refresh(order)
 
     try:
-        if loyalty_svc.award_on_order_paid(session, order):
+        if fulfillment_allowed and loyalty_svc.award_on_order_paid(session, order):
             session.commit()
     except Exception:
         logger.exception("Loyalty award failed after Stripe release order_id=%s", order.id)
@@ -17311,6 +17314,7 @@ def _release_paid_stripe_order(
         )
     if (
         was_unpaid
+        and fulfillment_allowed
         and table is None
         and _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value
     ):
