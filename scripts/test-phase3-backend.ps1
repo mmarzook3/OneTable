@@ -20,7 +20,7 @@ trap cleanup EXIT
 image="$(docker inspect scanaki-back --format '{{.Image}}')"
 docker run -d --rm --name "$name" --network none --tmpfs /tmp:rw,size=512m -e PGDATA=/tmp/pgdata -e POSTGRES_USER=pos -e POSTGRES_PASSWORD=synthetic-phase3 -e POSTGRES_DB=pos postgres:18-alpine3.23 >/dev/null
 ready=''
-for i in $(seq 1 30); do if docker exec "$name" pg_isready -U pos -d pos >/dev/null 2>&1; then ready=1; break; fi; sleep 0.25; done
+for i in $(seq 1 30); do if docker exec "$name" pg_isready -h 127.0.0.1 -U pos -d pos >/dev/null 2>&1; then ready=1; break; fi; sleep 0.25; done
 test -n "$ready"
 docker run --rm --network "container:$name" -e DB_HOST=127.0.0.1 -e DB_PORT=5432 -e DB_USER=pos -e DB_PASSWORD=synthetic-phase3 -e DB_NAME=pos -e SECRET_KEY=synthetic-phase3-signing-key-only-not-production -e REFRESH_SECRET_KEY=synthetic-phase3-refresh-key-only-not-production --entrypoint python "$image" -c "__PYTHON__"
 '@
@@ -36,7 +36,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Disposable PostgreSQL failed to start' }
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
-        & docker exec $name pg_isready -U pos -d pos *> $null
+        & docker exec $name pg_isready -h 127.0.0.1 -U pos -d pos *> $null
         if ($LASTEXITCODE -eq 0) { $ready = $true; break }
         Start-Sleep -Milliseconds 250
     }
