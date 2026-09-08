@@ -33,6 +33,14 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.Button;
+import android.webkit.ValueCallback;
+import android.content.pm.PackageManager;
+import android.Manifest;
+import android.print.PrintManager;
+import android.print.PrintAttributes;
+import android.os.Message;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -56,6 +64,7 @@ import java.util.concurrent.TimeUnit;
 
 @SuppressWarnings("deprecation")
 public final class MainActivity extends Activity {
+    private static final String HOME_URL = "https://scanaki.uk/";
     private static final String KDS_URL = "https://scanaki.uk/kitchen";
     private static final String HEARTBEAT_URL =
         "https://scanaki.uk/api/tenant/kitchen-devices/heartbeat";
@@ -72,6 +81,14 @@ public final class MainActivity extends Activity {
     private static final Set<String> ALLOWED_HOSTS = Set.of("scanaki.uk", "www.scanaki.uk");
 
     private WebView webView;
+    private WebView receiptView;
+    private NativeNfcBridge nfcBridge;
+    private String lastSafeUrl = HOME_URL;
+    private volatile String activeDisplayRoute = "";
+    private volatile boolean resumed;
+    private PermissionRequest cameraRequest;
+    private boolean cameraPermissionResultReady;
+    private ValueCallback<Uri[]> fileCallback;
     private ProgressBar progressBar;
     private TextView connectionBanner;
     private ConnectivityManager connectivityManager;
@@ -98,9 +115,14 @@ public final class MainActivity extends Activity {
         createContentView();
         getWindow().getDecorView().post(this::enterImmersiveMode);
         configureWebView();
+        nfcBridge = new NativeNfcBridge(this, webView);
+        if (savedInstanceState != null) {
+            String savedUrl = savedInstanceState.getString("lastSafeUrl", HOME_URL);
+            if (isAllowedUri(Uri.parse(savedUrl))) lastSafeUrl = savedUrl;
+        }
 
         if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(KDS_URL);
+            webView.loadUrl(lastSafeUrl);
         }
         registerNetworkRecovery();
     }
@@ -110,10 +132,16 @@ public final class MainActivity extends Activity {
         root.setBackgroundColor(0xFF090B10);
 
         webView = new WebView(this);
-        root.addView(webView, new FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        ));
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        root.addView(layout, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout controls = new LinearLayout(this);
+        addControl(controls, R.string.nav_home, () -> webView.loadUrl(HOME_URL));
+        addControl(controls, R.string.nav_kitchen, () -> webView.loadUrl(KDS_URL));
+        addControl(controls, R.string.nav_scan, () -> nfcBridge.scanNative());
+        addControl(controls, R.string.nav_print, () -> printPage(webView));
+        layout.addView(controls, new LinearLayout.LayoutParams(-1, -2));
+        layout.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
 
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleLarge);
         FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(64, 64);
@@ -153,8 +181,9 @@ public final class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setSupportMultipleWindows(true);
         settings.setUserAgentString(
-            settings.getUserAgentString() + " ScanakiKitchen/" + BuildConfig.VERSION_NAME
+            settings.getUserAgentString() + " ScanakiAndroid/" + BuildConfig.VERSION_NAME
         );
 
         CookieManager cookies = CookieManager.getInstance();
@@ -167,8 +196,73 @@ public final class MainActivity extends Activity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public boolean onCreateWindow(WebView view, boolean dialog, boolean userGesture, Message result) {
+                if (!userGesture || view.getUrl() == null || !isAllowedUri(Uri.parse(view.getUrl()))) return false;
+                if (receiptView != null) receiptView.destroy();
+                receiptView = new WebView(MainActivity.this);
+                receiptView.getSettings().setJavaScriptEnabled(true);
+                receiptView.getSettings().setAllowFileAccess(false);
+                receiptView.getSettings().setAllowContentAccess(false);
+                receiptView.getSettings().setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                receiptView.setWebChromeClient(new WebChromeClient() {
+                    @Override public void onCloseWindow(WebView window) {
+                        // Retain the document while Android's print adapter uses it.
+                    }
+                    @Override public void onPermissionRequest(PermissionRequest request) { request.deny(); }
+                });
+                receiptView.setWebViewClient(new WebViewClient() {
+                    private boolean printed;
+                    @Override public boolean shouldOverrideUrlLoading(WebView popup, WebResourceRequest request) {
+                        return request.isForMainFrame() && !"about:blank".equals(request.getUrl().toString());
+                    }
+                    @Override public void onPageFinished(WebView popup, String url) {
+                        if (printed || !"about:blank".equals(url)) return;
+                        popup.evaluateJavascript("Boolean(document.querySelector('.total-row'))", value -> {
+                            if (!printed && "true".equals(value)) { printed = true; printPage(popup); }
+                        });
+                    }
+                });
+                ((WebView.WebViewTransport) result.obj).setWebView(receiptView);
+                result.sendToTarget();
+                return true;
+            }
+            @Override
             public void onPermissionRequest(PermissionRequest request) {
-                request.deny();
+                if (!trustedCameraRequest(request)) { request.deny(); return; }
+                if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                } else {
+                    if (cameraRequest != null) cameraRequest.deny();
+                    cameraRequest = request;
+                    cameraPermissionResultReady = false;
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, 41);
+                }
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (cameraRequest == request) cameraRequest = null;
+            }
+
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = null;
+                if (view.getUrl() == null || !isAllowedUri(Uri.parse(view.getUrl()))) {
+                    callback.onReceiveValue(null); return true;
+                }
+                // User-selected uploads use the system picker without broad storage access.
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                String[] accepted = params.getAcceptTypes();
+                String type = accepted.length == 1 && accepted[0].contains("/") ? accepted[0] : "*/*";
+                intent.setType(type);
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                fileCallback = callback;
+                try { startActivityForResult(intent, 42); }
+                catch (RuntimeException error) { fileCallback = null; callback.onReceiveValue(null); }
+                return true;
             }
 
             @Override
@@ -179,9 +273,17 @@ public final class MainActivity extends Activity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                nfcBridge.pageChanged();
+                if (cameraRequest != null) { cameraRequest.deny(); cameraRequest = null; }
+                if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
+                updateActivePage(url);
+            }
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                if ("scanaki".equalsIgnoreCase(uri.getScheme())) {
+                if (showingOfflinePage && request.isForMainFrame()
+                    && "scanaki".equalsIgnoreCase(uri.getScheme())) {
                     if ("network-settings".equalsIgnoreCase(uri.getHost())) {
                         internetPanelShownForOutage = false;
                         openInternetConnectivityPanel();
@@ -207,15 +309,16 @@ public final class MainActivity extends Activity {
                     CookieManager.getInstance().flush();
                     synchroniseDeviceKey(view);
                 }
-                if (isAllowedUri(uri) && shouldReturnToKitchen(uri.getPath())) {
-                    view.loadUrl(KDS_URL);
-                }
+                updateActivePage(url);
+                nfcBridge.installForPage();
             }
 
             @Override
             public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
                 super.doUpdateVisitedHistory(view, url, isReload);
+                updateActivePage(url);
                 Uri uri = Uri.parse(url);
+                nfcBridge.routeChanged(url);
                 if (isAllowedUri(uri)) {
                     // Angular login changes routes without a full page load.
                     CookieManager.getInstance().flush();
@@ -256,20 +359,31 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private boolean isAllowedUri(Uri uri) {
+    static boolean isAllowedUri(Uri uri) {
         return "https".equalsIgnoreCase(uri.getScheme())
             && uri.getHost() != null
-            && ALLOWED_HOSTS.contains(uri.getHost().toLowerCase());
+            && uri.getUserInfo() == null
+            && (uri.getPort() == -1 || uri.getPort() == 443)
+            && ALLOWED_HOSTS.contains(uri.getHost().toLowerCase(java.util.Locale.ROOT));
     }
 
-    private boolean shouldReturnToKitchen(String path) {
-        if (path == null || path.trim().isEmpty()) {
-            return true;
+    private void updateActivePage(String url) {
+        Uri uri = Uri.parse(url);
+        String route = "";
+        if (isAllowedUri(uri)) {
+            lastSafeUrl = url;
+            String path = uri.getPath();
+            if ("/kitchen".equals(path) || (path != null && path.startsWith("/kitchen/"))) route = "kitchen";
+            if ("/bar".equals(path) || (path != null && path.startsWith("/bar/"))) route = "bar";
         }
-        return !path.startsWith("/kitchen")
-            && !path.startsWith("/login")
-            && !path.startsWith("/forgot-password")
-            && !path.startsWith("/reset-password");
+        activeDisplayRoute = route;
+        if (resumed && !route.isEmpty()) startNativeHeartbeat();
+        else {
+            stopNativeHeartbeat();
+            hideHeartbeatFailure();
+            consecutiveHeartbeatFailures = 0;
+            lastSuccessfulHeartbeatAt = System.currentTimeMillis();
+        }
     }
 
     private void showOfflinePage() {
@@ -339,7 +453,7 @@ public final class MainActivity extends Activity {
             networkWasLost = false;
             showingOfflinePage = false;
             if (shouldReload) {
-                webView.loadUrl(KDS_URL);
+                webView.loadUrl(lastSafeUrl);
             }
             requestImmediateHeartbeat();
         });
@@ -531,6 +645,7 @@ public final class MainActivity extends Activity {
     }
 
     private void startNativeHeartbeat() {
+        if (!resumed || activeDisplayRoute.isEmpty()) return;
         if (heartbeatExecutor != null && !heartbeatExecutor.isShutdown()) {
             return;
         }
@@ -558,6 +673,8 @@ public final class MainActivity extends Activity {
     }
 
     private void sendNativeHeartbeat() {
+        String route = activeDisplayRoute;
+        if (!resumed || route.isEmpty()) return;
         long startedAt = System.currentTimeMillis();
         if (!hasInternetConnection()) {
             handleHeartbeatFailure(
@@ -581,7 +698,7 @@ public final class MainActivity extends Activity {
                 "name",
                 "Scanaki Kitchen app - " + Build.MANUFACTURER + " " + Build.MODEL
             );
-            payload.put("display_route", "kitchen");
+            payload.put("display_route", route);
             byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
 
             connection = (HttpURLConnection) new URL(HEARTBEAT_URL).openConnection();
@@ -818,7 +935,9 @@ public final class MainActivity extends Activity {
     }
 
     private void showHeartbeatFailure() {
-        runOnUiThread(() -> connectionBanner.setVisibility(View.VISIBLE));
+        runOnUiThread(() -> {
+            if (resumed && !activeDisplayRoute.isEmpty()) connectionBanner.setVisibility(View.VISIBLE);
+        });
     }
 
     private void hideHeartbeatFailure() {
@@ -884,12 +1003,15 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
+        outState.putString("lastSafeUrl", lastSafeUrl);
         webView.saveState(outState);
         super.onSaveInstanceState(outState);
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
+        nfcBridge.pause();
         stopNativeHeartbeat();
         CookieManager.getInstance().flush();
         webView.onPause();
@@ -902,10 +1024,13 @@ public final class MainActivity extends Activity {
         enterImmersiveMode();
         webView.onResume();
         if (hasResumedOnce && hasInternetConnection() && !showingOfflinePage) {
-            webView.reload();
+            if (!activeDisplayRoute.isEmpty()) requestFrontendUpdateCheck();
         }
         hasResumedOnce = true;
-        startNativeHeartbeat();
+        resumed = true;
+        completeCameraPermissionRequest();
+        nfcBridge.resume();
+        if (!showingOfflinePage) updateActivePage(webView.getUrl() == null ? lastSafeUrl : webView.getUrl());
         if (!hasInternetConnection()) {
             attemptNetworkRecovery();
         }
@@ -922,6 +1047,11 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        resumed = false;
+        nfcBridge.destroy();
+        if (cameraRequest != null) { cameraRequest.deny(); cameraRequest = null; }
+        if (fileCallback != null) { fileCallback.onReceiveValue(null); fileCallback = null; }
+        mainHandler.removeCallbacksAndMessages(null);
         stopNativeHeartbeat();
         if (networkCallback != null) {
             connectivityManager.unregisterNetworkCallback(networkCallback);
@@ -929,6 +1059,63 @@ public final class MainActivity extends Activity {
         releaseCellularFallback();
         webView.stopLoading();
         webView.destroy();
+        if (receiptView != null) receiptView.destroy();
         super.onDestroy();
+    }
+
+    private void printPage(WebView page) {
+        PrintManager manager = (PrintManager) getSystemService(Context.PRINT_SERVICE);
+        if (manager == null) {
+            Toast.makeText(this, R.string.print_unavailable, Toast.LENGTH_LONG).show();
+            return;
+        }
+        manager.print("Scanaki", page.createPrintDocumentAdapter("Scanaki"), new PrintAttributes.Builder().build());
+    }
+
+    private void addControl(LinearLayout row, int label, Runnable action) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setOnClickListener(view -> action.run());
+        row.addView(button, new LinearLayout.LayoutParams(0, -2, 1));
+    }
+
+    private boolean trustedCameraRequest(PermissionRequest request) {
+        if (!resumed || webView.getUrl() == null || !isAllowedUri(request.getOrigin())) return false;
+        Uri page = Uri.parse(webView.getUrl());
+        if (!isAllowedUri(page) || !page.getHost().equalsIgnoreCase(request.getOrigin().getHost())) return false;
+        for (String resource : request.getResources()) {
+            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(code, permissions, results);
+        if (code == 41 && cameraRequest != null) {
+            cameraPermissionResultReady = true;
+            completeCameraPermissionRequest();
+        }
+    }
+
+    private void completeCameraPermissionRequest() {
+        if (!resumed || !cameraPermissionResultReady || cameraRequest == null) return;
+        PermissionRequest request = cameraRequest;
+        cameraRequest = null;
+        cameraPermissionResultReady = false;
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+            && trustedCameraRequest(request)) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+        } else request.deny();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 42 && fileCallback != null) {
+            ValueCallback<Uri[]> callback = fileCallback;
+            fileCallback = null;
+            callback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+        }
     }
 }

@@ -1,7 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Scanaki Kitchen</string>
-    <string name="blocked_link">This link is not available inside Scanaki Kitchen.</string>
+    <string name="nav_print">Print</string>
+    <string name="print_unavailable">Printing is not available on this device.</string>
+    <string name="app_name">Scanaki</string>
+    <string name="blocked_link">This link is not available inside Scanaki.</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_kitchen">Kitchen</string>
+    <string name="nav_scan">Scan tag</string>
+    <string name="nfc_unavailable">This device has no NFC reader. Other Scanaki features remain available.</string>
+    <string name="nfc_disabled">Enable NFC in Settings, then try again.</string>
+    <string name="nfc_settings">Open NFC settings</string>
+    <string name="nfc_prompt">Hold a tag near this device.</string>
+    <string name="nfc_write_title">Write Scanaki link to tag?</string>
+    <string name="nfc_write_confirm">Write tag</string>
     <string name="heartbeat_failed">Kitchen connection has failed repeatedly. Scanaki is retrying Wi-Fi and mobile data.</string>
     <string name="offline_html"><![CDATA[
 <!doctype html>
