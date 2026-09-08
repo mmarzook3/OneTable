@@ -4719,13 +4719,23 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.api.redeemLoyaltyOnOrder(order.id, { member_token: token }).subscribe({
       next: (res) => {
         this.loyaltyRedeeming.set(false);
+        const previousDiscount = order.loyalty_discount_cents || 0;
+        const discountChange = (res.discount_cents || 0) - previousDiscount;
+        const previousTotal = order.total_cents ?? (
+          Math.max(0, this.orderPaymentSubtotal(order) - previousDiscount) + (order.tip_amount_cents || 0)
+        );
         order.loyalty_discount_cents = res.discount_cents;
         order.loyalty_units_redeemed = res.units_redeemed;
         order.loyalty_membership_id = res.membership_id;
-        order.total_cents = Math.max(
-          0,
-          this.orderPaymentSubtotal(order) - (res.discount_cents || 0),
-        ) + (order.tip_amount_cents || 0);
+        order.total_cents = Math.max(0, previousTotal - discountChange);
+        // Redemption changes the discount, not existing fees, tips or payments.
+        // Keep cached reconciliation fields aligned with the successful response.
+        if (order.amount_due_cents != null && order.amount_due_cents >= 0) {
+          order.amount_due_cents = Math.max(0, order.amount_due_cents - discountChange);
+        }
+        if (order.amount_remaining_cents != null && order.amount_remaining_cents >= 0) {
+          order.amount_remaining_cents = Math.max(0, order.amount_remaining_cents - discountChange);
+        }
         this.loyaltyRedeemToken = '';
         this.orderToMarkPaid.set({ ...order });
       },
