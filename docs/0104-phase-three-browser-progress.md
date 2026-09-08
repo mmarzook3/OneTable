@@ -92,3 +92,40 @@ providers, birthday/referral/VIP rules, concurrency or mobile layout.
 Reservation, delivery, subscription and group end-to-end acceptance remain open.
 The approved final physical session is unchanged; no Phase 3 completion or
 customer go-live is declared here.
+
+## Restaurant groups: bounded live management pass
+
+Dedicated synthetic owners exercised the Settings group tab on the VPS:
+create, private-code join, two-member listing, rename, sharing toggles, hub
+designation, leaving and final-member group deletion. Browser-authenticated API
+checks proved pre-join and outsider isolation, sibling shared reads, rejected
+sibling customer edits, rejected outsider edits/hub choices, and revoked reads
+after disabling sharing or leaving. Owner session tenant identities did not
+change. All dedicated tenants, group links and dependent fixture rows were
+removed; shared tenant 23 and order 147 were untouched.
+
+This does not establish tenant-identity switching: the inspected UI has a hub
+selector, not an authenticated tenant switch control. Catalog/CRM rendering,
+non-owner/mobile UI, concurrent joins and cross-restaurant fulfillment were not
+exercised. Settings-created synthetic warehouse/tax rows were included in
+cleanup; this does not enable the deferred warehouse module. Evidence:
+`tmp/phase3-restaurant-groups-ui-evidence-20260908.json`.
+
+## Delivery: live cash-supported lifecycle pass
+
+A dedicated synthetic order passed public menu -> cart -> address -> creation
+and payment-options UI. Valid tracking updated without page reload through
+awaiting payment, received, preparing, out for delivery and delivered. The
+unpaid order was excluded from Kitchen. A 500-cent staff-API cash settlement
+and Kitchen web-UI preparation/ready swipes led to persisted completion.
+Independent database checks confirmed delivered items and the expected cash
+amount with no external payment ID. No browser runtime error or checked backend
+traceback/HTTP 5xx was observed. The order, items and payment were removed;
+tenant configuration and shared order 147 remained unchanged.
+
+No external payment, email, provider dispatch or sandbox webhook was generated.
+This verifies the cash-supported path, not online card checkout/webhooks, the
+staff cash modal, courier assignment or mobile layout. Evidence:
+`tmp/phase3-delivery-cash-lifecycle.json`,
+`tmp/phase3-delivery-cash-cleanup.json` and
+`tmp/phase3-delivery-cash-log-summary.json`.
