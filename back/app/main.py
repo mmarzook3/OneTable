@@ -17413,6 +17413,7 @@ def create_payment_intent(
             )
         order.payment_amount_cents = total_cents
         order.payment_currency = stripe_currency
+        order.payment_account_snapshot = order.payment_account_snapshot or "tenant-default"
         order.payment_state = "awaiting_payment"
         order.checkout_locked_at = order.checkout_locked_at or datetime.now(timezone.utc)
         session.add(order)
@@ -17433,7 +17434,7 @@ def create_payment_intent(
         metadata = {
             "order_id": str(order.id),
             "tenant_id": str(order.tenant_id),
-            "payment_account_snapshot": order.payment_account_snapshot or "tenant-default",
+            "payment_account_snapshot": order.payment_account_snapshot,
         }
         if order.location_id is not None:
             metadata["location_id"] = str(order.location_id)
