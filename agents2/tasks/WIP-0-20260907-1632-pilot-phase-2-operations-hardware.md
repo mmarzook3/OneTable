@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `blocked-on-physical-hardware`
+- **Status:** `engineering-in-progress-physical-acceptance-deferred`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,8 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Current checkpoint 2026-09-08: user approved moving physical paper output, spare-tag write/read-back, first camera/printed QR, and venue Wi-Fi rehearsal into one final session after Phase 4 engineering. These remain unverified, not passed. The phone's physical NFC read was confirmed by the user. Unified app commit 7e361ecc9 is installed on both devices; release build, Android lint and NFC adapter tests passed. VPS publication, remaining operational regressions, recurring offsite backup and complete recovery evidence still gate Phase 2 engineering completion. Earlier hardware-blocker entries below are historical, not current requirements to provide another phone.
 
 Checkpoint 2026-09-08: backup copied back from the approved Drive mount into a separate VPS temporary path and restored into an isolated database successfully (7 tenants,15 locations,47 points,79 tables). scripts/sync-scanaki-backup.ps1 copied the latest 20260908_022001 encrypted backup with checksum verification and refuses mismatched existing destination copies. Script committed and copied to VPS for reference; execution requires Windows laptop and Drive mount. A separate daily heartbeat was NOT created: the app permits only one heartbeat per task. Independent recurring backup scheduling remains pending explicit standalone-job authorization.
 

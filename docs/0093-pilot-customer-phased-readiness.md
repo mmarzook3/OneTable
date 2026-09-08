@@ -39,7 +39,18 @@ Run continuously in the background:
 ./scripts/start-pos-cursor-loop-background.sh --restart
 ```
 
-Later phases must remain `FEAT` and must not be renamed or implemented until their predecessor is present as a verified `CLOSED` task under `agents2/tasks/done/`. A blocked phase records the missing prerequisite and exits without editing application code.
+Later phases normally require a verified predecessor. User-approved exception (2026-09-08): Phase 2 may hand off after all engineering checks and VPS verification pass, with the four physical checks below explicitly deferred. Record `engineering-complete-physical-acceptance-deferred`, not `Passed` or verified `CLOSED`, until physical acceptance succeeds. Other unmet engineering gates still block handoff.
+
+## Combined physical acceptance after Phase 4 engineering
+
+The user approved one final hands-on session after Phase 4 engineering is finished:
+
+- Physical receipt and kitchen-ticket paper output.
+- Write a spare NFC tag and scan it back to the correct table/menu.
+- First camera permission and printed QR plaque scan.
+- Venue Wi-Fi interruption/recovery and ticket reconciliation.
+
+Track these in the existing Google Sheet, Your Inputs P2-07 through P2-10. Phone NFC read is already operator-confirmed; writing remains unverified. Phase 4 may be engineering-complete before this session, but final acceptance and customer go-live remain blocked until all four pass. A deferral is never a passing test result.
 
 ## Phase sequence
 

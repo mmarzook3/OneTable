@@ -17,7 +17,7 @@
 
 ## Dependency Gate
 
-Do not rename this task or edit application code until Phase 2 is verified and the included pilot modules are explicitly recorded. Unselected modules must be documented as excluded, not enabled or tested through production mutations.
+Do not rename this task or edit application code until Phase 2 engineering and VPS verification are complete and the included pilot modules are explicitly recorded. The user-approved `engineering-complete-physical-acceptance-deferred` Phase 2 checkpoint is sufficient for engineering handoff; it is not final acceptance. The four deferred hardware checks remain mandatory after Phase 4 engineering and before customer go-live. Unselected modules must be documented as excluded, not enabled or tested through production mutations.
 
 ## 1. Objective
 
