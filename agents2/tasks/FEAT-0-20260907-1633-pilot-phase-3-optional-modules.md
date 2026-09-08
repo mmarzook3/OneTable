@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `blocked-by-phase-2-and-scope`
+- **Status:** `scope-approved-engineering-in-progress`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Phase 2 engineering handoff in docs/0101-phase-two-engineering-acceptance.md and explicit customer module scope
@@ -23,17 +23,31 @@ Do not rename this task or edit application code until Phase 2 engineering and V
 
 Configure and verify only the optional modules included in the signed pilot scope.
 
+## Approved scope, 2026-09-08
+
+The user explicitly confirmed "Use this scope": include reservations, delivery,
+offline ordering, the Android app, loyalty, customer accounts, SaaS subscriptions
+and restaurant groups. Defer warehouses. Exclude fiscal integrations. This
+authorizes implementation and synthetic verification, not unrestricted live
+payments, customer email, or production feature enablement before checks pass.
+Existing final physical-acceptance deferrals remain in force.
+
 ## 2. Module Checklist
 
-- [ ] Reservations and waiting list: included, excluded, or deferred
-- [ ] Delivery and courier: included, excluded, or deferred
-- [ ] Offline cash/deferred card: included, excluded, or deferred
-- [ ] Android Kitchen distribution: included, excluded, or deferred
-- [ ] Loyalty and wallet passes: included, excluded, or deferred
-- [ ] Customer accounts: included, excluded, or deferred
-- [ ] VeriFactu/TSE: included, excluded, or deferred with legal/provider evidence
-- [ ] SaaS subscription/paywall: included, excluded, or deferred
-- [ ] Restaurant groups and warehouses: included, excluded, or deferred
+- [x] Reservations: included.
+- [x] Delivery: included.
+- [x] Offline ordering: included; never represent an offline card authorization as a completed payment.
+- [x] Android app: included; final physical checks deferred as agreed.
+- [x] Loyalty: included.
+- [x] Customer accounts: included.
+- [x] Fiscal integrations (VeriFactu/TSE): excluded by explicit user decision.
+- [x] SaaS subscriptions: included.
+- [x] Restaurant groups: included.
+- [x] Warehouses: deferred.
+
+These checked boxes record scope decisions, not passing module tests. Adjacent
+services such as wallet-provider passes must not be activated merely because the
+parent module is included; document provider-specific prerequisites when relevant.
 
 ## 3. Acceptance Criteria
 
@@ -52,7 +66,7 @@ Run only tests for explicitly included modules. Mutation tests default to local 
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
-| Prerequisite | Engineering predecessor satisfied | Phase 2 split gate passed; reconcile included module scope before implementation |
-| Implementation | Pending | |
+| Prerequisite | Passed for engineering | Phase 2 split gate passed; user explicitly approved scope |
+| Implementation | In progress | Included modules require functional tests and VPS evidence |
 | Testing | Pending | |
 
