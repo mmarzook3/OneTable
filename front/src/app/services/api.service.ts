@@ -1981,6 +1981,7 @@ export interface Order {
   payment_method?: string | null;
   /** Split-bill reconciliation (#318) */
   amount_due_cents?: number;
+  amount_before_tip_cents?: number;
   amount_paid_cents?: number;
   amount_remaining_cents?: number;
   payments?: OrderPaymentLeg[];
@@ -3836,6 +3837,7 @@ export class ApiService {
   getOrderPayments(orderId: number): Observable<{
     order_id: number;
     amount_due_cents: number;
+    amount_before_tip_cents?: number;
     amount_paid_cents: number;
     amount_remaining_cents: number;
     payments: OrderPaymentLeg[];
@@ -3844,6 +3846,7 @@ export class ApiService {
     return this.http.get<{
       order_id: number;
       amount_due_cents: number;
+      amount_before_tip_cents?: number;
       amount_paid_cents: number;
       amount_remaining_cents: number;
       payments: OrderPaymentLeg[];

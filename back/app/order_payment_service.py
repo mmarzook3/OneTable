@@ -174,12 +174,14 @@ def resolve_line_payment_amount(
 
 
 def reconciliation_dict(session: Session, order: models.Order) -> dict:
-    due = order_due_cents(session, order, include_tip=True)
+    base = order_due_cents(session, order, include_tip=False)
+    due = base + int(order.tip_amount_cents or 0)
     paid = amount_paid_cents(session, order.id)
     payments = list_active_payments(session, order.id)
     remaining = max(0, due - paid)
     unalloc = unallocated_order_items(session, order)
     return {
+        "amount_before_tip_cents": base,
         "amount_due_cents": due,
         "amount_paid_cents": paid,
         "amount_remaining_cents": remaining,

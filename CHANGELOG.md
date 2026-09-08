@@ -8,6 +8,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-09-08
+
+### Fixed
+
+- **Staff payment totals:** Validated new tender against the remaining discounted order total, including delivery fees, the selected tip and active prior payments. Voided payments did not count as credit.
+- **Payment safety:** Required a fresh server payment summary before overpayment settlement and blocked submission when totals could not be retrieved.
+
+### Changed
+
+- **Pilot billing scope:** Kept Scanaki subscription collection operator-managed by bank transfer; deferred platform Stripe integration until after the pilot. Restaurant Stripe payments remained separate.
+
 ## [2.2.1] - 2026-08-25
 
 ### Added
