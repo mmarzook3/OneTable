@@ -13,23 +13,13 @@ import {
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { ApiService, SmartPlaque, SmartPlaqueLookup, Table } from '../services/api.service';
+import { getNfcReader, type NfcReader } from '../shared/nfc-reader';
 
 type SetupStep = 'scan' | 'confirm' | 'nfc' | 'done';
 type BarcodeDetectorInstance = {
   detect(source: CanvasImageSource): Promise<Array<{ rawValue?: string }>>;
 };
 type BarcodeDetectorConstructor = new (options: { formats: string[] }) => BarcodeDetectorInstance;
-type NdefReadingEvent = {
-  message?: { records?: Array<{ recordType?: string; encoding?: string; data?: DataView }> };
-};
-type NdefReader = {
-  write(message: { records: Array<{ recordType: 'url'; data: string }> }): Promise<void>;
-  scan(): Promise<void>;
-  onreading: ((event: NdefReadingEvent) => void) | null;
-  onreadingerror: (() => void) | null;
-};
-type NdefReaderConstructor = new () => NdefReader;
-
 @Component({
   selector: 'app-smart-plaque-assignment',
   standalone: true,
@@ -323,9 +313,11 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
 
   private stream?: MediaStream;
   private scanFrame?: number;
+  private nativeReader?: NfcReader;
 
   ngOnDestroy(): void {
     this.stopCamera();
+    this.nativeReader?.abort?.();
   }
 
   stepIndex(): number {
@@ -490,7 +482,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
   async writeNfc(): Promise<void> {
     const current = this.plaque();
     if (!current) return;
-    const Reader = (window as unknown as { NDEFReader?: NdefReaderConstructor }).NDEFReader;
+    const Reader = getNfcReader();
     if (!Reader || !window.isSecureContext) {
       await this.copyPermanentUrl();
       this.errorKey.set('SMART_PLAQUES.NFC_UNAVAILABLE');
@@ -500,6 +492,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
     this.errorKey.set(null);
     try {
       const writer = new Reader();
+      this.nativeReader = writer;
       await writer.write({ records: [{ recordType: 'url', data: current.public_url }] });
       this.api.updateSmartPlaqueNfc(current.id, { written: true }).subscribe({
         next: (updated) => {
@@ -521,7 +514,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
   async verifyNfc(): Promise<void> {
     const current = this.plaque();
     if (!current) return;
-    const Reader = (window as unknown as { NDEFReader?: NdefReaderConstructor }).NDEFReader;
+    const Reader = getNfcReader();
     if (!Reader || !window.isSecureContext) {
       this.errorKey.set('SMART_PLAQUES.NFC_UNAVAILABLE');
       return;
@@ -530,6 +523,7 @@ export class SmartPlaqueAssignmentComponent implements OnDestroy {
     this.errorKey.set(null);
     try {
       const reader = new Reader();
+      this.nativeReader = reader;
       reader.onreadingerror = () => {
         this.nfcBusy.set(false);
         this.errorKey.set('SMART_PLAQUES.NFC_READ_ERROR');

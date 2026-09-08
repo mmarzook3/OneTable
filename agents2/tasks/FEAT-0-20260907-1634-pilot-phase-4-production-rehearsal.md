@@ -25,6 +25,8 @@ Perform a controlled production rehearsal and issue a defensible pilot launch de
 
 ## 2. Acceptance Criteria
 
+User-approved sequencing, 2026-09-08: finish Phase 4 engineering before the combined hands-on session (Your Inputs P2-07 through P2-10). Phase 2's engineering-complete checkpoint can satisfy its engineering prerequisite, but cannot satisfy final physical acceptance. Do not issue GO or call Phase 4 fully accepted before the session passes.
+
 - [ ] Human approval identifies the exact release SHA.
 - [ ] `development` is promoted through the documented controlled workflow.
 - [ ] Production deployment succeeds and readiness returns HTTP 200.

@@ -3,7 +3,7 @@ import { Meta, Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { ScanakiBrandComponent } from '../shared/scanaki-brand.component';
 
-const APK_URL = '/downloads/scanaki-kitchen-0.3.3.apk';
+const APK_URL = '/downloads/scanaki-0.4.0.apk';
 
 @Component({
   selector: 'app-kitchen-app-download',
@@ -25,23 +25,23 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.3.apk';
             <app-scanaki-brand [size]="88" [showName]="false"></app-scanaki-brand>
             <div>
               <span class="pilot-label">Official pilot app</span>
-              <h1 id="download-title">Scanaki Kitchen</h1>
+              <h1 id="download-title">Scanaki</h1>
             </div>
           </div>
 
           <p class="intro-copy">
-            Receive paid orders, manage preparation and keep your kitchen queue moving on an Android tablet.
+            One Android app for Scanaki ordering and staff tools, with NFC scanning on supported phones and tablets.
           </p>
 
           <a
             class="download-button"
             [href]="apkUrl"
-            download="scanaki-kitchen-0.3.3.apk"
+            download="scanaki-0.4.0.apk"
             data-testid="kitchen-apk-download"
           >
             Download for Android
           </a>
-          <p class="release-meta">Version 0.3.3 · Android 9 or newer</p>
+          <p class="release-meta">Version 0.4.0 · Android 9 or newer. NFC is optional.</p>
         </section>
 
         <section class="install-guide" aria-labelledby="install-title">
@@ -49,7 +49,7 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.3.apk';
           <ol>
             <li>
               <span class="step-number">1</span>
-              <div><strong>Download the app</strong><p>Open this page on the kitchen tablet and tap the download button.</p></div>
+              <div><strong>Download the app</strong><p>Open this page on your phone or tablet and tap the download button.</p></div>
             </li>
             <li>
               <span class="step-number">2</span>
@@ -61,7 +61,7 @@ const APK_URL = '/downloads/scanaki-kitchen-0.3.3.apk';
             </li>
             <li>
               <span class="step-number">4</span>
-              <div><strong>Install and sign in</strong><p>Open Scanaki Kitchen and use the kitchen credentials supplied by Scanaki.</p></div>
+              <div><strong>Install and sign in</strong><p>Open Scanaki and sign in to access the tools available to your role. Scan Tag reports when NFC is unavailable on your device.</p></div>
             </li>
           </ol>
         </section>
@@ -203,10 +203,10 @@ export class KitchenAppDownloadComponent {
   readonly apkUrl = APK_URL;
 
   constructor() {
-    inject(Title).setTitle('Download Scanaki Kitchen for Android');
+    inject(Title).setTitle('Download Scanaki for Android');
     inject(Meta).updateTag({
       name: 'description',
-      content: 'Download the official Scanaki Kitchen pilot app for Android tablets.',
+      content: 'Download the official Scanaki app for Android phones and tablets, with optional NFC support.',
     });
   }
 }
