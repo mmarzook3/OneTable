@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `blocked-by-prior-phases-and-human-approval`
+- **Status:** `engineering-rehearsal-in-progress`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Phases 0-2 verified; Phase 3 verified or explicitly excluded; human deployment approval
@@ -40,10 +40,17 @@ User-approved sequencing, 2026-09-08: finish Phase 4 engineering before the comb
 
 ## 3. Human Approval Record
 
-- **Approved by:** Pending
-- **Approved release SHA:** Pending
-- **Approved production mutations:** None
-- **Approval time:** Pending
+- **Approved by:** Project user: "Let's start Phase 4", following the Phase 3 release acceptance.
+- **Rehearsal release SHA:** `4cef94ab6f05647a6926fa7dc44cca2ef51a3f29`, the already approved/deployed Phase 3 release (protected PR15, workflow34287597616).
+- **Approved production mutations:** Existing authorization for strictly scoped synthetic fixtures and cleanup; no new real-money payment/refund, customer email, live database restore or live cutover is authorized by starting this rehearsal.
+- **Approval date:** 2026-09-09, Europe/London.
+
+Phase 3 acceptance is recorded in `docs/0110-phase-three-pilot-acceptance.md`.
+The four physical checks remain deferred until Phase 4 engineering is finished.
+Scanaki SaaS billing remains operator-managed bank transfer with platform Stripe
+deferred until after the pilot; customer Stripe is restaurant-payments-only.
+No application change or redundant redeployment is required merely to begin
+rehearsing this exact, successfully deployed release.
 
 ## 4. Testing Instructions
 
@@ -54,8 +61,8 @@ Run read-only production health and browser checks first. Stop immediately on fa
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
-| Prerequisites | Blocked | Prior phases and approval required |
-| Deployment | Pending | |
-| Testing | Pending | |
+| Prerequisites | Passed for engineering | Phase 3 accepted; user explicitly started Phase 4; physical split gate remains |
+| Deployment | Existing release verified | Public footer reports exact SHA and version2.2.2; protected PR15 deployment succeeded |
+| Testing | In progress | Initial production health/readiness, landing/mobile navigation and API-docs smoke passed |
 | Go/no-go | Pending | |
 
