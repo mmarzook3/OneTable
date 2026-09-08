@@ -71,6 +71,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      // Customer cookies are independent of staff access/refresh cookies. Let
+      // customer guards/components handle their failures without touching staff sessions.
+      const requestPath = req.url.split('?')[0];
+      if (error.status === 401 && /(^|\/)customer(\/|$)/.test(requestPath)) {
+        return throwError(() => error);
+      }
       const apiService = injector.get(ApiService);
       // Hard paywall: staff APIs return 402 until trial/subscription
       if (error.status === 402) {
