@@ -54,6 +54,13 @@ Track these in the existing Google Sheet, Your Inputs P2-07 through P2-10. Phone
 
 ## Phase sequence
 
+Checkpoint, 2026-09-08: Phase 3 passed for the approved pilot scope; see
+`docs/0110-phase-three-pilot-acceptance.md`. Pilot SaaS collection is directly by
+bank transfer with operator-managed access and existing paywall enforcement off.
+Scanaki platform Stripe is deferred until after the pilot; the first customer's
+Stripe account is only for restaurant payments. Phase 4 and the final physical
+acceptance session remain open. This checkpoint is not customer go-live approval.
+
 | Phase | Task | Outcome | Gate |
 |---|---|---|---|
 | 0 | Release and test foundation | One release line, persistent browser-test environment, safe pilot smoke suite, verified recovery prerequisites | Repeatable safe smoke passes and release/rollback path is documented |
