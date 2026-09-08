@@ -17566,6 +17566,38 @@ async def stripe_guest_webhook(
     metadata_order_id = _stripe_object_value(metadata, "order_id")
     metadata_tenant_id = _stripe_object_value(metadata, "tenant_id")
 
+    supported_payment_events = {
+        "payment_intent.succeeded", "payment_intent.payment_failed",
+        "payment_intent.canceled", "payment_intent.processing", "charge.refunded",
+    }
+    if event_type in supported_payment_events and metadata_tenant_id is not None:
+        raw_tenant = str(metadata_tenant_id)
+        if not raw_tenant.isascii() or not raw_tenant.isdigit() or not 0 < int(raw_tenant) < 2**63:
+            raise HTTPException(status_code=400, detail="Invalid webhook tenant binding")
+        bound_tenant_id = int(raw_tenant)
+        if bound_tenant_id != tenant_id:
+            intent_field = "payment_intent" if event_type == "charge.refunded" else "id"
+            intent_id = str(_stripe_object_value(payment_object, intent_field, "") or "")
+            owned_order = session.exec(select(models.Order.id).where(
+                models.Order.tenant_id == tenant_id,
+                models.Order.stripe_payment_intent_id == intent_id,
+            )).first()
+            if owned_order is not None:
+                raise HTTPException(status_code=400, detail="Webhook payment ownership mismatch")
+            if metadata_order_id is not None:
+                raw_order = str(metadata_order_id)
+                if not raw_order.isascii() or not raw_order.isdigit() or not 0 < int(raw_order) < 2**63:
+                    raise HTTPException(status_code=400, detail="Invalid webhook order binding")
+                foreign_order = session.get(models.Order, int(raw_order))
+                if (not intent_id or foreign_order is None
+                    or foreign_order.tenant_id != bound_tenant_id
+                    or foreign_order.stripe_payment_intent_id != intent_id):
+                    raise HTTPException(status_code=400, detail="Webhook payment ownership mismatch")
+                logger.info("Ignoring verified Stripe %s event for another tenant", event_type)
+                return {"received": True, "handled": False}
+            # Metadata-free legacy lifecycle/refund events still use the existing
+            # tenant-scoped intent lookup below. Success requires both bindings.
+
     if event_type == "payment_intent.succeeded":
         if str(metadata_tenant_id) != str(tenant_id):
             raise HTTPException(status_code=400, detail="Webhook tenant metadata mismatch")
