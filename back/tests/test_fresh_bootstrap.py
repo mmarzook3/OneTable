@@ -1,9 +1,18 @@
 """Run only in an isolated database: metadata bootstrap and migration failure gates."""
 import asyncio
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+if not (
+    os.environ.get('SCANAKI_ISOLATED_TEST_DB') == '1'
+    and os.environ.get('DB_NAME') == 'scanaki_phase3_test'
+    and os.environ.get('DB_HOST') == '127.0.0.1'
+):
+    pytest.skip('Requires the explicitly isolated Phase 3 runner', allow_module_level=True)
+
 from sqlmodel import Session, text
 
 from app.db import engine
