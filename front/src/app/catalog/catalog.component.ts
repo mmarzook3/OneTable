@@ -835,11 +835,14 @@ export class CatalogComponent implements OnInit {
   }
 
   isInMenu(catalogId: number): boolean {
-    return this.tenantProducts().some(tp => tp.catalog_id === catalogId && tp.is_active);
+    return this.getTenantProductId(catalogId) !== null;
   }
 
   getTenantProductId(catalogId: number): number | null {
-    const product = this.tenantProducts().find(tp => tp.catalog_id === catalogId && tp.is_active);
+    const tenantId = this.apiService.getCurrentUser()?.tenant_id;
+    if (tenantId == null) return null;
+    const product = this.tenantProducts().find(tp =>
+      tp.catalog_id === catalogId && tp.is_active && tp.tenant_id === tenantId);
     return product?.id || null;
   }
 

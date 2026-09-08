@@ -96,6 +96,7 @@ import { TranslateModule } from '@ngx-translate/core';
                     <td>{{ c.birth_date || '—' }}</td>
                     @if (canWrite()) {
                       <td class="actions">
+                        @if (canEdit(c)) {
                         <button class="icon-btn" [title]="'COMMON.EDIT' | translate" (click)="openModal(c)">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -107,6 +108,7 @@ import { TranslateModule } from '@ngx-translate/core';
                             <polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                           </svg>
                         </button>
+                        }
                       </td>
                     }
                   </tr>
@@ -238,6 +240,11 @@ export class CustomersComponent implements OnInit {
     return this.permissions.hasPermission(this.api.getCurrentUser(), 'billing_customer:write');
   }
 
+  canEdit(customer: BillingCustomer): boolean {
+    return this.canWrite() && !customer.is_shared &&
+      (customer.tenant_id == null || customer.tenant_id === this.api.getCurrentUser()?.tenant_id);
+  }
+
   ngOnInit() {
     this.load();
   }
@@ -251,6 +258,7 @@ export class CustomersComponent implements OnInit {
   }
 
   openModal(c: BillingCustomer | null) {
+    if (c ? !this.canEdit(c) : !this.canWrite()) return;
     this.editing.set(c);
     if (c) {
       this.form = {
@@ -282,6 +290,8 @@ export class CustomersComponent implements OnInit {
   }
 
   save() {
+    const editing = this.editing();
+    if (!this.canWrite() || (editing && !this.canEdit(editing))) return;
     if (!this.form.name.trim()) return;
     this.saving.set(true);
     const payload: {
@@ -300,7 +310,6 @@ export class CustomersComponent implements OnInit {
       email: this.form.email?.trim() || undefined,
       phone: this.form.phone?.trim() || undefined
     };
-    const editing = this.editing();
     if (editing) {
       payload.birth_date = this.form.birth_date.trim() || null;
       this.api.updateBillingCustomer(editing.id, payload).subscribe({
@@ -319,12 +328,13 @@ export class CustomersComponent implements OnInit {
   }
 
   confirmDelete(c: BillingCustomer) {
+    if (!this.canEdit(c)) return;
     this.deleting.set(c);
   }
 
   deleteCustomer() {
     const c = this.deleting();
-    if (!c) return;
+    if (!c || !this.canEdit(c)) return;
     this.saving.set(true);
     this.api.deleteBillingCustomer(c.id).subscribe({
       next: () => { this.saving.set(false); this.deleting.set(null); this.load(); },
