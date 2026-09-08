@@ -17251,6 +17251,7 @@ def _release_paid_stripe_order(
     fully_refunded = order.payment_state == "refunded"
     first_kitchen_release = bool(
         order.requires_prepayment and order.kitchen_released_at is None and not fully_refunded
+        and order.status != models.OrderStatus.cancelled
     )
     if order.paid_at is None:
         order.paid_at = datetime.now(timezone.utc)
@@ -17259,7 +17260,8 @@ def _release_paid_stripe_order(
         order.payment_state = "succeeded"
     order.stripe_payment_intent_id = intent_id
     order.bill_requested_at = None
-    order.status = order_pay_svc.status_after_full_payment(session, order)
+    if was_unpaid and not fully_refunded and order.status != models.OrderStatus.cancelled:
+        order.status = order_pay_svc.status_after_full_payment(session, order)
     if first_kitchen_release:
         order.kitchen_released_at = datetime.now(timezone.utc)
     paid_marker = f"[PAID: {intent_id}]"

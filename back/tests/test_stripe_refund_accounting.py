@@ -126,6 +126,32 @@ class TestStripeRefundAccounting(PgClientTestCase):
         self.assertEqual(reconciliation_issues(self.session), [])
         self.assertFalse(any(call.args[1]["type"] == "new_order" for call in self.publish.call_args_list))
 
+    def test_late_success_preserves_cancelled_and_existing_delivery_status(self):
+        cases = (
+            (models.OrderStatus.cancelled, False, False),
+            (models.OrderStatus.cancelled, False, True),
+            (models.OrderStatus.out_for_delivery, True, False),
+        )
+        for status, already_paid, refunded in cases:
+            with self.subTest(status=status, already_paid=already_paid, refunded=refunded):
+                self.order.status = status
+                self.order.paid_at = datetime.now(timezone.utc) if already_paid else None
+                self.order.kitchen_released_at = datetime.now(timezone.utc) if already_paid else None
+                self.order.payment_state = "refunded" if refunded else (
+                    "succeeded" if already_paid else "awaiting_payment"
+                )
+                self.order.refunded_amount_cents = 1200 if refunded else 0
+                self.session.commit()
+                self.publish.reset_mock()
+                self.accept(self.success())
+                self.assertEqual(self.order.status, status)
+                self.assertIsNotNone(self.order.paid_at)
+                self.assertFalse(any(call.args[1]["type"] == "new_order"
+                                     for call in self.publish.call_args_list))
+                if refunded:
+                    self.assertEqual(self.order.payment_state, "refunded")
+                    self.assertEqual(self.order.refunded_amount_cents, 1200)
+
     def test_partial_refund_before_success_releases_once(self):
         self.order.paid_at = None
         self.order.kitchen_released_at = None
