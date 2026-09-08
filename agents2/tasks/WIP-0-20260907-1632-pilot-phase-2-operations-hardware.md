@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `in-progress`
+- **Status:** `blocked-on-physical-hardware`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,10 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Checkpoint 2026-09-08: backup copied back from the approved Drive mount into a separate VPS temporary path and restored into an isolated database successfully (7 tenants,15 locations,47 points,79 tables). scripts/sync-scanaki-backup.ps1 copied the latest 20260908_022001 encrypted backup with checksum verification and refuses mismatched existing destination copies. Script committed and copied to VPS for reference; execution requires Windows laptop and Drive mount. A separate daily heartbeat was NOT created: the app permits only one heartbeat per task. Independent recurring backup scheduling remains pending explicit standalone-job authorization.
+
+Physical capability check: tablet exposes camera/Bluetooth but no NFC feature. Bluetooth bonded-device list is empty. Physical printer and NFC test cannot be accepted with this device state. User action: pair/power the intended printer and provide an NFC-capable phone/tag for physical verification. Scheduler paused on this external hardware requirement, not on a software test failure. Ticket actions, full uploads/configuration recovery and remaining acceptance items still open.
 
 Checkpoint 2026-09-08: tablet authenticated as the synthetic tenant23 kitchen user. Landscape KDS rendered; a brief Wi-Fi disable showed the native heartbeat-failure warning. Wi-Fi was restored in a finally block, the warning cleared, and VPS recorded a recent heartbeat. Force-stop/cold launch preserved the authenticated KDS session. No real customer account was used. Ticket actions and physical printer/NFC acceptance remain open.
 
