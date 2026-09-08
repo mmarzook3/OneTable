@@ -4481,6 +4481,8 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   closePaymentModal() {
+    this.loyaltyRedeemToken = '';
+    this.loyaltyRedeemError.set('');
     this.orderToMarkPaid.set(null);
     this.paymentModalFinishMode.set(false);
     this.processingPayment.set(false);
@@ -4719,6 +4721,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loyaltyRedeemError.set('');
     this.api.redeemLoyaltyOnOrder(order.id, { member_token: token }).subscribe({
       next: (res) => {
+        if (this.loyaltyRedeemToken.trim() === token) this.loyaltyRedeemToken = '';
         // Only the server can reconcile discount caps, fees, tips and prior payments.
         this.api.getOrderPayments(order.id).subscribe({
           next: (summary) => {
@@ -4734,7 +4737,6 @@ export class OrdersComponent implements OnInit, OnDestroy {
             };
             this.orders.update(orders => orders.map(o => o.id === order.id ? { ...o, ...update } : o));
             if (this.orderToMarkPaid()?.id === order.id) {
-              this.loyaltyRedeemToken = '';
               this.orderToMarkPaid.update(current => current ? { ...current, ...update } : null);
             }
             this.loyaltyRedeeming.set(false);
@@ -4750,7 +4752,9 @@ export class OrdersComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.loyaltyRedeeming.set(false);
-        this.loyaltyRedeemError.set(err?.error?.detail || 'Redeem failed');
+        if (this.orderToMarkPaid()?.id === order.id) {
+          this.loyaltyRedeemError.set(err?.error?.detail || 'Redeem failed');
+        }
       },
     });
   }

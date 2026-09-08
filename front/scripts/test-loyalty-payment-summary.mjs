@@ -4,6 +4,7 @@
  * cases: [{ name, orderId, memberId, memberToken, delivery, pay, beforeDue,
  * afterDue, paid, fee, tip, basket? }] }. Never put tokens in command arguments.
  * The summary-failure case injects one browser-only GET failure after redemption.
+ * modal-switch also supplies switchOrderId and switchMemberToken for untouched B.
  * Required: BASE_URL. Docker Chromium is the default; no installs or screenshots.
  * Remote execution additionally requires --allow-remote-synthetic and scanaki.uk.
  */
@@ -30,12 +31,17 @@ try {
   assert(/^Phase3 Staff Loyalty [a-f0-9]{32}$/.test(input.marker));
   assert(Number.isSafeInteger(input.tenantId) && ![1, 23, 25].includes(input.tenantId));
   assert(typeof input.token === 'string' && input.token.length > 20);
-  assert(Array.isArray(input.cases) && input.cases.length >= 1 && input.cases.length <= 4);
+  assert(Array.isArray(input.cases) && input.cases.length >= 1 && input.cases.length <= 5);
   assert.equal(new Set(input.cases.map(c => c.orderId)).size, input.cases.length);
   for (const c of input.cases) {
     assert(Number.isSafeInteger(c.orderId) && ![147, 157].includes(c.orderId));
     assert(Number.isSafeInteger(c.memberId) && typeof c.memberToken === 'string');
-    assert(['basic', 'fee-tip-paid', 'oversized-reward', 'summary-failure'].includes(c.name));
+    assert(['basic', 'fee-tip-paid', 'oversized-reward', 'summary-failure', 'modal-switch'].includes(c.name));
+    if (c.name === 'modal-switch') {
+      assert(Number.isSafeInteger(c.switchOrderId) && ![147, 157].includes(c.switchOrderId));
+      assert(!input.cases.some(other => other.orderId === c.switchOrderId));
+      assert(typeof c.switchMemberToken === 'string' && c.switchMemberToken !== c.memberToken);
+    }
     for (const field of ['beforeDue', 'afterDue', 'paid', 'fee', 'tip']) {
       assert(Number.isSafeInteger(c[field]) && c[field] >= 0);
     }
@@ -155,7 +161,7 @@ try {
     stage = `${c.name}: displayed redemption amounts before payment`;
     await page.type('#loyalty-member-token', c.memberToken);
     const paymentsBefore = paymentRequests;
-    if (c.name === 'summary-failure') summaryFault = { orderId: c.orderId, request: null };
+    if (['summary-failure', 'modal-switch'].includes(c.name)) summaryFault = { orderId: c.orderId, request: null };
     const redemption = page.waitForResponse(r => new URL(r.url()).pathname === `/api/orders/${c.orderId}/loyalty/redeem` && r.request().method() === 'POST');
     await page.click('[data-testid="loyalty-redeem-block"] button');
     const redeemed = await redemption;
@@ -168,6 +174,51 @@ try {
       const deadline = Date.now() + 10000;
       while (!summaryFault.request && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
       assert(summaryFault.request, 'Authoritative summary GET not requested');
+      if (c.name === 'modal-switch') {
+        stage = 'modal-switch: A consumed token cleared while summary is held';
+        await page.waitForFunction(() => document.querySelector('#loyalty-member-token')?.value === '');
+        const beforeB = (await read('/orders')).find(order => order.id === c.switchOrderId);
+        assert(beforeB && beforeB.notes === input.marker && !beforeB.paid_at && !beforeB.loyalty_membership_id);
+        await page.click('.modal:has(#payment-method) .modal-actions button.btn-secondary');
+        await page.waitForSelector('#payment-method', { hidden: true });
+        const bButtons = await page.$$(`#order-card-${c.switchOrderId} button`);
+        let openedB = false;
+        for (const button of bButtons) {
+          if (/^pay now$/i.test(await button.evaluate(el => el.textContent.trim())) && await button.boundingBox()) {
+            await button.click(); openedB = true; break;
+          }
+        }
+        assert(openedB, 'Order B Pay now control missing');
+        await page.waitForSelector('#loyalty-member-token', { visible: true });
+        assert.equal(await page.$eval('#loyalty-member-token', el => el.value), '', 'A token leaked into B');
+        const bSummary = await summaryAmounts();
+        assert.deepEqual(bSummary, [beforeB.amount_due_cents]);
+        await page.type('#loyalty-member-token', c.switchMemberToken);
+        stage = 'modal-switch: late A summary must preserve B modal, summary and new token';
+        const heldRequest = summaryFault.request;
+        summaryFault = null;
+        const completedA = page.waitForResponse(r => new URL(r.url()).pathname === `/api/orders/${c.orderId}/payments` && r.request().method() === 'GET');
+        await heldRequest.continue();
+        const responseA = await completedA;
+        assert.equal(responseA.status(), 200);
+        assert.equal((await responseA.json()).amount_due_cents, c.afterDue);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert(await page.$('#payment-method'), 'Late A response closed B modal');
+        assert(await page.$eval('.modal:has(#payment-method)', (el, id) => new RegExp(`#?${id}\\b`).test(el.textContent), c.switchOrderId), 'Late A response replaced B modal');
+        assert.deepEqual(await summaryAmounts(), bSummary, 'Late A response overwrote B summary');
+        assert.equal(await page.$eval('#loyalty-member-token', el => el.value), c.switchMemberToken, 'Late A response cleared new B token');
+        assert.equal(redemptionCounts.get(`/api/orders/${c.switchOrderId}/loyalty/redeem`) || 0, 0);
+        assert.equal(redemptionCounts.get(`/api/orders/${c.orderId}/loyalty/redeem`), 1);
+        assert.equal(paymentRequests, paymentsBefore);
+        const afterB = (await read('/orders')).find(order => order.id === c.switchOrderId);
+        assert.deepEqual(afterB, beforeB, 'Order B changed on the backend');
+        await page.click('.modal:has(#payment-method) .modal-actions button.btn-secondary');
+        results.push({ case: c.name, result: 'PASS', real_summary_get_status: 200,
+          consumed_A_token_cleared: true, no_A_token_in_B: true, B_modal_preserved: true,
+          B_summary_preserved: bSummary, new_B_token_preserved: true,
+          A_redemptions: 1, B_redemptions: 0, payment_requests: 0, B_backend_unchanged: true });
+        continue;
+      }
       await page.waitForFunction(() => document.querySelector('.modal:has(#payment-method) .modal-actions button.btn-primary')?.disabled === true);
       assert.equal(await page.$eval('[data-testid="loyalty-redeem-block"] button', el => el.disabled), true);
       await page.click('.modal:has(#payment-method) .modal-actions button.btn-primary');
