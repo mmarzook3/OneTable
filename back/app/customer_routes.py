@@ -233,6 +233,7 @@ def customer_me(
 @limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
 def customer_verify_email(
     request: Request,
+    response: Response,
     token: str = Query(..., min_length=8, max_length=128),
     lang: str = Depends(_requested_language),
     session: Session = Depends(get_session),
@@ -267,6 +268,7 @@ def customer_verify_email(
 @limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
 async def customer_resend_verification(
     request: Request,
+    response: Response,
     body: models.CustomerResendVerification,
     lang: str = Depends(_requested_language),
     session: Session = Depends(get_session),
@@ -290,6 +292,7 @@ async def customer_resend_verification(
 @limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
 async def customer_password_reset_request(
     request: Request,
+    response: Response,
     body: models.CustomerPasswordResetRequest,
     lang: str = Depends(_requested_language),
     session: Session = Depends(get_session),
@@ -336,6 +339,7 @@ async def customer_password_reset_request(
 @limiter.limit(f"{getattr(settings, 'rate_limit_password_reset_per_hour', 5)}/hour")
 def customer_password_reset_confirm(
     request: Request,
+    response: Response,
     body: models.CustomerPasswordResetConfirm,
     lang: str = Depends(_requested_language),
     session: Session = Depends(get_session),
