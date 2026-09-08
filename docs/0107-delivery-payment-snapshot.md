@@ -22,10 +22,10 @@ settlement comparison are preserved; the validator was not relaxed.
 - Independent review found no material blocker; the existing-intent retry branch is not separately covered by the new cases.
 - Required builds, public browser smoke, health/readiness, reconciliation and checked service-log error markers passed.
 
-A fresh provider-card retest is separate work; these isolated tests do not prove
-that live sandbox checkout has completed after deployment. The retained fully
-refunded order is not silently marked cleaned or settled. Its original evidence
-is in `tmp/phase3-actual-delivery-card-ui.json`,
+A subsequent fresh provider-card retest passed. See
+[the late-settlement follow-up](0108-late-settlement-and-card-acceptance.md) for
+that result and the controlled repair of the retained fully refunded fixture.
+Its original evidence is in `tmp/phase3-actual-delivery-card-ui.json`,
 `tmp/phase3-actual-card-binding-diagnosis.json` and
 `tmp/phase3-actual-card-retained-status.json`.
 
