@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `engineering-in-progress-physical-acceptance-deferred`
+- **Status:** `engineering-complete-physical-acceptance-deferred`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,8 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Engineering handoff 2026-09-08: complete under the user-approved split gate. See docs/0101-phase-two-engineering-acceptance.md and docs/0100-phase-two-frontend-rollback.md. Production b6cb71005218664eaf5dd10a79e87c758e39ef72 deployed successfully in run 34223913813. Daily recovery bundle path, checksum-verified offsite copy and cloud presence, local .env key recovery, isolated application/previous-frontend recovery, live kitchen/bar regressions and public smokes passed. Existing heartbeat resumed for daily offsite replication and subsequent engineering phases. No physical check is marked passed by this handoff. Earlier checkpoints below are historical.
 
 Current checkpoint 2026-09-08: user approved moving physical paper output, spare-tag write/read-back, first camera/printed QR, and venue Wi-Fi rehearsal into one final session after Phase 4 engineering. These remain unverified, not passed. The phone's physical NFC read was confirmed by the user. Unified app commit 7e361ecc9 is installed on both devices; release build, Android lint and NFC adapter tests passed. VPS publication, remaining operational regressions, recurring offsite backup and complete recovery evidence still gate Phase 2 engineering completion. Earlier hardware-blocker entries below are historical, not current requirements to provide another phone.
 
@@ -39,18 +41,18 @@ Verify that the pilot can operate and recover on customer hardware and productio
 
 ## 2. Acceptance Criteria
 
-- [ ] Tablet/browser resolutions and kitchen/bar displays pass.
-- [ ] QR/NFC identifiers resolve correctly on physical devices.
-- [ ] Receipt and kitchen print jobs pass; physical paper output has on-site evidence.
-- [ ] Wi-Fi interruption and reconnection behavior matches the agreed pilot scope.
-- [ ] A recent encrypted database backup and checksum are verified.
-- [ ] The latest isolated restore check is verified.
-- [ ] Encrypted backup retrieval from an off-VPS location is demonstrated.
-- [ ] Uploads and essential server configuration have a recovery plan.
-- [ ] Monitoring reaches a named operator through a tested alert.
-- [ ] TLS and disk usage are within safe thresholds.
-- [ ] Code and database rollback steps are documented and rehearsed safely.
-- [ ] RPO, RTO, escalation owner, and restart instructions are recorded.
+- [x] Automated browser layouts and kitchen/bar displays pass; final physical device acceptance remains separate.
+- [ ] DEFERRED: printed QR/camera and spare-tag write/read-back in final session; phone NFC read already confirmed.
+- [ ] DEFERRED: receipt and kitchen paper output in final session.
+- [ ] DEFERRED: venue Wi-Fi interruption/reconnection in final session; earlier tablet recovery passed.
+- [x] A recent encrypted database backup and checksum are verified.
+- [x] The latest isolated restore check is verified.
+- [x] Encrypted backup retrieval from the approved off-VPS Drive mount is demonstrated; cloud objects confirmed independently.
+- [x] Uploads and essential application configuration recovery is tested and documented.
+- [x] Alert delivery to the approved operations group and a member was previously confirmed.
+- [x] TLS and configured health/disk checks pass; disk 81% requires continued monitoring.
+- [x] Isolated application and previous-frontend recovery/rollback compatibility passed within the documented scope.
+- [x] RPO/RTO targets, measured rehearsal interval, owner role and restart instructions are recorded; no outage SLA is claimed.
 
 ## 3. Safety Constraints
 
@@ -70,6 +72,6 @@ Pass when automated evidence and required on-site evidence are both attached to 
 |---|---|---|
 | Created | Complete | |
 | Prerequisite | Passed | Phase 1 archived |
-| Implementation | In progress | Tablet inventory checked; operational and physical acceptance pending |
-| Testing | Pending | |
+| Implementation | Engineering complete | Deployed b6cb7100; physical acceptance explicitly deferred |
+| Testing | Engineering passed | See docs/0101 and docs/0100; four physical checks remain open |
 

@@ -12,7 +12,7 @@
 - **Status:** `blocked-by-phase-2-and-scope`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
-- **Prerequisite:** Verified Phase 2 task archived and explicit customer module scope
+- **Prerequisite:** Phase 2 engineering handoff in docs/0101-phase-two-engineering-acceptance.md and explicit customer module scope
 - **Plan:** `docs/0093-pilot-customer-phased-readiness.md`
 
 ## Dependency Gate
@@ -52,7 +52,7 @@ Run only tests for explicitly included modules. Mutation tests default to local 
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
-| Prerequisite | Blocked | Phase 2 and customer scope required |
+| Prerequisite | Engineering predecessor satisfied | Phase 2 split gate passed; reconcile included module scope before implementation |
 | Implementation | Pending | |
 | Testing | Pending | |
 

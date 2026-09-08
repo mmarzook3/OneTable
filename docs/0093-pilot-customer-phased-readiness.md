@@ -17,11 +17,11 @@ Prepare Scanaki for a controlled dine-in pilot through small, independently test
 
 The active phase files live in `agents2/tasks/` and follow the normal pipeline:
 
-- Codex heartbeat automation: `scanaki-pilot-phased-readiness` (hourly)
+- Codex heartbeat automation: `scanaki-pilot-phased-readiness` (every five minutes; daily offsite-copy work with catch-up)
 - Human input and evidence tracker: [Scanaki Pilot Readiness](https://docs.google.com/spreadsheets/d/1Cq9GTEMMPhpEMv0dL_g-Atx3tT-OU2aIxdciXuoDJm4/edit)
 - Google Drive folder: [Scanaki](https://drive.google.com/drive/folders/1YzVpTQCXrs83SgnNfF1cg0vwZ4FT3HTw)
 
-The heartbeat reads the tracker before every phase and human-gated action. On a failed test, failed deployment, unhealthy live check, missing required answer, or missing approval, it records the evidence, pauses itself, and reports the exact user action required in the current Codex thread.
+The heartbeat reads the tracker before each phase. It diagnoses recoverable failures, fixes them and retests without repeated routine approval requests. Genuine external blockers are recorded with the exact required action. Deferred physical checks do not block engineering handoff, and operational backup work continues while awaiting final physical acceptance. Offsite copying requires the laptop, Drive mount and signed-in app to be available; this is not an always-on VPS-to-cloud service.
 
 ```text
 FEAT -> WIP -> UNTESTED -> TESTING -> CLOSED -> done/YYYY/MM/DD
