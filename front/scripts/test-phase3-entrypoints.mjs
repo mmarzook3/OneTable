@@ -10,7 +10,14 @@ const browser = await puppeteer.launch({
 });
 try {
   for (const width of [390, 1280]) {
-    const page = await browser.newPage();
+    for (const [path, selector] of [
+      ['/customer/login', '[data-testid="customer-login-form"]'],
+      ['/customer/register', '[data-testid="customer-register-form"]'],
+      ['/book/1', '.book-form'],
+    ]) {
+    // Isolate storage/service workers as well as the page between entrypoints.
+    const context = await browser.createBrowserContext();
+    const page = await context.newPage();
     await page.setViewport({ width, height: 844 });
     let errors = 0;
     let mutations = 0;
@@ -24,11 +31,6 @@ try {
         void request.abort();
       } else void request.continue();
     });
-    for (const [path, selector] of [
-      ['/customer/login', '[data-testid="customer-login-form"]'],
-      ['/customer/register', '[data-testid="customer-register-form"]'],
-      ['/book/1', '.book-form'],
-    ]) {
       const response = await page.goto(new URL(path, base).href, {
         waitUntil: 'networkidle2', timeout: 30000,
       });
@@ -38,8 +40,8 @@ try {
       assert.equal(errors, 0, 'Browser runtime errors');
       assert.equal(mutations, 0, 'Unexpected API mutation attempted; request blocked');
       console.log(`PASS entry form ${path} at ${width}px`);
+    await context.close();
     }
-    await page.close();
   }
   console.log('PASS read-only entrypoints; no forms submitted. Full module acceptance remains open.');
 } finally {
