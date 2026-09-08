@@ -19,7 +19,10 @@ flock -n 9 || exit 0
 run_action() {
   case "$ACTION" in
     backup)
-      "$APP_DIR/scripts/scanaki-backup.sh"
+      bash "$APP_DIR/scripts/scanaki-backup.sh" || return $?
+      bundle="$(bash "$APP_DIR/scripts/scanaki-recovery-bundle.sh" create)" || return $?
+      bash "$APP_DIR/scripts/scanaki-recovery-bundle.sh" rehearse "$bundle" || return $?
+      printf 'Recovery bundle ready: %s\n' "$bundle"
       ;;
     health)
       "$APP_DIR/scripts/scanaki-health-check.sh"
