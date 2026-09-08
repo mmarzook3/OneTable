@@ -57,3 +57,13 @@ Runner implementation: `92a0940d0`; deployed application tested:
 `8bf1720c025c075b35dd429e4f1b570a2a56bdd7`. This adds backend coverage, not
 interactive booking or notification-delivery acceptance. Delivery, loyalty and
 offline browser verification remain independent work.
+
+## SaaS follow-up, 2026-09-08
+
+The runner's `-Suite saas` selects `back/tests/test_saas_billing.py`.
+Results: **19 passed locally** (3.90 seconds) and **19 passed on the VPS backend
+image** (3.50 seconds), with successful wrapper exits. This includes enabled-
+paywall/trial service scenarios in isolated test processes, not a production
+paywall configuration change or real provider checkout. The database was
+disposable and outbound providers were unreachable from the test namespace.
+Runner checkpoint: `d8a9397f1`.

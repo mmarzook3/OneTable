@@ -129,3 +129,35 @@ staff cash modal, courier assignment or mobile layout. Evidence:
 `tmp/phase3-delivery-cash-lifecycle.json`,
 `tmp/phase3-delivery-cash-cleanup.json` and
 `tmp/phase3-delivery-cash-log-summary.json`.
+
+## Reservations: live booking and cancellation pass
+
+A dedicated synthetic tenant passed availability/slot selection, public booking
+creation and confirmation, token-based view, staff UI/API visibility, public
+cancellation and persistence after reload. Staff visibility reflected both booked
+and cancelled states. No browser runtime errors or checked backend traceback/
+HTTP 5xx occurred. Email was omitted, reminders disabled for the fixture and no
+real administrator recipient was present. The reservation and all owned tenant,
+staff, table, floor and location rows were removed; shared order 147 was unchanged.
+
+Evidence: `tmp/phase3-reservations-ui-final.json` and
+`tmp/phase3-reservations-cleanup-final.json`. Notification delivery, rescheduling,
+seating/no-show, overbooking/concurrent requests and mobile layout were not
+exercised by this browser run.
+
+## SaaS console: scoped read-only pass
+
+The VPS console displayed dedicated trialing/Pro and past-due/Lite fixtures.
+Search, status/plan/overdue filters and conflicting-filter empty results passed,
+as did the empty billing-history dialog and owner denial of operator APIs/UI.
+Browser interception constrained every list request to the unique fixture marker
+before transmission; global metrics were replaced with empty synthetic responses
+and were not verified. No real customer billing data or lifecycle writes were
+requested. All dedicated tenants/users and automatically created locations were
+removed; provider IDs remained empty.
+
+Production paywall enforcement was disabled and stayed disabled. Seeded trial
+state is not proof of trial activation. Checkout, provider subscriptions,
+proration, invoice payment, cancellation and webhooks were not exercised.
+Enabled trial/paywall browser behavior requires the separate isolated rehearsal
+now in progress. Evidence: `tmp/phase3-saas-subscriptions-ui-evidence-20260908.json`.
