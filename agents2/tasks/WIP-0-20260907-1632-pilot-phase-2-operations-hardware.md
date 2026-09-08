@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `blocked-on-tablet-unlock`
+- **Status:** `in-progress`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Verified Phase 1 task archived under `agents2/tasks/done/`
@@ -20,6 +20,10 @@
 Do not rename this task or edit application code until Phase 1 is verified and archived. If it is missing, record the blocker and exit.
 
 ## 1. Objective
+
+Checkpoint 2026-09-08: tablet authenticated as the synthetic tenant23 kitchen user. Landscape KDS rendered; a brief Wi-Fi disable showed the native heartbeat-failure warning. Wi-Fi was restored in a finally block, the warning cleared, and VPS recorded a recent heartbeat. Force-stop/cold launch preserved the authenticated KDS session. No real customer account was used. Ticket actions and physical printer/NFC acceptance remain open.
+
+Cloud backup visibility is now confirmed by direct folder listing (filename search missed binary files). Drive Backup folder id 1hpN--7WKssWq45mJ6ECe9Zli0UFkM64o contains encrypted file id 1xoDBUFmt9fxkat9xzqPqMcswDn4yOUH4 and checksum id 1qraqUX-Kkbv7uzm5FE1HzjrtxGyVxWMI. Authenticated raw fetch returned a 70576-byte file reference. The Drive-mounted copy checksum matched the VPS original; a separate checksum of the provider stream and full recovery from the cloud copy are not yet claimed. Recurring offsite replication is not yet implemented.
 
 Checkpoint 2026-09-08: encrypted backup scanaki_20260907_231202.sql.gz.enc and checksum copied from VPS to G:\My Drive\Scanaki\Backup. Local destination SHA256 matches. Google Drive connector did not yet find the cloud object; cloud upload/retrieval is NOT verified. The authorized USB tablet is online but its lock screen is showing (ADB window state and screenshot). Scheduler paused for user unlock; do not bypass the lock screen. Leave the Kitchen app visible to resume device testing. Physical print and NFC acceptance remain unverified.
 
