@@ -1372,7 +1372,7 @@ ModuleRegistry.registerModules([
                         class="btn btn-secondary"
                         data-testid="record-partial-payment"
                         (click)="confirmPartialPayment()"
-                        [disabled]="processingPayment()"
+                        [disabled]="processingPayment() || loyaltyRedeeming()"
                       >
                         {{ 'ORDERS.RECORD_PARTIAL_PAYMENT' | translate }}
                       </button>
@@ -1391,7 +1391,7 @@ ModuleRegistry.registerModules([
               </div>
               <div class="modal-actions">
                 <button class="btn btn-secondary" (click)="closePaymentModal()">{{ 'ORDERS.CANCEL' | translate }}</button>
-                <button class="btn btn-primary" (click)="confirmMarkAsPaid()" [disabled]="processingPayment()">
+                <button class="btn btn-primary" (click)="confirmMarkAsPaid()" [disabled]="processingPayment() || loyaltyRedeeming()">
                   @if (processingPayment()) {
                     {{ 'ORDERS.PROCESSING' | translate }}
                   } @else if (paymentModalFinishMode()) {
@@ -4550,6 +4550,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   confirmPartialPayment() {
+    if (this.loyaltyRedeeming()) return;
     const order = this.orderToMarkPaid();
     if (!order || !this.paymentMethod) return;
     const lineIds = Array.from(this.selectedSplitLineIds);
@@ -4718,26 +4719,34 @@ export class OrdersComponent implements OnInit, OnDestroy {
     this.loyaltyRedeemError.set('');
     this.api.redeemLoyaltyOnOrder(order.id, { member_token: token }).subscribe({
       next: (res) => {
-        this.loyaltyRedeeming.set(false);
-        const previousDiscount = order.loyalty_discount_cents || 0;
-        const discountChange = (res.discount_cents || 0) - previousDiscount;
-        const previousTotal = order.total_cents ?? (
-          Math.max(0, this.orderPaymentSubtotal(order) - previousDiscount) + (order.tip_amount_cents || 0)
-        );
-        order.loyalty_discount_cents = res.discount_cents;
-        order.loyalty_units_redeemed = res.units_redeemed;
-        order.loyalty_membership_id = res.membership_id;
-        order.total_cents = Math.max(0, previousTotal - discountChange);
-        // Redemption changes the discount, not existing fees, tips or payments.
-        // Keep cached reconciliation fields aligned with the successful response.
-        if (order.amount_due_cents != null && order.amount_due_cents >= 0) {
-          order.amount_due_cents = Math.max(0, order.amount_due_cents - discountChange);
-        }
-        if (order.amount_remaining_cents != null && order.amount_remaining_cents >= 0) {
-          order.amount_remaining_cents = Math.max(0, order.amount_remaining_cents - discountChange);
-        }
-        this.loyaltyRedeemToken = '';
-        this.orderToMarkPaid.set({ ...order });
+        // Only the server can reconcile discount caps, fees, tips and prior payments.
+        this.api.getOrderPayments(order.id).subscribe({
+          next: (summary) => {
+            const update = {
+              loyalty_discount_cents: res.discount_cents,
+              loyalty_units_redeemed: res.units_redeemed,
+              loyalty_membership_id: res.membership_id,
+              total_cents: summary.amount_due_cents,
+              amount_due_cents: summary.amount_due_cents,
+              amount_paid_cents: summary.amount_paid_cents,
+              amount_remaining_cents: summary.amount_remaining_cents,
+              payments: summary.payments,
+            };
+            this.orders.update(orders => orders.map(o => o.id === order.id ? { ...o, ...update } : o));
+            if (this.orderToMarkPaid()?.id === order.id) {
+              this.loyaltyRedeemToken = '';
+              this.orderToMarkPaid.update(current => current ? { ...current, ...update } : null);
+            }
+            this.loyaltyRedeeming.set(false);
+          },
+          error: () => {
+            this.loyaltyRedeeming.set(false);
+            // Redemption already committed: never leave an actionable stale total.
+            if (this.orderToMarkPaid()?.id === order.id) this.closePaymentModal();
+            this.loadOrders();
+            this.showToast(this.translate.instant('COMMON.RETRY'), 'error');
+          },
+        });
       },
       error: (err) => {
         this.loyaltyRedeeming.set(false);
@@ -4747,6 +4756,7 @@ export class OrdersComponent implements OnInit, OnDestroy {
   }
 
   confirmMarkAsPaid() {
+    if (this.loyaltyRedeeming()) return;
     const order = this.orderToMarkPaid();
     if (!order || !this.paymentMethod) return;
 

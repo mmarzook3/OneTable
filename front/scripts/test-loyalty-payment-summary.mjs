@@ -2,7 +2,8 @@
  * Real staff UI regression; fixtures must be created and cleaned up by the caller.
  * Pipe private JSON on stdin: { synthetic: true, marker, tenantId, token,
  * cases: [{ name, orderId, memberId, memberToken, delivery, pay, beforeDue,
- * afterDue, paid, fee, tip }] }. Never put tokens in command arguments.
+ * afterDue, paid, fee, tip, basket? }] }. Never put tokens in command arguments.
+ * The summary-failure case injects one browser-only GET failure after redemption.
  * Required: BASE_URL. Docker Chromium is the default; no installs or screenshots.
  * Remote execution additionally requires --allow-remote-synthetic and scanaki.uk.
  */
@@ -16,6 +17,9 @@ let context;
 let stage = 'configuration';
 let pageErrors = 0;
 let blockedWrites = 0;
+let summaryFault = null;
+const redemptionCounts = new Map();
+let paymentRequests = 0;
 try {
   const input = JSON.parse(readFileSync(0, 'utf8').replace(/^\uFEFF/, ''));
   const base = new URL(process.env.BASE_URL);
@@ -26,16 +30,18 @@ try {
   assert(/^Phase3 Staff Loyalty [a-f0-9]{32}$/.test(input.marker));
   assert(Number.isSafeInteger(input.tenantId) && ![1, 23, 25].includes(input.tenantId));
   assert(typeof input.token === 'string' && input.token.length > 20);
-  assert(Array.isArray(input.cases) && input.cases.length >= 1 && input.cases.length <= 2);
+  assert(Array.isArray(input.cases) && input.cases.length >= 1 && input.cases.length <= 4);
   assert.equal(new Set(input.cases.map(c => c.orderId)).size, input.cases.length);
   for (const c of input.cases) {
     assert(Number.isSafeInteger(c.orderId) && ![147, 157].includes(c.orderId));
     assert(Number.isSafeInteger(c.memberId) && typeof c.memberToken === 'string');
-    assert(['basic', 'fee-tip-paid'].includes(c.name));
+    assert(['basic', 'fee-tip-paid', 'oversized-reward', 'summary-failure'].includes(c.name));
     for (const field of ['beforeDue', 'afterDue', 'paid', 'fee', 'tip']) {
       assert(Number.isSafeInteger(c[field]) && c[field] >= 0);
     }
-    assert.equal(c.beforeDue - c.afterDue, 200);
+    assert(Number.isSafeInteger(c.basket ?? 500) && (c.basket ?? 500) > 0);
+    assert.equal(c.beforeDue, (c.basket ?? 500) + c.fee + c.tip);
+    assert.equal(c.afterDue, Math.max(0, (c.basket ?? 500) + c.fee - 200) + c.tip);
     if (c.pay) {
       assert.equal(c.name, 'basic');
       assert.equal(c.beforeDue, 500);
@@ -79,7 +85,16 @@ try {
   page.on('request', request => {
     const url = new URL(request.url());
     if (['http:', 'https:'].includes(url.protocol) && url.origin !== base.origin) return request.abort();
+    if (summaryFault && request.method() === 'GET' &&
+        url.pathname === `/api/orders/${summaryFault.orderId}/payments` && !summaryFault.request) {
+      summaryFault.request = request;
+      return;
+    }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
+      if (url.pathname.endsWith('/mark-paid') || url.pathname.endsWith('/payments')) paymentRequests++;
+      if (url.pathname.endsWith('/loyalty/redeem')) {
+        redemptionCounts.set(url.pathname, (redemptionCounts.get(url.pathname) || 0) + 1);
+      }
       let allowed = false;
       try {
         const body = JSON.parse(request.postData() || '{}');
@@ -107,7 +122,7 @@ try {
     if (before.delivery_fee_cents != null) assert.equal(before.delivery_fee_cents, c.fee);
     assert.equal(before.tip_amount_cents || 0, c.tip, 'Initial tip mismatch');
     const lineSubtotal = before.items.reduce((sum, item) => sum + item.price_cents * item.quantity, 0);
-    assert.equal(lineSubtotal, 500, 'Expected synthetic 500-cent basket');
+    assert.equal(lineSubtotal, c.basket ?? 500, 'Expected synthetic basket');
     assert.equal(before.amount_due_cents, lineSubtotal + c.fee + c.tip);
     await page.goto(`${base.origin}/staff/orders`, { waitUntil: 'networkidle2', timeout: 30000 });
     if (c.delivery) {
@@ -118,6 +133,9 @@ try {
         if (/delivery/i.test(await tab.evaluate(el => el.textContent))) { await tab.click(); selected = true; break; }
       }
       assert(selected, 'Delivery tab missing');
+    } else {
+      await page.waitForSelector('button.filter-tab');
+      await page.click('button.filter-tab');
     }
     stage = `${c.name}: open payment modal`;
     await page.waitForFunction(() => Array.from(document.querySelectorAll('button')).some(el => /^pay now$/i.test(el.textContent.trim())));
@@ -136,6 +154,8 @@ try {
 
     stage = `${c.name}: displayed redemption amounts before payment`;
     await page.type('#loyalty-member-token', c.memberToken);
+    const paymentsBefore = paymentRequests;
+    if (c.name === 'summary-failure') summaryFault = { orderId: c.orderId, request: null };
     const redemption = page.waitForResponse(r => new URL(r.url()).pathname === `/api/orders/${c.orderId}/loyalty/redeem` && r.request().method() === 'POST');
     await page.click('[data-testid="loyalty-redeem-block"] button');
     const redeemed = await redemption;
@@ -143,10 +163,33 @@ try {
     const reward = await redeemed.json();
     assert.equal(reward.membership_id, c.memberId);
     assert.equal(reward.discount_cents, 200);
+    if (summaryFault) {
+      stage = `${c.name}: payment blocked while authoritative GET is pending`;
+      const deadline = Date.now() + 10000;
+      while (!summaryFault.request && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+      assert(summaryFault.request, 'Authoritative summary GET not requested');
+      await page.waitForFunction(() => document.querySelector('.modal:has(#payment-method) .modal-actions button.btn-primary')?.disabled === true);
+      assert.equal(await page.$eval('[data-testid="loyalty-redeem-block"] button', el => el.disabled), true);
+      await page.click('.modal:has(#payment-method) .modal-actions button.btn-primary');
+      assert.equal(paymentRequests, paymentsBefore, 'Payment attempted with stale summary');
+      const heldRequest = summaryFault.request;
+      summaryFault = null;
+      await heldRequest.respond({ status: 503, contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Synthetic summary GET failure' }) });
+      await page.waitForSelector('#payment-method', { hidden: true });
+      const canonical = await read(`/orders/${c.orderId}/payments`);
+      assert.equal(canonical.amount_due_cents, c.afterDue);
+      assert.equal(canonical.amount_paid_cents, c.paid);
+      assert.equal(redemptionCounts.get(`/api/orders/${c.orderId}/loyalty/redeem`), 1);
+      assert.equal(paymentRequests, paymentsBefore);
+      results.push({ case: c.name, result: 'PASS', injected_browser_get_status: 503,
+        pending_payment_disabled: true, modal_closed: true, redemption_requests: 1,
+        payment_requests: 0, authoritative_due_cents: canonical.amount_due_cents });
+      continue;
+    }
     await page.waitForSelector('[data-testid="loyalty-discount-line"]', { visible: true });
     assert.deepEqual(await summaryAmounts(), expectedSummary(c.afterDue), 'Displayed due/paid/remaining stale after redemption');
     const after = (await read('/orders')).find(order => order.id === c.orderId);
-    assert.equal(after.total_cents, before.total_cents - 200);
     assert.equal(after.amount_due_cents, c.afterDue);
     assert.equal(after.amount_remaining_cents, c.afterDue - c.paid);
     assert.equal(after.amount_paid_cents || 0, c.paid);
@@ -186,6 +229,7 @@ try {
     page_errors: pageErrors, blocked_writes: blockedWrites }));
   process.exitCode = 1;
 } finally {
+  if (summaryFault?.request) await summaryFault.request.abort().catch(() => {});
   if (context) await context.close();
   if (browser) await browser.close();
 }

@@ -31,12 +31,17 @@ import uuid
 import warnings
 from datetime import timedelta
 
+def _require(condition, message='Fixture safety validation failed'):
+    if not condition:
+        raise ValueError(message)
+
+
 def seed(args):
     from sqlmodel import Session
     from app import models, security
     from app.db import engine
 
-    assert args.target in ('local', 'vps')
+    _require(args.target in ('local', 'vps'))
     run_id = uuid.uuid4().hex
     result = {'synthetic': True, 'run_id': run_id, 'target': args.target,
               'base_url': 'http://haproxy:4202' if args.target == 'local' else 'https://scanaki.uk'}
@@ -86,9 +91,9 @@ def cleanup(args):
     from app import models
     from app.db import engine
 
-    assert args.run_id and len(args.run_id) == 32 and all(c in '0123456789abcdef' for c in args.run_id)
-    assert args.tenant_ids and len(set(args.tenant_ids)) == 2 and 23 not in args.tenant_ids
-    assert args.group_id and args.catalog_id
+    _require(args.run_id and len(args.run_id) == 32 and all(c in '0123456789abcdef' for c in args.run_id))
+    _require(args.tenant_ids and len(set(args.tenant_ids)) == 2 and 23 not in args.tenant_ids)
+    _require(args.group_id and args.catalog_id)
     warnings.filterwarnings('ignore', category=Warning)
     metadata = MetaData(); metadata.reflect(bind=engine)
     with engine.begin() as connection:
@@ -96,9 +101,9 @@ def cleanup(args):
         group = metadata.tables['restaurant_group']
         catalog = metadata.tables[models.ProductCatalog.__table__.name]
         names = connection.execute(select(tenant.c.name).where(tenant.c.id.in_(args.tenant_ids))).scalars().all()
-        assert sorted(names) == sorted([f'Scanaki Group Actions {args.run_id} {x}' for x in ('A', 'B')])
-        assert connection.execute(select(group.c.name).where(group.c.id == args.group_id)).scalar_one() == 'Synthetic Group Actions ' + args.run_id
-        assert connection.execute(select(catalog.c.name).where(catalog.c.id == args.catalog_id)).scalar_one() == 'Synthetic Group Actions Catalog ' + args.run_id
+        _require(sorted(names) == sorted([f'Scanaki Group Actions {args.run_id} {x}' for x in ('A', 'B')]))
+        _require(connection.execute(select(group.c.name).where(group.c.id == args.group_id)).scalar_one() == 'Synthetic Group Actions ' + args.run_id)
+        _require(connection.execute(select(catalog.c.name).where(catalog.c.id == args.catalog_id)).scalar_one() == 'Synthetic Group Actions Catalog ' + args.run_id)
         scope = {'tenant': tenant.c.id.in_(args.tenant_ids), 'restaurant_group': group.c.id == args.group_id,
                  catalog.name: catalog.c.id == args.catalog_id}
         for table in metadata.tables.values():
@@ -109,7 +114,7 @@ def cleanup(args):
         ignored = set()
         for fk in tenant.foreign_keys:
             if fk.column.table.name in scope:
-                assert fk.parent.nullable
+                _require(fk.parent.nullable)
                 connection.execute(update(tenant).where(tenant.c.id.in_(args.tenant_ids)).values({fk.parent.name: None}))
                 ignored.add(('tenant', fk.parent.name))
         pending = set(scope); sequence = []
@@ -117,12 +122,12 @@ def cleanup(args):
             leaves = [name for name in pending if not any(
                 fk.column.table.name == name and table.name != name and (table.name, fk.parent.name) not in ignored
                 for table in metadata.tables.values() if table.name in pending for fk in table.foreign_keys)]
-            assert leaves, 'Owned cleanup dependency cycle'
+            _require(leaves, 'Owned cleanup dependency cycle')
             sequence.extend(leaves); pending.difference_update(leaves)
         removed = {name: connection.execute(delete(metadata.tables[name]).where(scope[name])).rowcount for name in sequence}
-        assert connection.execute(select(func.count()).select_from(tenant).where(tenant.c.id.in_(args.tenant_ids))).scalar_one() == 0
-        assert connection.execute(select(func.count()).select_from(group).where(group.c.id == args.group_id)).scalar_one() == 0
-        assert connection.execute(select(func.count()).select_from(catalog).where(catalog.c.id == args.catalog_id)).scalar_one() == 0
+        _require(connection.execute(select(func.count()).select_from(tenant).where(tenant.c.id.in_(args.tenant_ids))).scalar_one() == 0)
+        _require(connection.execute(select(func.count()).select_from(group).where(group.c.id == args.group_id)).scalar_one() == 0)
+        _require(connection.execute(select(func.count()).select_from(catalog).where(catalog.c.id == args.catalog_id)).scalar_one() == 0)
     print(json.dumps({'result': 'CLEANUP PASS', 'run_id': args.run_id,
         'tenant_ids': args.tenant_ids, 'group_id': args.group_id, 'catalog_id': args.catalog_id,
         'rows_deleted': removed, 'remaining_owned_rows': 0}))
