@@ -58,12 +58,14 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
-Latest checkpoint: `docs/0114-phase-four-isolated-logging-fix.md`.
-The isolated restore tool's cleanup, release/image and logging guards are verified
-and accepted within its database/model-column-readback scope. The kitchen runner
-needs its backend import path corrected before local/VPS testing can proceed; its
-latest attempt stopped before creating a fixture. Full application recovery,
-rollback, transaction reconciliation and final physical acceptance remain open.
+Latest checkpoint: `docs/0115-phase-four-cash-kitchen-release.md`.
+Import-path correction and the local functional transaction rehearsal passed.
+A real cash-prepayment release defect was fixed and deployed as
+`d23e7e68e48cf1ae51064b117804d5a3f690f204`;37 backend tests/26 subtests passed locally
+and against the deployed VPS image. Public smoke/build/log checks passed.
+The browser harness still needs seed-lifecycle, token-redaction and popup-guard
+corrections before its full VPS run. Full application recovery/rollback must use
+this newer release; final physical acceptance remains open.
 
 | Phase | Status | Notes |
 |---|---|---|
