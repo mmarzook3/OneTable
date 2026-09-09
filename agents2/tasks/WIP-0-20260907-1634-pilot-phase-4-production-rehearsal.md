@@ -58,14 +58,13 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
-Latest checkpoint: `docs/0115-phase-four-cash-kitchen-release.md`.
-Import-path correction and the local functional transaction rehearsal passed.
-A real cash-prepayment release defect was fixed and deployed as
-`d23e7e68e48cf1ae51064b117804d5a3f690f204`;37 backend tests/26 subtests passed locally
-and against the deployed VPS image. Public smoke/build/log checks passed.
-The browser harness still needs seed-lifecycle, token-redaction and popup-guard
-corrections before its full VPS run. Full application recovery/rollback must use
-this newer release; final physical acceptance remains open.
+Latest checkpoint: `docs/0116-phase-four-rehearsal-safeguards-checkpoint.md`.
+Seed-lifecycle, token-redaction and popup guards passed locally; the VPS flow
+reached kitchen completion but receipt-test initialization still fails. Isolated
+application recovery passed functional checks but nginx disk buffering remains
+a privacy finding. Rollback receiver secret exclusions and anonymous-volume
+handling must be corrected before its execution. Fresh02:20UTC cloud backup is
+confirmed. Phase4 and final physical acceptance remain open; no GO is issued.
 
 | Phase | Status | Notes |
 |---|---|---|
