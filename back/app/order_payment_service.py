@@ -57,6 +57,18 @@ def status_after_full_payment(
     return models.OrderStatus.paid
 
 
+def release_paid_prepayment_order(order: models.Order) -> None:
+    """Expose a fully settled prepayment ticket without resurrecting refunds."""
+    if (
+        order.requires_prepayment
+        and order.paid_at is not None
+        and order.kitchen_released_at is None
+        and order.status != models.OrderStatus.cancelled
+        and order.payment_state != "refunded"
+    ):
+        order.kitchen_released_at = order.paid_at
+
+
 def order_subtotal_cents(session: Session, order: models.Order) -> int:
     return sum(i.price_cents * i.quantity for i in active_order_items(session, order.id))
 
@@ -307,6 +319,7 @@ def record_payment(
         order.paid_by_user_id = paid_by_user_id
         order.payment_method = settlement_payment_method(payments)
         order.status = status_after_full_payment(session, order)
+        release_paid_prepayment_order(order)
         session.add(order)
 
     session.commit()

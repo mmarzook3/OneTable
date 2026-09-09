@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-09-09
+
+### Fixed
+
+- **Cash prepayment kitchen release:** Released kitchen/bar tickets when staff cash/terminal settlement or the final split payment covers the balance. Unpaid, cancelled and refunded orders remain protected, and existing release timestamps are preserved.
+
+### Added
+
+- **Isolated recovery checks:** Added encrypted database restoration and current model-column readback using temporary network-isolated containers, disabled container logging, release/image guards and verified cleanup.
+
 ## [2.2.2] - 2026-09-08
 
 ### Fixed

@@ -1,5 +1,19 @@
 # Pilot phase 3: optional customer modules
 
+## Closing summary
+
+Closed for the user-approved pilot scope on 2026-09-08 UTC. Protected PR15
+deployed `4cef94ab6f05647a6926fa7dc44cca2ef51a3f29`; workflow 34287597616 passed.
+The final local and VPS payment suites passed: 33 tests, 23 subtests and eight
+browser cases per environment. Synthetic cleanup, public smoke, health and
+affected-service log checks passed. See `docs/0110-phase-three-pilot-acceptance.md`.
+Implementation progressed through WIP, UNTESTED and TESTING before this closure.
+
+The user explicitly deferred Scanaki platform Stripe until after the pilot;
+pilot subscription collection is operator-managed bank transfer with the existing
+paywall disabled. Customer Stripe is restaurant-payments-only. This is Phase 3
+acceptance, not final go-live; Phase 4 and deferred physical tests remain open.
+
 ## GitHub Issue
 
 - **Number:** 0
@@ -9,7 +23,7 @@
 
 ## Meta
 
-- **Status:** `scope-approved-engineering-in-progress`
+- **Status:** `closed-pilot-scope`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Phase 2 engineering handoff in docs/0101-phase-two-engineering-acceptance.md and explicit customer module scope
@@ -41,7 +55,7 @@ Existing final physical-acceptance deferrals remain in force.
 - [x] Loyalty: included.
 - [x] Customer accounts: included.
 - [x] Fiscal integrations (VeriFactu/TSE): excluded by explicit user decision.
-- [x] SaaS subscriptions: included.
+- [x] SaaS subscriptions: operator-managed pilot access and bank-transfer collection; platform Stripe deferred by user until after pilot.
 - [x] Restaurant groups: included.
 - [x] Warehouses: deferred.
 
@@ -51,11 +65,11 @@ parent module is included; document provider-specific prerequisites when relevan
 
 ## 3. Acceptance Criteria
 
-- [ ] Every module has an explicit scope decision.
-- [ ] Every included module has deterministic automated tests where safe.
-- [ ] Required physical, provider, certificate, and legal checks are documented.
-- [ ] Unsupported behavior is stated clearly in customer-facing pilot notes.
-- [ ] Excluded modules remain disabled and do not block Phase 4.
+- [x] Every module has an explicit scope decision.
+- [x] Every included module has deterministic automated tests where safe.
+- [x] Required physical, provider, certificate, and legal checks are documented.
+- [x] Unsupported behavior is stated clearly in pilot operating notes in docs/0110-phase-three-pilot-acceptance.md.
+- [x] Excluded modules remain disabled and do not block Phase 4.
 
 ## 4. Testing Instructions
 
@@ -67,6 +81,7 @@ Run only tests for explicitly included modules. Mutation tests default to local 
 |---|---|---|
 | Created | Complete | |
 | Prerequisite | Passed for engineering | Phase 2 split gate passed; user explicitly approved scope |
-| Implementation | In progress | Included modules require functional tests and VPS evidence |
-| Testing | Pending | |
+| Implementation | Complete for approved pilot scope | Platform Stripe explicitly deferred; operator-managed billing |
+| Testing | Passed | Local and deployed VPS evidence in docs/0110-phase-three-pilot-acceptance.md |
+| Closure | Passed | Phase 4 and final physical acceptance remain separate |
 

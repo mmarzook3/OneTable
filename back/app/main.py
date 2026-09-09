@@ -15463,6 +15463,7 @@ def mark_order_paid(
             order_pay_svc.list_active_payments(session, order.id)
         ) or method
         order.status = order_pay_svc.status_after_full_payment(session, order)
+        order_pay_svc.release_paid_prepayment_order(order)
         session.add(order)
         session.commit()
         session.refresh(order)
