@@ -58,12 +58,13 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
-Latest checkpoint: `docs/0112-phase-four-isolated-database-checkpoint.md`.
-Isolated database restoration/model-column readback passed for the executed run;
-runner cleanup/deployment-lock corrections remain. The local transaction harness
-stopped on its tip-field mismatch. Neither draft is accepted tooling, and Phase4
-is not complete. Full application recovery/rollback and transaction reconciliation
-remain required.
+Latest checkpoint: `docs/0113-phase-four-runner-guard-checkpoint.md`.
+Restore cleanup and release/image guards passed positive and negative checks;
+isolated PostgreSQL logging must still be disabled to prevent decrypted SQL in
+error logs. The transaction tip-field mismatch is corrected, but kitchen-stage
+verification and a reliable cleanup coordinator remain open. The leftover local
+fixture was safely removed. Neither draft is accepted tooling. Full application
+recovery/rollback, transaction reconciliation and final physical acceptance remain.
 
 | Phase | Status | Notes |
 |---|---|---|
