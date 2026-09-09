@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- **Pilot verification tooling:** Added recoverable transaction rehearsals, isolated application recovery/privacy checks and a guarded known-good rollback baseline workflow. Physical and customer-onboarding acceptance remain separate from engineering completion.
+
 ## [2.2.3] - 2026-09-09
 
 ### Fixed
