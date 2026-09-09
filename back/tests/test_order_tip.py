@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from pg_client_mixin import PgClientTestCase
 from sqlmodel import select
 
-from app import models, security
+from app import models, security, order_payment_service as order_pay_svc
 from app.main import (
     _allowed_tip_presets,
     _resolve_tip_for_mark_paid,
@@ -92,6 +92,80 @@ class TestOrderTip(PgClientTestCase):
         )
         self.session.add(item)
         self.session.commit()
+
+    def test_cash_settlement_releases_prepayment_to_kitchen(self):
+        self.order.requires_prepayment = True
+        self.session.add(self.order)
+        self.session.commit()
+        headers = _bearer_headers(self.user)
+        before = self.client.get('/orders/kitchen-feed', headers=headers)
+        self.assertEqual(before.status_code, 200)
+        self.assertNotIn(self.order.id, [o['id'] for o in before.json()])
+        response = self.client.put(f'/orders/{self.order.id}/mark-paid', headers=headers,
+                                   json={'payment_method': 'cash', 'tip_percent': 0})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.session.refresh(self.order)
+        released = self.order.kitchen_released_at
+        self.assertIsNotNone(released)
+        self.assertEqual(released, self.order.paid_at)
+        after = self.client.get('/orders/kitchen-feed', headers=headers)
+        self.assertEqual(after.status_code, 200)
+        self.assertIn(self.order.id, [o['id'] for o in after.json()])
+        replay = self.client.put(f'/orders/{self.order.id}/mark-paid', headers=headers,
+                                 json={'payment_method': 'cash', 'tip_percent': 0})
+        self.assertEqual(replay.status_code, 400)
+        self.session.refresh(self.order)
+        self.assertEqual(self.order.kitchen_released_at, released)
+
+    def test_partial_cash_releases_only_when_balance_is_covered(self):
+        self.order.requires_prepayment = True
+        self.session.add(self.order)
+        self.session.commit()
+        headers = _bearer_headers(self.user)
+        path = f'/orders/{self.order.id}/payments'
+        partial = self.client.post(path, headers=headers,
+                                   json={'payment_method': 'cash', 'amount_cents': 400})
+        self.assertEqual(partial.status_code, 200, partial.text)
+        self.session.refresh(self.order)
+        self.assertIsNone(self.order.paid_at)
+        self.assertIsNone(self.order.kitchen_released_at)
+        final = self.client.post(path, headers=headers,
+                                 json={'payment_method': 'cash', 'amount_cents': 600})
+        self.assertEqual(final.status_code, 200, final.text)
+        self.session.refresh(self.order)
+        self.assertIsNotNone(self.order.kitchen_released_at)
+        self.assertEqual(self.order.kitchen_released_at, self.order.paid_at)
+
+    def test_discount_covered_prepayment_releases_without_new_leg(self):
+        self.order.requires_prepayment = True
+        self.order.loyalty_discount_cents = 1000
+        self.session.add(self.order)
+        self.session.commit()
+        response = self.client.put(f'/orders/{self.order.id}/mark-paid',
+            headers=_bearer_headers(self.user), json={'payment_method': 'cash', 'tip_percent': 0})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.session.refresh(self.order)
+        self.assertIsNotNone(self.order.kitchen_released_at)
+        self.assertEqual(response.json()['amount_remaining_cents'], 0)
+        self.assertEqual(response.json()['payments'], [])
+
+    def test_release_helper_preserves_safety_boundaries(self):
+        now = datetime.now(timezone.utc)
+        for state, status, paid_at in [
+            ('refunded', models.OrderStatus.paid, now),
+            ('pending', models.OrderStatus.cancelled, now),
+            ('pending', models.OrderStatus.pending, None),
+        ]:
+            with self.subTest(state=state, status=status):
+                order = models.Order(tenant_id=self.tenant.id, requires_prepayment=True,
+                                    payment_state=state, status=status, paid_at=paid_at)
+                order_pay_svc.release_paid_prepayment_order(order)
+                self.assertIsNone(order.kitchen_released_at)
+        order = models.Order(tenant_id=self.tenant.id, requires_prepayment=True,
+                            paid_at=now, kitchen_released_at=now - timedelta(minutes=1))
+        original = order.kitchen_released_at
+        order_pay_svc.release_paid_prepayment_order(order)
+        self.assertEqual(order.kitchen_released_at, original)
 
     def test_allowed_presets_from_tenant(self):
         self.assertEqual(_allowed_tip_presets(self.tenant), [10, 20])
