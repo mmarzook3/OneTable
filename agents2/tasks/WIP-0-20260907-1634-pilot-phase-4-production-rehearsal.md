@@ -58,13 +58,12 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
-Latest checkpoint: `docs/0113-phase-four-runner-guard-checkpoint.md`.
-Restore cleanup and release/image guards passed positive and negative checks;
-isolated PostgreSQL logging must still be disabled to prevent decrypted SQL in
-error logs. The transaction tip-field mismatch is corrected, but kitchen-stage
-verification and a reliable cleanup coordinator remain open. The leftover local
-fixture was safely removed. Neither draft is accepted tooling. Full application
-recovery/rollback, transaction reconciliation and final physical acceptance remain.
+Latest checkpoint: `docs/0114-phase-four-isolated-logging-fix.md`.
+The isolated restore tool's cleanup, release/image and logging guards are verified
+and accepted within its database/model-column-readback scope. The kitchen runner
+needs its backend import path corrected before local/VPS testing can proceed; its
+latest attempt stopped before creating a fixture. Full application recovery,
+rollback, transaction reconciliation and final physical acceptance remain open.
 
 | Phase | Status | Notes |
 |---|---|---|

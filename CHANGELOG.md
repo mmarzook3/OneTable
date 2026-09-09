@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- **Isolated recovery checks:** Added encrypted database restoration and current model-column readback using temporary network-isolated containers, disabled container logging, release/image guards and verified cleanup.
+
 ## [2.2.2] - 2026-09-08
 
 ### Fixed
