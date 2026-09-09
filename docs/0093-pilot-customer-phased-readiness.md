@@ -54,6 +54,12 @@ Track these in the existing Google Sheet, Your Inputs P2-07 through P2-10. Phone
 
 ## Phase sequence
 
+Checkpoint, 2026-09-09: Phase4 engineering is complete for the approved pilot scope;
+see `docs/0117-phase-four-engineering-acceptance.md`. Final physical acceptance and
+customer live-payment onboarding remain operator gates. This is not final GO.
+Continue daily offsite backup protection and do not repeatedly reopen engineering
+or ask for the same deferred checks while awaiting that combined session.
+
 Checkpoint, 2026-09-08: Phase 3 passed for the approved pilot scope; see
 `docs/0110-phase-three-pilot-acceptance.md`. Pilot SaaS collection is directly by
 bank transfer with operator-managed access and existing paywall enforcement off.

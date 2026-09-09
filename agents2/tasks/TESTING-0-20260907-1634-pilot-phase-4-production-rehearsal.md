@@ -9,7 +9,7 @@
 
 ## Meta
 
-- **Status:** `engineering-rehearsal-in-progress`
+- **Status:** `engineering-complete-final-acceptance-deferred`
 - **Generated:** 2026-09-07
 - **Assigned Agent:** `coding-agent`
 - **Prerequisite:** Phases 0-2 verified; Phase 3 verified or explicitly excluded; human deployment approval
@@ -27,21 +27,22 @@ Perform a controlled production rehearsal and issue a defensible pilot launch de
 
 User-approved sequencing, 2026-09-08: finish Phase 4 engineering before the combined hands-on session (Your Inputs P2-07 through P2-10). Phase 2's engineering-complete checkpoint can satisfy its engineering prerequisite, but cannot satisfy final physical acceptance. Do not issue GO or call Phase 4 fully accepted before the session passes.
 
-- [ ] Human approval identifies the exact release SHA.
-- [ ] `development` is promoted through the documented controlled workflow.
-- [ ] Production deployment succeeds and readiness returns HTTP 200.
-- [ ] Safe production browser smokes pass.
-- [ ] A real low-value payment and refund pass only when explicitly approved.
-- [ ] Kitchen/bar, receipt, printing, reconciliation, and reports agree.
-- [ ] Backup age, restore-check, alerts, TLS, and disk are healthy.
-- [ ] Disabled modules and known limitations are recorded.
-- [ ] Rollback command and responsible operator are confirmed.
-- [ ] The test report declares `GO`, `CONDITIONAL GO`, or `NO-GO` with evidence.
+- [x] Human approval and the selected engineering release are recorded: `d23e7e68e48cf1ae51064b117804d5a3f690f204`.
+- [x] `development` was promoted through protected PR16 with required checks.
+- [x] Production deployment succeeds and readiness returns HTTP200.
+- [x] Safe production browser smokes and the guarded synthetic transaction pass.
+- [ ] Customer live onboarding and controlled real payment/refund acceptance remain before live card service; the recorded maximum is not a passing result.
+- [x] Electronic kitchen/bar, receipt/PDF, reconciliation and sales reports agree.
+- [ ] Physical printing/NFC/camera/Wi-Fi acceptance remains deferred to the agreed final session.
+- [x] Backup age, bounded recovery checks, prior alert delivery, TLS and disk evidence are recorded and healthy within the stated scope.
+- [x] Disabled modules and known limitations are recorded.
+- [x] Guarded rollback command, tested baseline and operator/approval roles are documented.
+- [x] The report declares engineering PASS and final-launch NO-GO pending operator acceptance.
 
 ## 3. Human Approval Record
 
 - **Approved by:** Project user: "Let's start Phase 4", following the Phase 3 release acceptance.
-- **Rehearsal release SHA:** `4cef94ab6f05647a6926fa7dc44cca2ef51a3f29`, the already approved/deployed Phase 3 release (protected PR15, workflow34287597616).
+- **Rehearsal release SHA:** `d23e7e68e48cf1ae51064b117804d5a3f690f204`, the user-authorized Phase4 cash/KDS correction (protected PR16, workflow34298482748).
 - **Approved production mutations:** Existing authorization for strictly scoped synthetic fixtures and cleanup; no new real-money payment/refund, customer email, live database restore or live cutover is authorized by starting this rehearsal.
 - **Approval date:** 2026-09-09, Europe/London.
 
@@ -58,19 +59,18 @@ Run read-only production health and browser checks first. Stop immediately on fa
 
 ## Status Tracker
 
-Latest checkpoint: `docs/0116-phase-four-rehearsal-safeguards-checkpoint.md`.
-Seed-lifecycle, token-redaction and popup guards passed locally; the VPS flow
-reached kitchen completion but receipt-test initialization still fails. Isolated
-application recovery passed functional checks but nginx disk buffering remains
-a privacy finding. Rollback receiver secret exclusions and anonymous-volume
-handling must be corrected before its execution. Fresh02:20UTC cloud backup is
-confirmed. Phase4 and final physical acceptance remain open; no GO is issued.
+Engineering acceptance: `docs/0117-phase-four-engineering-acceptance.md`.
+All four tooling findings are resolved and the required engineering checks passed.
+No further pilot engineering is queued absent a new failure or requirement.
+Only explicit operator/physical/onboarding acceptance remains; do not fabricate
+those results or declare customer GO. Continue recurring backup protection.
 
 | Phase | Status | Notes |
 |---|---|---|
 | Created | Complete | |
 | Prerequisites | Passed for engineering | Phase 3 accepted; user explicitly started Phase 4; physical split gate remains |
-| Deployment | Existing release verified | Public footer reports exact SHA and version2.2.2; protected PR15 deployment succeeded |
-| Testing | In progress | Initial production health/readiness, landing/mobile navigation and API-docs smoke passed |
-| Go/no-go | Pending | |
+| Deployment | Verified | Version2.2.3, exact d23e7e68e SHA; protected PR16 deployment succeeded |
+| Engineering testing | Passed | Full VPS transaction, isolated recovery, privacy and rollback safeguards/replacement verified |
+| Operator testing | Deferred as agreed | Physical session and customer onboarding before final acceptance |
+| Go/no-go | NO-GO for customer launch | Engineering complete; final operator evidence required |
 
