@@ -191,11 +191,18 @@ def _build_order_payload(session: Session, order: models.Order, job_type: str) -
         ).all()
     )
     items = [i for i in items if not getattr(i, "removed_by_customer", False)]
+    if job_type == "kitchen":
+        items = [
+            i for i in items
+            if i.removed_by_user_id is None and i.status != models.OrderItemStatus.cancelled
+        ]
     lines = []
     for i in items:
         name = i.product_name or f"Item {i.id}"
         qty = i.quantity or 1
         note_bits = []
+        if job_type == "kitchen" and i.notes:
+            note_bits.append(i.notes)
         if getattr(i, "customization_summary", None):
             note_bits.append(str(i.customization_summary))
         if getattr(i, "line_modifiers_summary", None):
@@ -219,6 +226,8 @@ def _build_order_payload(session: Session, order: models.Order, job_type: str) -
         f"Customer: {order.customer_name or '—'}",
         "-" * 32,
     ]
+    if job_type == "kitchen" and order.notes:
+        plain_lines.extend([f"Notes: {order.notes}", "-" * 32])
     for line in lines:
         plain_lines.append(f"{line['quantity']}x {line['name']}")
         if line.get("notes"):
@@ -268,6 +277,8 @@ def create_job(
     order_id: int | None = None,
     printer_role: str | None = None,
     payload: dict[str, Any] | None = None,
+    commit: bool = True,
+    first_kitchen_swipe: bool = False,
 ) -> models.PrintJob:
     jt = (job_type or "").strip().lower()
     if jt not in JOB_TYPES:
@@ -280,6 +291,10 @@ def create_job(
             raise HTTPException(status_code=404, detail="Order not found")
 
     body = dict(payload or {})
+    # Reserved server marker: manual reprints cannot impersonate an automatic job.
+    body.pop("first_kitchen_swipe", None)
+    if first_kitchen_swipe:
+        body["first_kitchen_swipe"] = True
     if order is not None and not body.get("plain_text"):
         built = _build_order_payload(session, order, jt)
         for k, v in built.items():
@@ -302,8 +317,11 @@ def create_job(
         created_by_user_id=user_id,
     )
     session.add(job)
-    session.commit()
-    session.refresh(job)
+    if commit:
+        session.commit()
+        session.refresh(job)
+    else:
+        session.flush()
     return job
 
 
@@ -340,6 +358,7 @@ def claim_pending_jobs(
             )
             .order_by(models.PrintJob.created_at.asc())
             .limit(min(max(limit, 1), 50))
+            .with_for_update(skip_locked=True)
         ).all()
     )
     now = _now()

@@ -2393,6 +2393,10 @@ class OrderItemStatusUpdate(SQLModel):
     user_id: int | None = None  # Optional: who made the change
 
 
+class OrderKitchenStatusUpdate(OrderItemStatusUpdate):
+    print_on_first_swipe: bool = False
+
+
 class OrderItemRemove(SQLModel):
     reason: str | None = None  # Optional reason for removal
 

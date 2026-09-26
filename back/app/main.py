@@ -16422,14 +16422,16 @@ def update_order_item_status(
 @app.put("/orders/{order_id}/kitchen-status")
 def update_order_kitchen_status(
     order_id: int,
-    status_update: models.OrderItemStatusUpdate,
+    status_update: models.OrderKitchenStatusUpdate,
     current_user: Annotated[
         models.User,
         Depends(require_permission(Permission.ORDER_ITEM_STATUS)),
     ],
     session: Session = Depends(get_session),
 ) -> dict:
-    """Atomically correct every active line on an order to one Kitchen status."""
+    """Update active lines and optionally queue the first Kitchen swipe atomically."""
+    from . import print_service as print_svc
+
     allowed = {
         models.OrderItemStatus.pending,
         models.OrderItemStatus.preparing,
@@ -16448,6 +16450,8 @@ def update_order_kitchen_status(
             models.Order.tenant_id == current_user.tenant_id,
             models.Order.deleted_at.is_(None),
         )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -16466,6 +16470,34 @@ def update_order_kitchen_status(
     ]
     if not active_items:
         raise HTTPException(status_code=400, detail="Order has no active items")
+
+    print_job = None
+    if status_update.print_on_first_swipe:
+        if order.requires_prepayment and order.kitchen_released_at is None:
+            raise HTTPException(status_code=409, detail="Order has not been released to Kitchen")
+        if status_update.status == models.OrderItemStatus.preparing:
+            # This order lock serializes devices/retries. Keep marked jobs permanently,
+            # including done/failed jobs, so reverting status never permits another print.
+            print_job = session.exec(
+                select(models.PrintJob).where(
+                    models.PrintJob.tenant_id == current_user.tenant_id,
+                    models.PrintJob.order_id == order.id,
+                    models.PrintJob.job_type == "kitchen",
+                    models.PrintJob.payload["first_kitchen_swipe"].as_boolean() == True,
+                )
+            ).first()
+            if print_job is None and any(
+                item.status == models.OrderItemStatus.pending for item in active_items
+            ):
+                print_job = print_svc.create_job(
+                    session,
+                    tenant_id=current_user.tenant_id,
+                    user_id=current_user.id,
+                    job_type="kitchen",
+                    order_id=order.id,
+                    commit=False,
+                    first_kitchen_swipe=True,
+                )
 
     previous_statuses = sorted(
         {
@@ -16517,6 +16549,10 @@ def update_order_kitchen_status(
         "item_status": status_update.status.value,
         "order_status": order.status.value,
         "updated_items": len(active_items),
+        **({
+            "print_job": print_svc.job_to_dict(print_job) if print_job else None,
+            "print_bridge": print_svc.tenant_bridge_status(session, current_user.tenant_id),
+        } if status_update.print_on_first_swipe else {}),
     }
 
 
