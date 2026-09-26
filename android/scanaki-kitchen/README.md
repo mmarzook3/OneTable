@@ -64,13 +64,47 @@ app/build/outputs/apk/release/app-release.apk
 The public pilot download copy is stored at:
 
 ```text
-front/public/downloads/scanaki-0.4.0.apk
+front/public/downloads/scanaki-0.5.0.apk
 ```
 
 Back up the private signing directory securely. Every future APK using the package name
 `uk.scanaki.kitchen` must use the same signing key so Android can install it as an update.
 
 ## Pilot evidence and remaining checks
+
+### Permanent venue printing (0.5.0)
+
+Open **Print > Printer setup / status**. An administrator creates a dedicated
+agent in Scanaki Settings > Printing and securely enters its one-time token on
+this tablet. Do not reuse another device's token. Enter the printer's private LAN
+IPv4 address and TCP port (KP80B-USE pilot: `192.168.55.20:9100`). Stop the laptop
+agent before enabling the tablet's agent; revoke the old registration after the
+tablet handoff passes. Both receipt and kitchen roles use this single printer.
+
+The token is encrypted with Android Keystore, never exposed to the WebView, and
+excluded from Android backups. The app keeps only job IDs and send outcomes in
+its durable recovery journal, not ticket/customer content. The foreground service
+has a persistent status notification and continues without the Kitchen page open.
+Enabled printing restarts after reboot and first unlock, or after an app update.
+Android force-stop still requires reopening Scanaki. Grant notification permission
+and allow unrestricted battery/background operation and OEM auto-launch. Keep the
+tablet powered on the same LAN as the printer; cellular internet cannot replace
+the printer's local Wi-Fi connection. No public printer port is required.
+
+Creating/loading an order does not print: the existing first Start swipe creates
+one queue job; order print icons create explicit copies. No printer bytes are
+sent by setup/connectivity probes. The tablet probes the printer before claiming
+new work, and acknowledges each ticket only after attempting its socket write.
+Successful TCP writing is not physical-paper proof. Unknown/partial writes and
+unrecorded claims after interruption are failed conservatively, not automatically
+reprinted. Check the paper and use a manual reprint if needed. A lost completion
+response is retried as an acknowledgement only. Pairing cannot be changed while
+unresolved local recovery records remain; restore the old pairing's connection or
+ask the operator to reconcile its queue before replacing credentials.
+
+Before customer GO, test paper/cut, backgrounding, app/process restart, reboot and
+unlock, printer/Wi-Fi interruption, and recovery without duplicate tickets.
+Automated tests do not substitute for this physical acceptance.
 
 Version 0.4.0 was installed on the NFC phone and non-NFC tablet. The tablet's unavailable
 message and phone reader prompt were observed. The operator confirmed a physical phone
