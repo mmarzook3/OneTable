@@ -1,7 +1,7 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Subject } from 'rxjs';
 import { KitchenDisplayComponent } from './kitchen-display.component';
-import { ApiService } from '../services/api.service';
+import { ApiService, Order, PrintJobCreateResponse } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { PermissionService } from '../services/permission.service';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
@@ -9,6 +9,46 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of, throwError } from 'rxjs';
 
 describe('KitchenDisplayComponent', () => {
+  function printResponse(orderId: number, online = true): PrintJobCreateResponse {
+    return {
+      job: {
+        id: 7000 + orderId,
+        tenant_id: 1,
+        job_type: 'kitchen',
+        printer_role: 'kitchen',
+        status: 'queued',
+        order_id: orderId,
+        payload: {},
+      },
+      bridge: {
+        agent_online: online,
+        online_count: online ? 1 : 0,
+        agent_count: 1,
+        last_seen_at: null,
+        online_window_seconds: 60,
+      },
+    };
+  }
+
+  function printOrder(id = 401, itemStatus = 'pending'): Order {
+    return {
+      id,
+      status: itemStatus === 'delivered' ? 'completed' : itemStatus === 'cancelled' ? 'cancelled' : 'paid',
+      table_name: 'Test kitchen table',
+      created_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      total_cents: 1000,
+      items: [{
+        id: id * 10,
+        product_name: 'Test kitchen item',
+        quantity: 1,
+        status: itemStatus,
+        price_cents: 1000,
+        category: 'Main Course',
+      }],
+    };
+  }
+
   let orderUpdates$: Subject<unknown>;
   let mockApi: {
     getKitchenOrders: jasmine.Spy;
@@ -28,6 +68,7 @@ describe('KitchenDisplayComponent', () => {
     getProductImageUrl: jasmine.Spy;
     updateOrderItemStatus: jasmine.Spy;
     updateOrderKitchenStatus: jasmine.Spy;
+    createPrintJob: jasmine.Spy;
   };
   let mockAudio: {
     setEnabled: jasmine.Spy;
@@ -77,6 +118,7 @@ describe('KitchenDisplayComponent', () => {
       getProductImageUrl: jasmine.createSpy('getProductImageUrl').and.returnValue(null),
       updateOrderItemStatus: jasmine.createSpy('updateOrderItemStatus').and.returnValue(of({ status: 'ok' })),
       updateOrderKitchenStatus: jasmine.createSpy('updateOrderKitchenStatus').and.returnValue(of({ status: 'ok' })),
+      createPrintJob: jasmine.createSpy('createPrintJob').and.returnValue(of(printResponse(401))),
     };
     mockAudio = {
       setEnabled: jasmine.createSpy('setEnabled'),
@@ -101,13 +143,24 @@ describe('KitchenDisplayComponent', () => {
           useValue: {
             getCurrentUser: () => ({ id: 1, role: 'kitchen' }),
             hasPermission: (_user: unknown, permission: string) =>
-              ['product:availability', 'order:item_status'].includes(permission),
+              ['product:availability', 'order:item_status', 'order:read'].includes(permission),
           },
         },
       ],
     }).compileComponents();
 
     const translate = TestBed.inject(TranslateService);
+    translate.setTranslation('en', {
+      KITCHEN_DISPLAY: {
+        PRINT_TICKET: 'Print kitchen ticket',
+        PRINT_TICKET_FOR_ORDER: 'Print kitchen ticket for order #{{orderId}}',
+        PRINT_TICKET_QUEUED: 'Kitchen ticket queued.',
+        PRINT_AGENT_OFFLINE: 'Kitchen ticket queued; print agent is offline.',
+        PRINT_TICKET_SENT: 'Kitchen ticket sent to printer.',
+        PRINT_TICKET_FAILED: 'Kitchen ticket failed. Use the print icon to retry.',
+        PRINT_TICKET_REQUEST_FAILED: 'Could not queue kitchen ticket. Please try again.',
+      },
+    });
     translate.setDefaultLang('en');
     translate.use('en');
   });
@@ -354,7 +407,10 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.componentInstance.getOrderActionLabel(order)).toBe('Start');
     fixture.componentInstance.advanceOrder(order);
 
-    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(91, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(91, 'preparing', {
+      print_on_first_swipe: true,
+    });
+    expect(mockApi.createPrintJob).not.toHaveBeenCalled();
     expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
   });
 
@@ -390,7 +446,10 @@ describe('KitchenDisplayComponent', () => {
 
     fixture.componentInstance.advanceOrder(order);
 
-    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(167, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(167, 'preparing', {
+      print_on_first_swipe: true,
+    });
+    expect(mockApi.createPrintJob).not.toHaveBeenCalled();
     expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
   });
 
@@ -457,14 +516,337 @@ describe('KitchenDisplayComponent', () => {
     fixture.componentInstance.moveOrderSwipe(pointer(2, 210), order);
     expect(fixture.componentInstance.getOrderSwipeLabel(order)).toBe('Release to Start');
     fixture.componentInstance.finishOrderSwipe(pointer(2, 210), order);
-    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledWith(93, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(93, 'preparing', {
+      print_on_first_swipe: true,
+    });
+    expect(mockApi.createPrintJob).not.toHaveBeenCalled();
     expect(mockAudio.playKitchenStatusConfirmed).toHaveBeenCalled();
 
     mockApi.updateOrderKitchenStatus.calls.reset();
     fixture.componentInstance.startOrderSwipe(pointer(3, 10), order);
     fixture.componentInstance.finishOrderSwipe(pointer(3, 210), order);
-    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledWith(93, 'preparing');
+    expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(93, 'preparing', {
+      print_on_first_swipe: true,
+    });
     fixture.destroy();
+  });
+
+  describe('kitchen ticket printing', () => {
+    it('does not print on initial load or a new_order refresh', fakeAsync(() => {
+      mockApi.getKitchenOrders.and.returnValue(of([printOrder()]));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+      mockApi.getKitchenOrders.calls.reset();
+      mockApi.getKitchenOrders.and.returnValue(of([printOrder(), printOrder(402)]));
+      orderUpdates$.next({ type: 'new_order', order_id: 402 });
+      tick(180);
+
+      expect(mockApi.getKitchenOrders).toHaveBeenCalledTimes(1);
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+      fixture.destroy();
+    }));
+
+    it('guards an in-flight first swipe and leaves printing to the atomic backend request', () => {
+      const result = new Subject<unknown>();
+      mockApi.updateOrderKitchenStatus.and.returnValue(result);
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      const order = printOrder();
+
+      fixture.componentInstance.advanceOrder(order);
+      fixture.componentInstance.advanceOrder(order);
+
+      expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(order.id, 'preparing', {
+        print_on_first_swipe: true,
+      });
+      expect(fixture.componentInstance.isOrderActionBusy(order.id)).toBeTrue();
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      result.next({ status: 'ok' });
+      result.complete();
+      expect(fixture.componentInstance.isOrderActionBusy(order.id)).toBeFalse();
+    });
+
+    for (const [source, target] of [['preparing', 'ready'], ['ready', 'delivered']]) {
+      it(`advances ${source} to ${target} without an automatic print flag`, () => {
+        const fixture = TestBed.createComponent(KitchenDisplayComponent);
+        fixture.detectChanges();
+
+        fixture.componentInstance.advanceOrder(printOrder(401, source));
+
+        expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(401, target);
+        expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      });
+    }
+
+    for (const target of ['pending', 'preparing', 'ready', 'completed'] as const) {
+      it(`corrects history to ${target} without automatically printing`, () => {
+        const fixture = TestBed.createComponent(KitchenDisplayComponent);
+        fixture.detectChanges();
+        const order = printOrder(401, target === 'pending' ? 'preparing' : 'pending');
+
+        fixture.componentInstance.requestOrderStatusChange(order, target);
+        expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+        fixture.componentInstance.confirmOrderStatusChange(order);
+
+        expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledOnceWith(
+          order.id, target === 'completed' ? 'delivered' : target,
+        );
+        expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      });
+    }
+
+    for (const status of ['pending', 'preparing', 'ready', 'delivered', 'cancelled']) {
+      it(`manually prints a ${status} ticket without advancing its order or items`, () => {
+        const fixture = TestBed.createComponent(KitchenDisplayComponent);
+        fixture.detectChanges();
+        const order = printOrder(401, status);
+        const previousStatus = order.status;
+
+        fixture.componentInstance.printOrderTicket(order);
+
+        expect(mockApi.createPrintJob).toHaveBeenCalledOnceWith({
+          job_type: 'kitchen', order_id: order.id, printer_role: 'kitchen',
+        });
+        expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+        expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
+        expect(order.status).toBe(previousStatus);
+        expect(order.items[0].status).toBe(status);
+      });
+    }
+
+    it('wires the active print button and disables only the busy order across both views', () => {
+      const result = new Subject<PrintJobCreateResponse>();
+      mockApi.createPrintJob.and.returnValue(result);
+      const orders = [printOrder(), printOrder(402)];
+      mockApi.getKitchenOrders.and.returnValue(of(orders));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      fixture.componentInstance.openAllOrdersModal();
+      fixture.detectChanges();
+      const button = (id: number, history = false): HTMLButtonElement =>
+        fixture.nativeElement.querySelector(
+          `[data-testid="kitchen-${history ? 'history-' : ''}print-order-${id}"]`,
+        );
+
+      expect(button(401)).not.toBeNull();
+      expect(button(401, true)).not.toBeNull();
+      button(401).click();
+      fixture.detectChanges();
+
+      expect(button(401).disabled).toBeTrue();
+      expect(button(401, true).disabled).toBeTrue();
+      expect(button(402).disabled).toBeFalse();
+      expect(button(402, true).disabled).toBeFalse();
+      button(401).click();
+      button(401, true).click();
+      fixture.componentInstance.printOrderTicket(orders[0]);
+      expect(mockApi.createPrintJob).toHaveBeenCalledTimes(1);
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+
+      result.next(printResponse(401));
+      result.complete();
+      fixture.detectChanges();
+      expect(button(401).disabled).toBeFalse();
+      expect(button(401, true).disabled).toBeFalse();
+    });
+
+    it('allows another order to print while one order is still queued for a response', () => {
+      const result = new Subject<PrintJobCreateResponse>();
+      mockApi.createPrintJob.and.returnValue(result);
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance.printOrderTicket(printOrder());
+      fixture.componentInstance.printOrderTicket(printOrder(402));
+
+      expect(mockApi.createPrintJob.calls.allArgs()).toEqual([
+        [{ job_type: 'kitchen', order_id: 401, printer_role: 'kitchen' }],
+        [{ job_type: 'kitchen', order_id: 402, printer_role: 'kitchen' }],
+      ]);
+      result.complete();
+    });
+
+    it('blocks manual printing while the same order status update is in flight', () => {
+      const result = new Subject<unknown>();
+      mockApi.updateOrderKitchenStatus.and.returnValue(result);
+      const order = printOrder();
+      mockApi.getKitchenOrders.and.returnValue(of([order]));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      fixture.componentInstance.openAllOrdersModal();
+      fixture.componentInstance.advanceOrder(order);
+      fixture.detectChanges();
+
+      for (const id of ['kitchen-print-order-401', 'kitchen-history-print-order-401']) {
+        const button = fixture.nativeElement.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement;
+        expect(button.disabled).toBeTrue();
+        button.click();
+      }
+      fixture.componentInstance.printOrderTicket(order);
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      result.next({ status: 'ok' });
+      result.complete();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.isOrderActionBusy(order.id)).toBeFalse();
+      fixture.componentInstance.printOrderTicket(order);
+      expect(mockApi.createPrintJob).toHaveBeenCalledTimes(1);
+    });
+
+    it('wires the All orders print button for completed tickets without changing status', () => {
+      mockApi.getKitchenOrders.and.returnValue(of([printOrder(401, 'delivered')]));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      fixture.componentInstance.openAllOrdersModal();
+      fixture.detectChanges();
+      const button = fixture.nativeElement.querySelector(
+        '[data-testid="kitchen-history-print-order-401"]',
+      ) as HTMLButtonElement;
+
+      expect(button).not.toBeNull();
+      expect(button.disabled).toBeFalse();
+      button.click();
+
+      expect(mockApi.createPrintJob).toHaveBeenCalledOnceWith({
+        job_type: 'kitchen', order_id: 401, printer_role: 'kitchen',
+      });
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+      expect(mockApi.updateOrderItemStatus).not.toHaveBeenCalled();
+    });
+
+    it('disables both print buttons and guards direct printing without order:read permission', () => {
+      spyOn(TestBed.inject(PermissionService), 'hasPermission').and.callFake(
+        (_user, permission) => permission !== 'order:read',
+      );
+      const order = printOrder();
+      mockApi.getKitchenOrders.and.returnValue(of([order]));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      fixture.componentInstance.openAllOrdersModal();
+      fixture.detectChanges();
+
+      for (const id of ['kitchen-print-order-401', 'kitchen-history-print-order-401']) {
+        const button = fixture.nativeElement.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement;
+        expect(button).not.toBeNull();
+        expect(button.disabled).toBeTrue();
+        button.click();
+      }
+      fixture.componentInstance.printOrderTicket(order);
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+    });
+
+    it('clears manual print busy state after an error and permits an explicit retry', () => {
+      const result = new Subject<PrintJobCreateResponse>();
+      mockApi.createPrintJob.and.returnValue(result);
+      mockApi.getKitchenOrders.and.returnValue(of([printOrder()]));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      const button = fixture.nativeElement.querySelector(
+        '[data-testid="kitchen-print-order-401"]',
+      ) as HTMLButtonElement;
+      button.click();
+      fixture.detectChanges();
+      expect(button.disabled).toBeTrue();
+
+      result.error({ status: 503, error: { detail: 'Test print service unavailable' } });
+      fixture.detectChanges();
+
+      expect(button.disabled).toBeFalse();
+      expect(fixture.componentInstance.isOrderPrintBusy(401)).toBeFalse();
+      expect(fixture.componentInstance.orderPrintNotices()[401].error).toBeTrue();
+      expect(fixture.nativeElement.textContent.toLowerCase()).toMatch(/could not|failed|unavailable/);
+      mockApi.createPrintJob.and.returnValue(of(printResponse(401)));
+      button.click();
+      expect(mockApi.createPrintJob).toHaveBeenCalledTimes(2);
+      expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+    });
+
+    for (const manual of [true, false]) {
+      for (const online of [true, false]) {
+        it(`shows truthful ${online ? 'queued' : 'offline'} feedback for ${manual ? 'manual print' : 'first swipe'}`, () => {
+          const response = printResponse(401, online);
+          mockApi.createPrintJob.and.returnValue(of(response));
+          mockApi.updateOrderKitchenStatus.and.returnValue(of({
+            status: 'ok', print_job: response.job, print_bridge: response.bridge,
+          }));
+          const order = printOrder();
+          mockApi.getKitchenOrders.and.returnValue(of([order, printOrder(402)]));
+          const fixture = TestBed.createComponent(KitchenDisplayComponent);
+          fixture.detectChanges();
+
+          if (manual) fixture.componentInstance.printOrderTicket(order);
+          else fixture.componentInstance.advanceOrder(order);
+          fixture.detectChanges();
+
+          const card = (id: number): HTMLElement => fixture.nativeElement.querySelector(
+            `[data-testid="kitchen-print-order-${id}"]`,
+          ).closest('.order-card');
+          const feedback = card(401).textContent!.toLowerCase();
+          expect(fixture.componentInstance.orderPrintNotices()[401].message).toBe(
+            online ? 'Kitchen ticket queued.' : 'Kitchen ticket queued; print agent is offline.',
+          );
+          expect(feedback).toContain('queued');
+          if (!online) expect(feedback).toContain('offline');
+          expect(feedback).not.toMatch(/printed successfully|successfully printed/);
+          expect(card(402).textContent!.toLowerCase()).not.toContain('queued');
+          if (!manual) expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+        });
+      }
+    }
+
+    for (const status of ['failed', 'cancelled']) {
+      it(`warns about an existing ${status} first-swipe print job without silently reprinting`, () => {
+        const response = printResponse(401);
+        response.job.status = status;
+        mockApi.updateOrderKitchenStatus.and.returnValue(of({
+          status: 'ok', print_job: response.job, print_bridge: response.bridge,
+        }));
+        const fixture = TestBed.createComponent(KitchenDisplayComponent);
+        fixture.detectChanges();
+
+        fixture.componentInstance.advanceOrder(printOrder());
+
+        const notice = fixture.componentInstance.orderPrintNotices()[401];
+        expect(notice.error).toBeTrue();
+        expect(notice.message.toLowerCase()).toContain('print icon');
+        expect(notice.message.toLowerCase()).not.toContain('queued');
+        expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.isOrderActionBusy(401)).toBeFalse();
+      });
+    }
+
+    it('does not invent print feedback when a status response has no print job', () => {
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+
+      fixture.componentInstance.advanceOrder(printOrder());
+
+      expect(fixture.componentInstance.orderPrintNotices()[401]).toBeUndefined();
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+    });
+
+    it('does not separately print after a failed first swipe and allows retry', () => {
+      mockApi.updateOrderKitchenStatus.and.returnValue(throwError(() => ({ status: 503 })));
+      const fixture = TestBed.createComponent(KitchenDisplayComponent);
+      fixture.detectChanges();
+      const order = printOrder();
+
+      fixture.componentInstance.advanceOrder(order);
+
+      expect(fixture.componentInstance.isOrderActionBusy(order.id)).toBeFalse();
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+      mockApi.updateOrderKitchenStatus.and.returnValue(of({ status: 'ok' }));
+      fixture.componentInstance.advanceOrder(order);
+      expect(mockApi.updateOrderKitchenStatus).toHaveBeenCalledTimes(2);
+      expect(mockApi.updateOrderKitchenStatus.calls.mostRecent().args).toEqual([
+        order.id, 'preparing', { print_on_first_swipe: true },
+      ]);
+      expect(mockApi.createPrintJob).not.toHaveBeenCalled();
+    });
   });
 
   it('should hide secondary ticket details until Show more is selected', () => {

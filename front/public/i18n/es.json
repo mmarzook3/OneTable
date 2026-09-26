@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "Manual de usuario",
     "PLATFORM_BADGE": "Pedidos en mesa con QR y NFC",
     "PLATFORM_SUBTITLE": "Los clientes escanean un código QR o acercan el móvil al NFC. El pedido y el pago llegan directamente a cocina o barra.",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1139,6 +1140,13 @@
     "cancelled": "Cancelado"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "Imprimir ticket de cocina",
+    "PRINT_TICKET_FOR_ORDER": "Imprimir ticket de cocina del pedido #{{orderId}}",
+    "PRINT_TICKET_QUEUED": "El ticket de cocina se ha añadido a la cola de impresión.",
+    "PRINT_AGENT_OFFLINE": "El ticket de cocina se ha añadido a la cola de impresión; el agente de impresión está desconectado.",
+    "PRINT_TICKET_SENT": "El ticket de cocina se ha enviado a la impresora.",
+    "PRINT_TICKET_FAILED": "No se ha podido enviar el ticket. Usa el botón de impresión para solicitar otra copia.",
+    "PRINT_TICKET_REQUEST_FAILED": "No se ha podido añadir el ticket a la cola de impresión. Vuelve a pulsar el botón de impresión.",
     "TITLE": "Pantalla cocina",
     "BACK_TO_ORDERS": "Volver a pedidos",
     "SOUND_ON": "Sonido on",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "Añadir a Google Wallet"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "Manual de usuario",
+    "MANUAL_BODY": "Guías paso a paso para la configuración, las operaciones diarias, las reservas, el inventario y mucho más.",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Empresa",
     "TITLE": "Sobre Scanaki",

@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "Ръководство за потребителя",
     "PLATFORM_BADGE": "Поръчване на маса с QR и NFC",
     "PLATFORM_SUBTITLE": "Клиентите сканират QR код или докосват NFC. Поръчката и плащането отиват директно към кухнята или бара.",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1139,6 +1140,13 @@
     "cancelled": "Отказано"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "Печат на кухненска бележка",
+    "PRINT_TICKET_FOR_ORDER": "Печат на кухненска бележка за поръчка #{{orderId}}",
+    "PRINT_TICKET_QUEUED": "Кухненската бележка е добавена в опашката за печат.",
+    "PRINT_AGENT_OFFLINE": "Кухненската бележка е добавена в опашката за печат; агентът за печат е офлайн.",
+    "PRINT_TICKET_SENT": "Кухненската бележка е изпратена към принтера.",
+    "PRINT_TICKET_FAILED": "Бележката не можа да бъде изпратена. Използвайте бутона за печат, за да заявите друго копие.",
+    "PRINT_TICKET_REQUEST_FAILED": "Бележката не можа да бъде добавена в опашката за печат. Натиснете отново бутона за печат.",
     "TITLE": "Кухненски дисплей",
     "BACK_TO_ORDERS": "Назад към поръчките",
     "SOUND_ON": "Звук вкл",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "Добави в Google Wallet"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "Ръководство за потребителя",
+    "MANUAL_BODY": "Ръководства стъпка по стъпка за настройка, ежедневна работа, резервации, складови наличности и други.",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Компания",
     "TITLE": "За Scanaki",

@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "用户手册",
     "PLATFORM_BADGE": "QR 与 NFC 桌边点餐",
     "PLATFORM_SUBTITLE": "顾客扫描二维码或轻触 NFC，订单和付款信息会直接送达厨房或吧台。",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1264,6 +1265,13 @@
     "cancelled": "已取消"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "打印厨房小票",
+    "PRINT_TICKET_FOR_ORDER": "打印订单 #{{orderId}} 的厨房小票",
+    "PRINT_TICKET_QUEUED": "厨房小票已加入打印队列。",
+    "PRINT_AGENT_OFFLINE": "厨房小票已加入打印队列；打印代理处于离线状态。",
+    "PRINT_TICKET_SENT": "厨房小票已发送至打印机。",
+    "PRINT_TICKET_FAILED": "无法发送小票。请使用打印按钮请求再打印一份。",
+    "PRINT_TICKET_REQUEST_FAILED": "无法将小票加入打印队列。请再次点击打印按钮。",
     "TITLE": "厨房显示屏",
     "BACK_TO_ORDERS": "返回订单",
     "SOUND_ON": "声音开",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "添加到 Google 钱包"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "用户手册",
+    "MANUAL_BODY": "提供设置、日常运营、预订、库存等方面的分步指南。",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "公司",
     "TITLE": "关于 Scanaki",

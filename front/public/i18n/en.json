@@ -1526,6 +1526,13 @@
     "cancelled": "Cancelled"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "Print kitchen ticket",
+    "PRINT_TICKET_FOR_ORDER": "Print kitchen ticket for order #{{orderId}}",
+    "PRINT_TICKET_QUEUED": "Kitchen ticket queued.",
+    "PRINT_AGENT_OFFLINE": "Kitchen ticket queued; print agent is offline.",
+    "PRINT_TICKET_SENT": "Kitchen ticket was sent to the printer.",
+    "PRINT_TICKET_FAILED": "Ticket could not be sent. Use print to request another copy.",
+    "PRINT_TICKET_REQUEST_FAILED": "Could not queue a ticket. Try the print button again.",
     "TITLE": "Kitchen display",
     "BACK_TO_ORDERS": "Back to orders",
     "SOUND_ON": "Sound on",

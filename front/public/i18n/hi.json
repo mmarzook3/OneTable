@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "उपयोगकर्ता मार्गदर्शिका",
     "PLATFORM_BADGE": "QR और NFC टेबल ऑर्डरिंग",
     "PLATFORM_SUBTITLE": "ग्राहक QR कोड स्कैन करते हैं या NFC टैप करते हैं। उनका ऑर्डर और भुगतान सीधे आपकी रसोई या बार तक पहुंचता है।",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1264,6 +1265,13 @@
     "cancelled": "रद्द"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "किचन टिकट प्रिंट करें",
+    "PRINT_TICKET_FOR_ORDER": "ऑर्डर #{{orderId}} का किचन टिकट प्रिंट करें",
+    "PRINT_TICKET_QUEUED": "किचन टिकट प्रिंट कतार में जोड़ दिया गया है।",
+    "PRINT_AGENT_OFFLINE": "किचन टिकट प्रिंट कतार में जोड़ दिया गया है; प्रिंट एजेंट ऑफ़लाइन है।",
+    "PRINT_TICKET_SENT": "किचन टिकट प्रिंटर को भेज दिया गया है।",
+    "PRINT_TICKET_FAILED": "टिकट भेजा नहीं जा सका। दूसरी प्रति के लिए प्रिंट बटन का उपयोग करें।",
+    "PRINT_TICKET_REQUEST_FAILED": "टिकट प्रिंट कतार में नहीं जोड़ा जा सका। प्रिंट बटन फिर से दबाएँ।",
     "TITLE": "किचन डिस्प्ले",
     "BACK_TO_ORDERS": "ऑर्डर पर वापस",
     "SOUND_ON": "ध्वनि चालू",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "Google Wallet में जोड़ें"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "उपयोगकर्ता मार्गदर्शिका",
+    "MANUAL_BODY": "सेटअप, दैनिक संचालन, आरक्षण, स्टॉक प्रबंधन और अन्य कार्यों के लिए चरण-दर-चरण मार्गदर्शिकाएँ।",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "कंपनी",
     "TITLE": "Scanaki के बारे में",
