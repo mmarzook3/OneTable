@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "Manual d'usuari",
     "PLATFORM_BADGE": "Comandes a taula amb QR i NFC",
     "PLATFORM_SUBTITLE": "Els clients escanegen un codi QR o apropen el mòbil a l'NFC. La comanda i el pagament arriben directament a cuina o barra.",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1264,6 +1265,13 @@
     "cancelled": "Cancel·lat"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "Imprimeix el tiquet de cuina",
+    "PRINT_TICKET_FOR_ORDER": "Imprimeix el tiquet de cuina de la comanda #{{orderId}}",
+    "PRINT_TICKET_QUEUED": "El tiquet de cuina s'ha afegit a la cua d'impressió.",
+    "PRINT_AGENT_OFFLINE": "El tiquet de cuina s'ha afegit a la cua d'impressió; l'agent d'impressió està desconnectat.",
+    "PRINT_TICKET_SENT": "El tiquet de cuina s'ha enviat a la impressora.",
+    "PRINT_TICKET_FAILED": "No s'ha pogut enviar el tiquet. Feu servir el botó d'impressió per demanar una altra còpia.",
+    "PRINT_TICKET_REQUEST_FAILED": "No s'ha pogut afegir el tiquet a la cua d'impressió. Torneu a prémer el botó d'impressió.",
     "TITLE": "Pantalla cuina",
     "BACK_TO_ORDERS": "Tornar a comandes",
     "SOUND_ON": "So activat",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "Afegir a Google Wallet"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "Manual d'usuari",
+    "MANUAL_BODY": "Guies pas a pas per a la configuració, les operacions diàries, les reserves, l'inventari i molt més.",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "Empresa",
     "TITLE": "Sobre Scanaki",

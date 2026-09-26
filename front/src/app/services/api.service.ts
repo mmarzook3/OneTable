@@ -1235,6 +1235,12 @@ export interface PrintJob {
   created_at?: string | null;
 }
 
+export interface KitchenStatusUpdateResponse {
+  status: string;
+  print_job?: PrintJob | null;
+  print_bridge?: PrintBridgeStatus | null;
+}
+
 export interface PrintJobCreateResponse {
   job: PrintJob;
   bridge: PrintBridgeStatus;
@@ -3762,8 +3768,16 @@ export class ApiService {
     return this.http.put(`${this.apiUrl}/orders/${orderId}/status`, { status });
   }
 
-  updateOrderKitchenStatus(orderId: number, status: string): Observable<any> {
-    return this.http.put(`${this.apiUrl}/orders/${orderId}/kitchen-status`, { status });
+  updateOrderKitchenStatus(
+    orderId: number,
+    status: string,
+    options?: { print_on_first_swipe?: boolean },
+  ): Observable<KitchenStatusUpdateResponse> {
+    const body: { status: string; print_on_first_swipe?: boolean } = { status };
+    if (options?.print_on_first_swipe) body.print_on_first_swipe = true;
+    return this.http.put<KitchenStatusUpdateResponse>(
+      `${this.apiUrl}/orders/${orderId}/kitchen-status`, body,
+    );
   }
 
   updateOrderItemStatus(orderId: number, itemId: number, status: string, userId?: number): Observable<any> {

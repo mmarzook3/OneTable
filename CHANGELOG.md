@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Ver
 
 ## [Unreleased]
 
+### Added
+
+- **Pilot verification tooling:** Added recoverable transaction rehearsals, isolated application recovery/privacy checks and a guarded known-good rollback baseline workflow. Physical and customer-onboarding acceptance remain separate from engineering completion.
+
+## [2.2.4] - 2026-09-26
+
+### Changed
+
+- **Kitchen ticket printing:** Queued one automatic kitchen ticket on the first Start swipe instead of order arrival; later status swipes did not request another automatic copy.
+- **Order reprints:** Added accessible per-order print controls to active kitchen tickets and order history, with busy guards and explicit queued/offline/error feedback.
+- **Compact kitchen cards:** Grouped order identity, table/location, waiting time and payment/print controls into one responsive header, leaving more vertical room for items while retaining review and swipe safeguards.
+
 ## [2.2.3] - 2026-09-09
 
 ### Fixed

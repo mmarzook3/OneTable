@@ -188,6 +188,7 @@
     }
   },
   "LANDING": {
+    "USER_MANUAL": "صارف کی رہنما کتاب",
     "PLATFORM_BADGE": "QR اور NFC ٹیبل آرڈرنگ",
     "PLATFORM_SUBTITLE": "گاہک QR کوڈ اسکین کرتے ہیں یا NFC ٹیپ کرتے ہیں۔ ان کا آرڈر اور ادائیگی سیدھا آپ کے کچن یا بار تک پہنچتی ہے۔",
     "PRODUCT_TAGLINE": "A Fixaki product for modern hospitality.",
@@ -1139,6 +1140,13 @@
     "cancelled": "منسوخ شدہ"
   },
   "KITCHEN_DISPLAY": {
+    "PRINT_TICKET": "کچن ٹکٹ پرنٹ کریں",
+    "PRINT_TICKET_FOR_ORDER": "آرڈر #{{orderId}} کا کچن ٹکٹ پرنٹ کریں",
+    "PRINT_TICKET_QUEUED": "کچن ٹکٹ پرنٹ کی قطار میں شامل کر دیا گیا ہے۔",
+    "PRINT_AGENT_OFFLINE": "کچن ٹکٹ پرنٹ کی قطار میں شامل کر دیا گیا ہے؛ پرنٹ ایجنٹ آف لائن ہے۔",
+    "PRINT_TICKET_SENT": "کچن ٹکٹ پرنٹر کو بھیج دیا گیا ہے۔",
+    "PRINT_TICKET_FAILED": "ٹکٹ بھیجا نہیں جا سکا۔ ایک اور کاپی کی درخواست کے لیے پرنٹ بٹن استعمال کریں۔",
+    "PRINT_TICKET_REQUEST_FAILED": "ٹکٹ پرنٹ کی قطار میں شامل نہیں کیا جا سکا۔ پرنٹ بٹن دوبارہ دبائیں۔",
     "TITLE": "باورچی خانہ ڈسپلے",
     "BACK_TO_ORDERS": "آرڈرز پر واپس",
     "SOUND_ON": "آواز آن",
@@ -2964,6 +2972,8 @@
     "ADD_GOOGLE_WALLET": "Google Wallet میں شامل کریں"
   },
   "ABOUT_PAGE": {
+    "MANUAL_TITLE": "صارف کی رہنما کتاب",
+    "MANUAL_BODY": "سیٹ اپ، روزمرہ کے کاموں، ریزرویشن، اسٹاک کے انتظام اور دیگر امور کے لیے مرحلہ وار رہنمائی۔",
     "PLATFORM_SUBTITLE": "A restaurant platform for QR menus, ordering, reservations, and day-to-day operations.",
     "BADGE": "کمپنی",
     "TITLE": "Scanaki کے بارے میں",

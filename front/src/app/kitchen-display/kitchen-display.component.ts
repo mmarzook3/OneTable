@@ -302,20 +302,43 @@ const VIEW_CATEGORY: Record<string, string> = {
                       <span class="urgent-badge">{{ 'KITCHEN_DISPLAY.URGENT' | translate }}</span>
                     }
                   </div>
-                  <span class="payment-badge" [class.payment-badge-paid]="isOrderPaid(order)">
-                    {{ isOrderPaid(order) ? 'PAID' : 'NOT PAID' }}
-                  </span>
-                </header>
-                <section class="order-destination">
-                  @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
-                  <div class="order-destination-row">
-                    <strong class="order-table">{{ order.service_point_label || order.table_name }}</strong>
-                    <span class="order-waiting" aria-label="Elapsed wait time">
-                      <span>Waiting</span>
-                      <time>{{ formatWaitingTime(getKitchenStart(order)) }}</time>
+                  <section class="order-destination">
+                    @if (order.location_name) { <span class="order-location">{{ order.location_name }}</span> }
+                    <div class="order-destination-row">
+                      <strong class="order-table">{{ order.service_point_label || order.table_name }}</strong>
+                      <span class="order-waiting" aria-label="Elapsed wait time">
+                        <span>Waiting</span>
+                        <time>{{ formatWaitingTime(getKitchenStart(order)) }}</time>
+                      </span>
+                    </div>
+                  </section>
+                  <div class="order-header-controls">
+                    <span class="payment-badge" [class.payment-badge-paid]="isOrderPaid(order)">
+                      {{ isOrderPaid(order) ? 'PAID' : 'NOT PAID' }}
                     </span>
+                    <button
+                      type="button"
+                      class="order-print-button"
+                      [attr.data-testid]="'kitchen-print-order-' + order.id"
+                      [disabled]="isOrderPrintBusy(order.id) || isOrderActionBusy(order.id) || !canPrintOrders()"
+                      [attr.aria-busy]="isOrderPrintBusy(order.id)"
+                      [attr.aria-label]="'KITCHEN_DISPLAY.PRINT_TICKET_FOR_ORDER' | translate: { orderId: order.id }"
+                      [title]="'KITCHEN_DISPLAY.PRINT_TICKET_FOR_ORDER' | translate: { orderId: order.id }"
+                      (pointerdown)="$event.stopPropagation()"
+                      (click)="$event.stopPropagation(); printOrderTicket(order)"
+                    >
+                      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                        <path d="M6 14h12v8H6zM17 12h1"/>
+                      </svg>
+                    </button>
                   </div>
-                </section>
+                </header>
+                @if (orderPrintNotices()[order.id]; as notice) {
+                  <p class="order-print-notice" [class.order-print-notice-error]="notice.error" [attr.role]="notice.error ? 'alert' : 'status'">
+                    {{ notice.message }}
+                  </p>
+                }
                 <div class="order-timer-bar-wrap" [attr.aria-label]="'KITCHEN_DISPLAY.TIMER_BAR_HINT' | translate">
                   <div class="order-timer-bar-track">
                     <div class="order-timer-bar-fill" [class]="getTimerBarFillClass(order)" [style.width.%]="getTimerBarPercent(order)"></div>
@@ -651,6 +674,21 @@ const VIEW_CATEGORY: Record<string, string> = {
                       <span class="history-payment" [class.history-payment-paid]="isOrderPaid(order)">
                         {{ isOrderPaid(order) ? 'Paid' : 'Not paid' }}
                       </span>
+                      <button
+                        type="button"
+                        class="order-print-button history-print-button"
+                        [attr.data-testid]="'kitchen-history-print-order-' + order.id"
+                        [disabled]="isOrderPrintBusy(order.id) || isOrderActionBusy(order.id) || !canPrintOrders()"
+                        [attr.aria-busy]="isOrderPrintBusy(order.id)"
+                        [attr.aria-label]="'KITCHEN_DISPLAY.PRINT_TICKET_FOR_ORDER' | translate: { orderId: order.id }"
+                        [title]="'KITCHEN_DISPLAY.PRINT_TICKET_FOR_ORDER' | translate: { orderId: order.id }"
+                        (click)="$event.stopPropagation(); printOrderTicket(order)"
+                      >
+                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                          <path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                          <path d="M6 14h12v8H6zM17 12h1"/>
+                        </svg>
+                      </button>
                     </div>
                     <div class="history-destination">
                       <strong>{{ order.service_point_label || order.table_name }}</strong>
@@ -658,6 +696,11 @@ const VIEW_CATEGORY: Record<string, string> = {
                     </div>
                     <p class="history-items">{{ getOrderItemsSummary(order) }}</p>
                     <time [title]="formatExactTime(getKitchenStart(order))">{{ formatOrderTime(getKitchenStart(order)) }}</time>
+                    @if (orderPrintNotices()[order.id]; as notice) {
+                      <p class="order-print-notice" [class.order-print-notice-error]="notice.error" [attr.role]="notice.error ? 'alert' : 'status'">
+                        {{ notice.message }}
+                      </p>
+                    }
                   </div>
 
                   @if (getProductionStatus(order) === 'cancelled') {
@@ -703,6 +746,37 @@ const VIEW_CATEGORY: Record<string, string> = {
     </div>
   `,
   styles: [`
+    .order-header-controls {
+      grid-area: controls;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      min-width: 0;
+    }
+    .order-print-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 44px;
+      min-height: 44px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, .32);
+      border-radius: 9px;
+      color: #fff;
+      background: rgba(255, 255, 255, .1);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .order-print-button:hover:not(:disabled) { background: rgba(255, 255, 255, .22); }
+    .order-print-button:focus-visible { outline: 3px solid #fbbf24; outline-offset: 2px; }
+    .order-print-button:disabled { opacity: .45; cursor: not-allowed; }
+    .history-print-button { color: #374151; background: #fff; border-color: #ccd2da; }
+    .history-print-button:hover:not(:disabled) { background: #e5e7eb; }
+    .order-print-notice { margin: 0; padding: 8px 16px; font-size: .78rem; color: #d1fae5; background: #064e3b; }
+    .order-print-notice-error { color: #fee2e2; background: #7f1d1d; }
+    .history-order-main .order-print-notice { margin-top: 8px; border-radius: 6px; }
     .kitchen-view {
       position: fixed;
       inset: 0;
@@ -927,6 +1001,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       --ticket-background: #3a3020;
       --ticket-panel: #302719;
       --ticket-border: #8a6829;
+      container: kitchen-ticket / inline-size;
       display: flex;
       flex-direction: column;
       flex: 0 0 clamp(320px, 31vw, 430px);
@@ -1043,40 +1118,50 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: #b91c1c;
     }
     .fifo-position {
-      align-self: center;
-      padding: 3px 8px;
+      align-self: flex-start;
+      padding: 2px 5px;
       border-radius: 4px;
       background: #111827;
       color: #fff;
       font-size: 0.75rem;
       font-weight: 600;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.02em;
     }
     .production-status-badge {
-      padding: 4px 8px;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding: 3px 5px;
       border: 1px solid rgba(255, 255, 255, .22);
       border-radius: 5px;
       background: rgba(0, 0, 0, .2);
       color: #fff;
       font-size: .7rem;
       font-weight: 700;
-      letter-spacing: .04em;
+      letter-spacing: .015em;
       text-transform: uppercase;
-      white-space: nowrap;
+      overflow-wrap: anywhere;
     }
     .order-sequence {
+      grid-area: sequence;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
       min-width: 0;
-      gap: 10px;
+      gap: 3px;
+    }
+    .order-sequence .urgent-badge {
+      max-width: 100%;
+      box-sizing: border-box;
+      padding-inline: 5px;
+      overflow-wrap: anywhere;
     }
     .order-timer-bar-wrap {
       flex: 0 0 auto;
-      padding: 0 16px 12px;
+      padding: 0 10px 6px;
       background: var(--ticket-panel);
     }
     .order-timer-bar-track {
-      height: 8px;
+      height: 4px;
       border-radius: 4px;
       background: rgba(0, 0, 0, 0.08);
       overflow: hidden;
@@ -1089,7 +1174,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .ticket-review-summary {
       flex: 0 0 auto;
-      padding: 8px 16px;
+      padding: 5px 10px;
       border-bottom: 1px solid var(--ticket-border);
       background: rgba(15, 23, 42, .36);
       color: #cbd5e1;
@@ -1118,38 +1203,38 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-card.timer-red { border-left-color: #ef4444; }
     .order-header {
       flex: 0 0 auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 16px 10px;
+      display: grid;
+      grid-template-columns: minmax(64px, .8fr) minmax(0, 1.5fr) auto;
+      grid-template-areas: 'sequence destination controls';
+      align-items: start;
+      gap: 8px;
+      padding: 8px 10px;
       background: var(--ticket-panel);
     }
     .order-id {
-      font-size: 1.2rem;
+      max-width: 100%;
+      font-size: 1.05rem;
       font-weight: 700;
       color: #f8fafc;
-      white-space: nowrap;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
     }
     .order-destination {
-      flex: 0 0 auto;
+      grid-area: destination;
       display: grid;
       min-width: 0;
       gap: 4px;
-      padding: 4px 16px 14px;
-      background: var(--ticket-panel);
-      border-bottom: 1px solid var(--ticket-border);
     }
     .order-destination-row {
       display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 12px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
       min-width: 0;
     }
     .order-table {
       overflow-wrap: anywhere;
-      font-size: clamp(1.35rem, 2vw, 1.625rem);
+      font-size: clamp(1.125rem, 2vw, 1.4rem);
       line-height: 1.15;
       font-weight: 700;
       color: #f2c66d;
@@ -1158,7 +1243,7 @@ const VIEW_CATEGORY: Record<string, string> = {
       color: #bfdbfe;
       font-size: .75rem;
       font-weight: 600;
-      letter-spacing: .035em;
+      letter-spacing: .02em;
       text-transform: uppercase;
       overflow-wrap: anywhere;
     }
@@ -1166,16 +1251,18 @@ const VIEW_CATEGORY: Record<string, string> = {
       display: inline-flex;
       flex: 0 0 auto;
       align-items: baseline;
-      gap: 6px;
-      padding: 4px 7px;
+      flex-wrap: wrap;
+      max-width: 100%;
+      box-sizing: border-box;
+      gap: 3px 5px;
+      padding: 3px 5px;
       border: 1px solid #475569;
       border-radius: 6px;
       background: #171a21;
       color: #aeb8c7;
       font-size: .75rem;
       font-weight: 500;
-      line-height: 1;
-      white-space: nowrap;
+      line-height: 1.15;
     }
     .order-waiting time {
       color: #f8fafc;
@@ -1186,12 +1273,12 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .payment-badge {
       flex: 0 0 auto;
-      padding: 8px 11px;
+      padding: 3px 5px;
       border: 1px solid #7f1d1d;
-      border-radius: 8px;
+      border-radius: 5px;
       background: #451a1a;
       color: #fecaca;
-      font-size: .78rem;
+      font-size: .7rem;
       font-weight: 700;
       letter-spacing: .04em;
       white-space: nowrap;
@@ -1327,7 +1414,7 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .ticket-review-more {
       flex: 0 0 auto;
-      min-height: 48px;
+      min-height: 44px;
       margin: 0;
       border: 0;
       border-top: 1px solid #f59e0b;
@@ -1351,8 +1438,8 @@ const VIEW_CATEGORY: Record<string, string> = {
       flex: 0 0 auto;
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
-      padding: 12px 16px 14px;
+      gap: 6px;
+      padding: 8px 10px;
       border-top: 1px solid var(--ticket-border);
       background: var(--ticket-panel);
     }
@@ -1381,12 +1468,18 @@ const VIEW_CATEGORY: Record<string, string> = {
       touch-action: none;
     }
     .order-action-label { position: relative; z-index: 2; pointer-events: none; }
+    .order-primary-action {
+      padding-inline: 8px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      font-size: .875rem;
+    }
     .order-swipe-action {
       position: relative;
       isolation: isolate;
       overflow: hidden;
       min-height: 60px;
-      padding: 0 62px;
+      padding: 0 28px 0 58px;
       border: 1px solid #3b82f6;
       background: #172033;
       color: #fff;
@@ -1429,12 +1522,17 @@ const VIEW_CATEGORY: Record<string, string> = {
       position: relative;
       z-index: 2;
       pointer-events: none;
+      display: block;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      font-size: .875rem;
+      line-height: 1.2;
     }
     .order-swipe-hint {
       position: absolute;
       z-index: 2;
       top: 0;
-      right: 16px;
+      right: 6px;
       bottom: 0;
       display: flex;
       align-items: center;
@@ -1468,12 +1566,15 @@ const VIEW_CATEGORY: Record<string, string> = {
     .order-primary-action:disabled,
     .order-swipe-action:disabled { cursor: wait; opacity: .55; }
     .order-details-toggle {
-      min-width: 102px;
-      padding: 0 12px;
+      min-width: 72px;
+      min-height: 44px;
+      max-width: 80px;
+      padding: 0 6px;
+      white-space: normal;
       border: 1px solid #64748b;
       background: transparent;
       color: #e2e8f0;
-      font-size: .9375rem;
+      font-size: .875rem;
     }
     .order-primary-action:active,.order-details-toggle:active { transform: translateY(1px); }
     .order-details {
@@ -1492,10 +1593,19 @@ const VIEW_CATEGORY: Record<string, string> = {
     }
     .order-details dd { overflow-wrap: anywhere; margin: 2px 0 0; color: #f8fafc; font-weight: 600; }
     .item-status-summary { display: grid; gap: 5px; margin-top: 12px; color: #cbd5e1; font-size: .78rem; }
-    @media (max-width: 520px) {
-      .order-destination-row { align-items: flex-start; flex-direction: column; }
+    @container kitchen-ticket (max-width: 285px) {
+      .order-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 'sequence controls' 'destination destination';
+      }
+      .order-sequence { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+      .order-header-controls { flex-direction: row; align-items: center; }
+      .order-destination-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
+      .order-table { flex: 1 1 100px; }
       .order-actions { grid-template-columns: 1fr; }
-      .order-details-toggle { width: 100%; }
+      .order-details-toggle { width: 100%; max-width: none; }
+    }
+    @media (max-width: 520px) {
       .order-details dl { grid-template-columns: 1fr; }
     }
     @media (max-width: 1100px) {
@@ -1993,6 +2103,8 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   strictFifo = signal(true);
   expandedOrderDetails = signal<Set<number>>(new Set());
   orderActionBusy = signal<Set<number>>(new Set());
+  orderPrintBusy = signal<Set<number>>(new Set());
+  orderPrintNotices = signal<Record<number, { message: string; error: boolean }>>({});
   orderSwipe = signal<OrderSwipeState | null>(null);
   allOrdersModalOpen = signal(false);
   orderHistorySearch = signal('');
@@ -2016,6 +2128,10 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
 
   canManageStock = computed(() =>
     this.permissions.hasPermission(this.permissions.getCurrentUser(), 'product:availability')
+  );
+
+  canPrintOrders = computed(() =>
+    this.permissions.hasPermission(this.permissions.getCurrentUser(), 'order:read')
   );
 
   pageTitle = computed(() =>
@@ -3365,6 +3481,65 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     return this.orderActionBusy().has(orderId);
   }
 
+  isOrderPrintBusy(orderId: number): boolean {
+    return this.orderPrintBusy().has(orderId);
+  }
+
+  printOrderTicket(order: Order): void {
+    if (!this.canPrintOrders() || this.isOrderPrintBusy(order.id) || this.isOrderActionBusy(order.id)) return;
+    this.orderPrintBusy.update((current) => new Set(current).add(order.id));
+    this.orderPrintNotices.update((current) => {
+      const next = { ...current };
+      delete next[order.id];
+      return next;
+    });
+    this.api.createPrintJob({
+      job_type: 'kitchen',
+      order_id: order.id,
+      printer_role: 'kitchen',
+    }).subscribe({
+      next: (response) => {
+        this.recordOrderPrintNotice(order.id, response.job.status, response.bridge?.agent_online);
+        this.finishOrderPrint(order.id);
+      },
+      error: () => {
+        this.orderPrintNotices.update((current) => ({
+          ...current,
+          [order.id]: {
+            message: this.translate.instant('KITCHEN_DISPLAY.PRINT_TICKET_REQUEST_FAILED'),
+            error: true,
+          },
+        }));
+        this.finishOrderPrint(order.id);
+      },
+    });
+  }
+
+  private recordOrderPrintNotice(orderId: number, status: string, agentOnline?: boolean): void {
+    let key = 'KITCHEN_DISPLAY.PRINT_TICKET_QUEUED';
+    let error = false;
+    if (status === 'failed' || status === 'cancelled') {
+      key = 'KITCHEN_DISPLAY.PRINT_TICKET_FAILED';
+      error = true;
+    } else if (status === 'done') {
+      key = 'KITCHEN_DISPLAY.PRINT_TICKET_SENT';
+    } else if (agentOnline === false) {
+      key = 'KITCHEN_DISPLAY.PRINT_AGENT_OFFLINE';
+    }
+    this.orderPrintNotices.update((current) => ({
+      ...current,
+      [orderId]: { message: this.translate.instant(key), error },
+    }));
+  }
+
+  private finishOrderPrint(orderId: number): void {
+    this.orderPrintBusy.update((current) => {
+      const next = new Set(current);
+      next.delete(orderId);
+      return next;
+    });
+  }
+
   getOrderActionTarget(order: Order): 'preparing' | 'ready' | 'delivered' | null {
     const statuses = (order.items || [])
       .filter((item) => !item.removed_by_customer)
@@ -3408,6 +3583,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   isOrderInteractionDisabled(orderId: number): boolean {
     return (
       this.isOrderActionBusy(orderId) ||
+      this.isOrderPrintBusy(orderId) ||
       !this.canUpdateItemStatus()
     );
   }
@@ -3498,8 +3674,14 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     );
     if (!hasMatchingItems) return;
     this.orderActionBusy.update((current) => new Set(current).add(order.id));
-    this.api.updateOrderKitchenStatus(order.id, target).subscribe({
-      next: () => {
+    const update = target === 'preparing'
+      ? this.api.updateOrderKitchenStatus(order.id, target, { print_on_first_swipe: true })
+      : this.api.updateOrderKitchenStatus(order.id, target);
+    update.subscribe({
+      next: (response) => {
+        if (response?.print_job) {
+          this.recordOrderPrintNotice(order.id, response.print_job.status, response.print_bridge?.agent_online);
+        }
         this.completeOrderStatusFeedback();
         this.finishOrderAction(order.id);
       },
