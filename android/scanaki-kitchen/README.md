@@ -64,7 +64,7 @@ app/build/outputs/apk/release/app-release.apk
 The public pilot download copy is stored at:
 
 ```text
-front/public/downloads/scanaki-0.5.0.apk
+front/public/downloads/scanaki-0.5.1.apk
 ```
 
 Back up the private signing directory securely. Every future APK using the package name
@@ -73,6 +73,16 @@ Back up the private signing directory securely. Every future APK using the packa
 ## Pilot evidence and remaining checks
 
 ### Permanent venue printing (0.5.0)
+
+Version 0.5.1 adds **Find network printers** in Printer Setup. This user-started,
+cancellable scan checks TCP 9100 on the attached private IPv4 Wi-Fi/Ethernet
+segment, limited to the current /24 on larger networks. It sends no payload or
+test page and does not scan cellular, VPN or public addresses. Leaving the setup
+screen cancels an active search. Results are candidates, not verified models:
+other services can listen on port 9100. IPP-only, USB-only, IPv6-only and printers
+on other subnets are not discovered. Manual configuration remains available.
+Stop automatic printing before selecting a candidate; selection fills the address
+and port but does not alter credentials or activate printing until confirmed.
 
 Open **Print > Printer setup / status**. An administrator creates a dedicated
 agent in Scanaki Settings > Printing and securely enters its one-time token on

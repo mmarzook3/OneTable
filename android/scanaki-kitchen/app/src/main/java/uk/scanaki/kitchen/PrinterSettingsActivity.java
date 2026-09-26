@@ -25,6 +25,12 @@ public final class PrinterSettingsActivity extends Activity {
     private TextView status;
     private Button activate, stop;
     private boolean saving;
+    private PrinterDiscovery discovery;
+    private boolean scanning;
+    private int scanGeneration;
+    private Button findPrinters;
+    private TextView scanStatus;
+    private LinearLayout printerResults;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
         public void run() {
@@ -32,6 +38,8 @@ public final class PrinterSettingsActivity extends Activity {
             boolean editable = !PrinterService.isRunning() && !saving;
             host.setEnabled(editable); port.setEnabled(editable); token.setEnabled(editable);
             activate.setEnabled(editable); stop.setEnabled(PrinterService.isRunning() && !saving);
+            findPrinters.setEnabled(!saving);
+            for (int i = 0; i < printerResults.getChildCount(); i++) printerResults.getChildAt(i).setEnabled(editable);
             handler.postDelayed(this, 2000);
         }
     };
@@ -54,6 +62,11 @@ public final class PrinterSettingsActivity extends Activity {
             JSONObject config = store.config();
             if (config != null) { host.setText(config.getString("host")); port.setText(Integer.toString(config.getInt("port"))); }
         } catch (Exception error) { store.status("Saved pairing is unavailable. Enter a new print-agent token."); }
+        findPrinters = button(layout, "Find network printers", this::findNetworkPrinters);
+        scanStatus = text(layout, "Finds compatible port-9100 printer candidates on this local IPv4 segment (up to 254 addresses). No test pages are sent. Stop automatic printing before selecting another printer. Other printer types or network segments may need manual entry.", 16);
+        printerResults = new LinearLayout(this);
+        printerResults.setOrientation(LinearLayout.VERTICAL);
+        layout.addView(printerResults);
         activate = button(layout, "Enable automatic printing", this::activate);
         stop = button(layout, "Stop automatic printing", () -> {
             store.setEnabled(false);
@@ -63,6 +76,38 @@ public final class PrinterSettingsActivity extends Activity {
         button(layout, "Battery / background settings", () -> startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)));
         text(layout, "Allow unrestricted battery/background operation and auto-launch in the tablet settings. Printing resumes after reboot and unlock. Android force-stop requires reopening Scanaki. If a ticket outcome is uncertain, check paper before manually reprinting.", 16);
         button(layout, "Back to Scanaki", this::finish);
+    }
+    private void findNetworkPrinters() {
+        if (saving) return;
+        if (scanning) { cancelDiscovery(); scanStatus.setText("Search cancelled. You can search again or enter an address manually."); return; }
+        final int generation = ++scanGeneration;
+        scanning = true;
+        findPrinters.setText("Cancel printer search");
+        printerResults.removeAllViews();
+        scanStatus.setText("Searching local network for port-9100 printers... No print data is sent.");
+        discovery = new PrinterDiscovery(this, new PrinterDiscovery.Listener() {
+            public void found(String address) {
+                if (generation != scanGeneration) return;
+                Button result = button(printerResults, "Printer candidate: " + address + ":9100", () -> {
+                    if (saving || PrinterService.isRunning()) {
+                        scanStatus.setText("Stop automatic printing before changing the printer."); return;
+                    }
+                    host.setText(address); port.setText("9100");
+                    scanStatus.setText("Selected " + address + ":9100. Enable automatic printing to save. An open port does not prove the printer model.");
+                });
+                result.setEnabled(!saving && !PrinterService.isRunning());
+            }
+            public void finished(String message) {
+                if (generation != scanGeneration) return;
+                scanning = false; findPrinters.setText("Find network printers"); scanStatus.setText(message);
+            }
+        });
+    }
+    private void cancelDiscovery() {
+        ++scanGeneration;
+        if (discovery != null) { discovery.close(); discovery = null; }
+        scanning = false;
+        findPrinters.setText("Find network printers");
     }
     private void activate() {
         if (saving || PrinterService.isRunning()) return;
@@ -132,5 +177,9 @@ public final class PrinterSettingsActivity extends Activity {
         Button button = new Button(this); button.setText(label); button.setOnClickListener(view -> action.run()); layout.addView(button); return button;
     }
     @Override protected void onResume() { super.onResume(); handler.post(refresh); }
-    @Override protected void onPause() { handler.removeCallbacks(refresh); super.onPause(); }
+    @Override protected void onPause() {
+        handler.removeCallbacks(refresh);
+        if (scanning) { cancelDiscovery(); scanStatus.setText("Search paused. Tap Find network printers to search again."); }
+        super.onPause();
+    }
 }
