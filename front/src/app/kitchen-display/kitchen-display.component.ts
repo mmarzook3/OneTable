@@ -654,6 +654,10 @@ const VIEW_CATEGORY: Record<string, string> = {
           }
           @if (orderHistoryError()) {
             <p class="history-error" role="alert">{{ orderHistoryError() }}</p>
+            <button type="button" (click)="loadOrderHistory()">Retry loading orders</button>
+          }
+          @if (orderHistoryLoading()) {
+            <p class="history-notice" role="status">Loading orders...</p>
           }
 
           <div class="order-history-list">
@@ -2108,6 +2112,9 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   orderSwipe = signal<OrderSwipeState | null>(null);
   allOrdersModalOpen = signal(false);
   orderHistorySearch = signal('');
+  orderHistoryOrders = signal<Order[] | null>(null);
+  orderHistoryLoading = signal(false);
+  private orderHistoryRequest = 0;
   orderHistoryStatusFilter = signal<'all' | KitchenOrderHistoryStatus>('all');
   pendingOrderStatusChange = signal<{ orderId: number; status: KitchenOrderStatus } | null>(null);
   orderHistoryNotice = signal('');
@@ -2234,7 +2241,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
   filteredAllOrders = computed(() => {
     const query = this.orderHistorySearch().trim().toLowerCase();
     const statusFilter = this.orderHistoryStatusFilter();
-    return [...this.orders()]
+    return [...(this.orderHistoryOrders() ?? this.orders())]
       .filter((order) => {
         const productionStatus = this.getProductionStatus(order);
         if (statusFilter !== 'all' && productionStatus !== statusFilter) return false;
@@ -3242,10 +3249,31 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
     this.pendingOrderStatusChange.set(null);
     this.orderHistoryNotice.set('');
     this.orderHistoryError.set('');
-    this.loadOrders({ background: true });
+    this.loadOrderHistory();
+  }
+
+  loadOrderHistory(): void {
+    const request = ++this.orderHistoryRequest;
+    this.orderHistoryLoading.set(true);
+    this.orderHistoryError.set('');
+    this.api.getOrders(true, true, false).subscribe({
+      next: (orders) => {
+        if (request !== this.orderHistoryRequest) return;
+        this.orderHistoryOrders.set(orders);
+        this.orderHistoryLoading.set(false);
+      },
+      error: () => {
+        if (request !== this.orderHistoryRequest) return;
+        this.orderHistoryLoading.set(false);
+        this.orderHistoryError.set('Could not load order history. Please retry.');
+      },
+    });
   }
 
   closeAllOrdersModal(): void {
+    ++this.orderHistoryRequest;
+    this.orderHistoryOrders.set(null);
+    this.orderHistoryLoading.set(false);
     this.allOrdersModalOpen.set(false);
     this.pendingOrderStatusChange.set(null);
     this.orderHistoryNotice.set('');
@@ -3321,6 +3349,7 @@ export class KitchenDisplayComponent implements OnInit, AfterViewInit, OnDestroy
       next: () => {
         this.pendingOrderStatusChange.set(null);
         this.orderHistoryNotice.set(`Order #${order.id} moved to ${label}. Payment status was not changed.`);
+        if (this.allOrdersModalOpen()) this.loadOrderHistory();
         this.completeOrderStatusFeedback();
         this.finishOrderAction(order.id);
       },

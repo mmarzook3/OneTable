@@ -51,6 +51,7 @@ describe('KitchenDisplayComponent', () => {
 
   let orderUpdates$: Subject<unknown>;
   let mockApi: {
+    getOrders: jasmine.Spy;
     getKitchenOrders: jasmine.Spy;
     connectWebSocket: jasmine.Spy;
     orderUpdates$: Subject<unknown>;
@@ -81,6 +82,7 @@ describe('KitchenDisplayComponent', () => {
   beforeEach(async () => {
     orderUpdates$ = new Subject<unknown>();
     mockApi = {
+      getOrders: jasmine.createSpy('getOrders').and.callFake(() => mockApi.getKitchenOrders()),
       getKitchenOrders: jasmine.createSpy('getKitchenOrders').and.returnValue(of([])),
       connectWebSocket: jasmine.createSpy('connectWebSocket'),
       orderUpdates$,
@@ -336,6 +338,59 @@ describe('KitchenDisplayComponent', () => {
     expect(fixture.nativeElement.querySelector('.order-swipe-action').textContent).toContain(
       'Swipe to Start',
     );
+  });
+
+  it('loads completed history independently of the active kitchen feed and allows reprinting', () => {
+    const completed = printOrder(901, 'delivered');
+    mockApi.getOrders.and.returnValue(of([completed]));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.openAllOrdersModal();
+    fixture.detectChanges();
+    expect(mockApi.getOrders).toHaveBeenCalledWith(true, true, false);
+    expect(fixture.componentInstance.activeOrders()).toEqual([]);
+    expect(fixture.componentInstance.filteredAllOrders()).toEqual([completed]);
+    fixture.componentInstance.loadOrders({ background: true });
+    expect(fixture.componentInstance.filteredAllOrders()).toEqual([completed]);
+    const button = fixture.nativeElement.querySelector('[data-testid="kitchen-history-print-order-901"]') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    button.click();
+    expect(mockApi.createPrintJob).toHaveBeenCalledWith({ job_type: 'kitchen', order_id: 901, printer_role: 'kitchen' });
+    expect(mockApi.updateOrderKitchenStatus).not.toHaveBeenCalled();
+    expect(completed.status).toBe('completed');
+    fixture.destroy();
+  });
+
+  it('reports history errors and retries without replacing the active feed', () => {
+    mockApi.getKitchenOrders.and.returnValue(of([printOrder()]));
+    mockApi.getOrders.and.returnValue(throwError(() => new Error('offline')));
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.openAllOrdersModal();
+    expect(fixture.componentInstance.orderHistoryError()).toContain('Could not load');
+    expect(fixture.componentInstance.orderHistoryLoading()).toBeFalse();
+    expect(fixture.componentInstance.orders().length).toBe(1);
+    mockApi.getOrders.and.returnValue(of([printOrder(902, 'delivered')]));
+    fixture.componentInstance.loadOrderHistory();
+    expect(fixture.componentInstance.orderHistoryError()).toBe('');
+    expect(fixture.componentInstance.filteredAllOrders()[0].id).toBe(902);
+    fixture.destroy();
+  });
+
+  it('ignores late history responses after closing or reopening the dialog', () => {
+    const oldRequest = new Subject<Order[]>();
+    mockApi.getOrders.and.returnValue(oldRequest);
+    const fixture = TestBed.createComponent(KitchenDisplayComponent);
+    fixture.detectChanges();
+    fixture.componentInstance.openAllOrdersModal();
+    expect(fixture.componentInstance.orderHistoryLoading()).toBeTrue();
+    fixture.componentInstance.closeAllOrdersModal();
+    mockApi.getOrders.and.returnValue(of([printOrder(903, 'delivered')]));
+    fixture.componentInstance.openAllOrdersModal();
+    oldRequest.next([printOrder(904, 'delivered')]);
+    expect(fixture.componentInstance.filteredAllOrders()[0].id).toBe(903);
+    expect(fixture.componentInstance.orderHistoryLoading()).toBeFalse();
+    fixture.destroy();
   });
 
   it('should mark later additions as new and require acknowledgement', () => {
