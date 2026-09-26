@@ -376,6 +376,25 @@ def claim_pending_jobs(
     return claimed
 
 
+def list_claimed_jobs(
+    session: Session,
+    agent: models.PrintAgent,
+    *,
+    limit: int = 50,
+) -> list[models.PrintJob]:
+    """Recovery is read-only: uncertain output must never be requeued here."""
+    return list(session.exec(
+        select(models.PrintJob)
+        .where(
+            models.PrintJob.tenant_id == agent.tenant_id,
+            models.PrintJob.claimed_by_agent_id == agent.id,
+            models.PrintJob.status == "claimed",
+        )
+        .order_by(models.PrintJob.created_at.asc(), models.PrintJob.id.asc())
+        .limit(min(max(limit, 1), 50))
+    ).all())
+
+
 def complete_job(
     session: Session,
     agent: models.PrintAgent,
@@ -387,11 +406,22 @@ def complete_job(
     st = (status or "").strip().lower()
     if st not in ("done", "failed"):
         raise HTTPException(status_code=400, detail="status must be done or failed")
-    job = session.get(models.PrintJob, job_id)
-    if job is None or job.tenant_id != agent.tenant_id:
+    job = session.exec(
+        select(models.PrintJob)
+        .where(models.PrintJob.id == job_id, models.PrintJob.tenant_id == agent.tenant_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).first()
+    if job is None:
         raise HTTPException(status_code=404, detail="Print job not found")
-    if job.claimed_by_agent_id not in (None, agent.id) and job.status == "claimed":
+    if job.claimed_by_agent_id not in (None, agent.id):
         raise HTTPException(status_code=403, detail="Job claimed by another agent")
+    if job.claimed_by_agent_id != agent.id:
+        raise HTTPException(status_code=409, detail="Job is not claimed by this agent")
+    if job.status == st:
+        return job
+    if job.status != "claimed":
+        raise HTTPException(status_code=409, detail="Job is not awaiting completion")
     job.status = st
     job.completed_at = _now()
     job.claimed_by_agent_id = agent.id

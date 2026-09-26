@@ -171,6 +171,19 @@ def agent_poll_jobs(
     return [print_svc.job_to_dict(j) for j in jobs]
 
 
+@agent_router.get("/jobs/claimed")
+def agent_claimed_jobs(
+    session: Session = Depends(get_session),
+    authorization: Annotated[str | None, Header()] = None,
+    x_print_agent_token: Annotated[str | None, Header()] = None,
+    limit: int = Query(50, ge=1, le=50),
+):
+    """Read this agent's unsettled claims without requeueing or reassigning."""
+    agent = _agent_from_auth(session, authorization, x_print_agent_token)
+    jobs = print_svc.list_claimed_jobs(session, agent, limit=limit)
+    return [print_svc.job_to_dict(j) for j in jobs]
+
+
 @agent_router.post("/jobs/{job_id}/complete")
 def agent_complete_job(
     job_id: int,

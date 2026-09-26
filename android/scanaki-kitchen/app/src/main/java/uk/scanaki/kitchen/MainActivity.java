@@ -139,7 +139,12 @@ public final class MainActivity extends Activity {
         addControl(controls, R.string.nav_home, () -> webView.loadUrl(HOME_URL));
         addControl(controls, R.string.nav_kitchen, () -> webView.loadUrl(KDS_URL));
         addControl(controls, R.string.nav_scan, () -> nfcBridge.scanNative());
-        addControl(controls, R.string.nav_print, () -> printPage(webView));
+        addControl(controls, R.string.nav_print, () -> new android.app.AlertDialog.Builder(this)
+            .setTitle("Printing")
+            .setItems(new String[]{"Printer setup / status", "Print this page"}, (dialog, which) -> {
+                if (which == 0) startActivity(new Intent(this, PrinterSettingsActivity.class));
+                else printPage(webView);
+            }).show());
         layout.addView(controls, new LinearLayout.LayoutParams(-1, -2));
         layout.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
 
@@ -1027,6 +1032,7 @@ public final class MainActivity extends Activity {
             if (!activeDisplayRoute.isEmpty()) requestFrontendUpdateCheck();
         }
         hasResumedOnce = true;
+        PrinterService.startIfEnabled(this);
         resumed = true;
         completeCameraPermissionRequest();
         nfcBridge.resume();
