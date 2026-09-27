@@ -229,6 +229,12 @@ class Settings(BaseSettings):
     rate_limit_public_menu_per_minute: int = Field(
         default=30, validation_alias="RATE_LIMIT_PUBLIC_MENU_PER_MINUTE"
     )
+    rate_limit_public_menu_read_per_minute: int = Field(
+        default=1200,
+        ge=1,
+        validation_alias="RATE_LIMIT_PUBLIC_MENU_READ_PER_MINUTE",
+        description="Per-IP read-only menu limit for guests sharing venue Wi-Fi",
+    )
     rate_limit_upload_per_hour: int = Field(
         default=10, validation_alias="RATE_LIMIT_UPLOAD_PER_HOUR"
     )

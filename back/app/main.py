@@ -12705,7 +12705,7 @@ def validate_table_token(
 
 @app.get("/menu/{table_token}")
 @limiter.limit(
-    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+    f"{settings.rate_limit_public_menu_read_per_minute}/minute"
 )
 def get_menu(
     request: Request,
@@ -13412,7 +13412,7 @@ def _publish_cart_updated(table: models.Table) -> None:
 
 @app.get("/menu/{table_token}/cart")
 @limiter.limit(
-    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+    f"{settings.rate_limit_public_menu_read_per_minute}/minute"
 )
 def get_table_cart(
     request: Request,
@@ -13535,7 +13535,7 @@ def delete_table_cart_item(
 
 @app.get("/menu/{table_token}/order")
 @limiter.limit(
-    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+    f"{settings.rate_limit_public_menu_read_per_minute}/minute"
 )
 def get_current_order(
     request: Request,
@@ -13663,7 +13663,7 @@ def _menu_order_history_items_for_viewer(
 
 @app.get("/menu/{table_token}/order-history")
 @limiter.limit(
-    f"{getattr(settings, 'rate_limit_public_menu_per_minute', 30)}/minute"
+    f"{settings.rate_limit_public_menu_read_per_minute}/minute"
 )
 def get_table_order_history(
     request: Request,
