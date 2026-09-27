@@ -849,9 +849,17 @@ def publish_order_update(tenant_id: int, order_data: dict, table_id: int | None 
             # Always publish to tenant channel for restaurant owners
             r.publish(f"orders:tenant:{tenant_id}", json.dumps(order_data))
             
-            # Also publish to table channel if table_id is provided (for customers)
+            # Public table subscribers do not share a customer's session authority.
+            # Publish only an allowlisted invalidation type, never staff/order data.
             if table_id is not None:
-                r.publish(f"orders:table:{table_id}", json.dumps(order_data))
+                event_type = order_data.get("type")
+                public_types = {
+                    "table_closed", "cart_updated", "status_update", "item_status_update",
+                    "item_removed", "item_updated", "order_cancelled", "items_added",
+                    "new_order", "order_updated", "order_paid",
+                }
+                hint = event_type if isinstance(event_type, str) and event_type in public_types else "order_updated"
+                r.publish(f"orders:table:{table_id}", json.dumps({"type": hint}))
         except Exception:
             pass  # Fail silently if Redis unavailable
 
