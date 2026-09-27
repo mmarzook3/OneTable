@@ -70,7 +70,7 @@ class TestSessionIsolation(PgClientTestCase):
             json={"quantity": 5},
         )
         self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.json()["detail"], "Order does not belong to this session")
+        self.assertEqual(response.json()["detail"], "session_id is required for customer checkout")
 
         response = self.client.put(
             f"/menu/{self.table.token}/order/{order_id}/items/{item_id}",

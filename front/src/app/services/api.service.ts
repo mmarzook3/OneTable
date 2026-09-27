@@ -4328,6 +4328,12 @@ export class ApiService {
     );
   }
 
+  cancelCustomerPayment(orderId: number, tableToken: string, paymentIntentId: string, sessionId: string): Observable<any> {
+    const params = new HttpParams().set('table_token', tableToken).set('session_id', sessionId)
+      .set('payment_intent_id', paymentIntentId);
+    return this.http.post(`${this.apiUrl}/orders/${orderId}/cancel-customer-payment`, {}, { params });
+  }
+
   createRevolutOrder(
     orderId: number,
     tableToken: string | null,

@@ -41,6 +41,7 @@ from sqlalchemy.exc import (
 )
 from sqlmodel import Session, select
 
+from . import guest_payment_service as guest_pay_svc
 from . import models, security
 from .db import check_db_connection, create_db_and_tables, get_session, engine
 from .provider_images import (
@@ -848,9 +849,17 @@ def publish_order_update(tenant_id: int, order_data: dict, table_id: int | None 
             # Always publish to tenant channel for restaurant owners
             r.publish(f"orders:tenant:{tenant_id}", json.dumps(order_data))
             
-            # Also publish to table channel if table_id is provided (for customers)
+            # Public table subscribers do not share a customer's session authority.
+            # Publish only an allowlisted invalidation type, never staff/order data.
             if table_id is not None:
-                r.publish(f"orders:table:{table_id}", json.dumps(order_data))
+                event_type = order_data.get("type")
+                public_types = {
+                    "table_closed", "cart_updated", "status_update", "item_status_update",
+                    "item_removed", "item_updated", "order_cancelled", "items_added",
+                    "new_order", "order_updated", "order_paid",
+                }
+                hint = event_type if isinstance(event_type, str) and event_type in public_types else "order_updated"
+                r.publish(f"orders:table:{table_id}", json.dumps({"type": hint}))
         except Exception:
             pass  # Fail silently if Redis unavailable
 
@@ -1134,17 +1143,8 @@ def _resolve_guest_payment_order(
 
 
 def _guest_order_payable_total_cents(session: Session, order: models.Order) -> int:
-    """Line items + delivery fee for Scanaki Delivery guest checkout totals."""
-    items = session.exec(
-        select(models.OrderItem).where(models.OrderItem.order_id == order.id)
-    ).all()
-    subtotal = sum((item.price_cents or 0) * item.quantity for item in items)
-    if _order_channel_value(order) == models.OrderChannel.satisfecho_delivery.value:
-        from app.delivery_order_service import order_delivery_fee_cents
-
-        subtotal = subtotal + order_delivery_fee_cents(order)
-    discount = order_level_discount_cents(order)
-    return max(0, subtotal - discount)
+    """Use the same active lines, fees, discounts and tips as settlement."""
+    return order_pay_svc.order_due_cents(session, order)
 
 
 def _take_away_table_token(session: Session, tenant_id: int) -> str | None:
@@ -13551,110 +13551,76 @@ def get_current_order(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
-    active_order = None
+    sid = (session_id or "").strip()
+    if not sid or len(sid) > 128:
+        return JSONResponse(content={"order": None, "orders": []}, headers={"Cache-Control": "private, no-store"})
 
-    # Prefer the table's shared active order (created when staff activates the table).
-    # This is the canonical order for the PIN-based shared-order model.
-    if table.active_order_id:
-        shared_order = session.get(models.Order, table.active_order_id)
-        if (
-            shared_order
-            and shared_order.status
-            not in (models.OrderStatus.paid, models.OrderStatus.cancelled)
-            and "[PAID:" not in (shared_order.notes or "")
-        ):
-            active_order = shared_order
-
-    # Fallback: search by session_id or any open order (not paid/cancelled; backward
-    # compatibility for tables activated before the shared-order model was introduced).
-    if not active_order:
-        _not_closed = ~models.Order.status.in_(
-            [models.OrderStatus.paid, models.OrderStatus.cancelled]
+    # A shared cart is not permission to inspect another browser's orders.
+    # Legacy orders are safe only before the first plaque reassignment.
+    assignment = int(table.assignment_version or 1)
+    assignment_scope = models.Order.ordering_point_assignment_version_snapshot == assignment
+    if assignment == 1:
+        assignment_scope = or_(
+            assignment_scope,
+            models.Order.ordering_point_assignment_version_snapshot.is_(None),
         )
-        if session_id:
-            potential_orders = session.exec(
-                select(models.Order).where(
-                    models.Order.table_id == table.id,
-                    models.Order.session_id == session_id,
-                    models.Order.deleted_at.is_(None),
-                    _not_closed,
-                ).order_by(models.Order.created_at.desc())
-            ).all()
-        else:
-            potential_orders = session.exec(
-                select(models.Order).where(
-                    models.Order.table_id == table.id,
-                    models.Order.deleted_at.is_(None),
-                    _not_closed,
-                ).order_by(models.Order.created_at.desc())
-            ).all()
-
-        for order in potential_orders:
-            if "[PAID:" not in (order.notes or ""):
-                active_order = order
-                break
-
-    # Table shared order: when no order matched session_id, use table's active order so customer sees current order
-    if not active_order and table.active_order_id:
-        active_order = session.get(models.Order, table.active_order_id)
-        if active_order and active_order.status in (
-            models.OrderStatus.paid,
-            models.OrderStatus.cancelled,
-        ):
-            active_order = None
-        if active_order and "[PAID:" in (active_order.notes or ""):
-            active_order = None
-
-    if not active_order:
-        return JSONResponse(content={"order": None})
-
-    # Get order items (exclude removed items for customer view)
-    # Order by ID descending so newest items appear first (for customer view)
-    items = session.exec(
-        select(models.OrderItem).where(
-            models.OrderItem.order_id == active_order.id,
-            models.OrderItem.removed_by_customer == False
-        ).order_by(models.OrderItem.id.desc())
+    orders = session.exec(
+        select(models.Order).where(
+            models.Order.table_id == table.id,
+            models.Order.tenant_id == table.tenant_id,
+            models.Order.deleted_at.is_(None),
+            assignment_scope,
+            _menu_order_history_session_scope(sid),
+        ).order_by(models.Order.created_at.desc(), models.Order.id.desc()).limit(50)
     ).all()
-    
-    # Compute order status from items
-    all_items = session.exec(select(models.OrderItem).where(models.OrderItem.order_id == active_order.id)).all()
-    computed_status = compute_order_status_from_items(all_items)
-
-    payload = {
-        "order": {
-            "id": active_order.id,
-            "status": computed_status.value,
-            "notes": active_order.notes,
-            "session_id": active_order.session_id,
-            "customer_name": active_order.customer_name,
-            "created_at": active_order.created_at.isoformat(),
-            "location_id": active_order.location_id,
-            "location_name": active_order.location_name_snapshot,
-            "service_point_type": active_order.service_point_type_snapshot,
-            "service_point_label": active_order.service_point_label_snapshot,
-            "items": [
-                {
-                    "id": item.id,
-                    "product_id": item.product_id,
-                    "product_name": item.product_name,
-                    "quantity": item.quantity,
-                    "price_cents": item.price_cents,
-                    "notes": item.notes,
-                    "customization_answers": getattr(item, "customization_answers", None) or None,
-                    "customization_summary": getattr(item, "customization_summary", None) or None,
-                    "line_modifiers": getattr(item, "line_modifiers", None) or None,
-                    "line_modifiers_summary": getattr(item, "line_modifiers_summary", None) or None,
-                    "status": item.status.value if hasattr(item.status, "value") else str(item.status),
-                    "tax_rate_percent": getattr(item, "tax_rate_percent", None),
-                    "tax_amount_cents": getattr(item, "tax_amount_cents", None),
-                }
-                for item in items
-            ],
-            "total_cents": sum(item.price_cents * item.quantity for item in items),
+    restored = []
+    for active_order in orders:
+        items = _menu_order_history_items_for_viewer(session, active_order, sid, None)
+        if not items:
+            continue
+        items.sort(key=lambda item: item.id, reverse=True)
+        computed_status = compute_order_status_from_items(items)
+        line_payment, viewer_payment = guest_pay_svc.tracking(session, active_order, sid, items)
+        payload = {
+            "order": {
+                "id": active_order.id,
+                "status": computed_status.value,
+                "paid_at": active_order.paid_at.isoformat() if active_order.paid_at else None,
+                "payment_state": active_order.payment_state,
+                "order_status": active_order.status.value,
+                "notes": active_order.notes if active_order.session_id == sid and not viewer_payment["shared_bill"] else None,
+                "session_id": sid,
+                "customer_name": active_order.customer_name if active_order.session_id == sid else None,
+                "created_at": active_order.created_at.isoformat(),
+                "location_id": active_order.location_id,
+                "location_name": active_order.location_name_snapshot,
+                "service_point_type": active_order.service_point_type_snapshot,
+                "service_point_label": active_order.service_point_label_snapshot,
+                "items": [
+                    {
+                        "id": item.id,
+                        **line_payment[item.id],
+                        "product_id": item.product_id,
+                        "product_name": item.product_name,
+                        "quantity": item.quantity,
+                        "price_cents": item.price_cents,
+                        "notes": item.notes,
+                        "customization_answers": getattr(item, "customization_answers", None) or None,
+                        "customization_summary": getattr(item, "customization_summary", None) or None,
+                        "line_modifiers": getattr(item, "line_modifiers", None) or None,
+                        "line_modifiers_summary": getattr(item, "line_modifiers_summary", None) or None,
+                        "status": item.status.value if hasattr(item.status, "value") else str(item.status),
+                        "tax_rate_percent": getattr(item, "tax_rate_percent", None),
+                        "tax_amount_cents": getattr(item, "tax_amount_cents", None),
+                    }
+                    for item in items
+                ],
+                "total_cents": sum(item.price_cents * item.quantity for item in items),
+            }
         }
-    }
-    return JSONResponse(content=payload)
+        payload["order"].update(viewer_payment)
+        restored.append(payload["order"])
+    return JSONResponse(content={"order": restored[0] if restored else None, "orders": restored}, headers={"Cache-Control": "private, no-store"})
 
 
 def _menu_order_history_session_scope(session_id: str):
@@ -13737,6 +13703,19 @@ def get_table_order_history(
             session_scope,
         ]
 
+    # QR history must not cross a plaque reassignment, even for account owners.
+    assignment = int(table.assignment_version or 1)
+    assignment_scope = models.Order.ordering_point_assignment_version_snapshot == assignment
+    if assignment == 1:
+        assignment_scope = or_(
+            assignment_scope,
+            models.Order.ordering_point_assignment_version_snapshot.is_(None),
+        )
+    base_filters.extend([
+        models.Order.table_id == table.id,
+        models.Order.tenant_id == table.tenant_id,
+        assignment_scope,
+    ])
     orders = session.exec(
         select(models.Order)
         .where(*base_filters)
@@ -13774,7 +13753,7 @@ def get_table_order_history(
             ],
             "total_cents": total_cents,
         })
-    return JSONResponse(content=result)
+    return JSONResponse(content=result, headers={"Cache-Control": "private, no-store"})
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -14122,6 +14101,8 @@ def create_order(
     else:
         is_new_order = False
 
+    guest_pay_svc.assert_no_pending(session, order)
+
     if order.checkout_locked_at is not None:
         raise HTTPException(
             status_code=409,
@@ -14361,7 +14342,18 @@ def create_order(
                 models.OrderItem.order_id == order.id,
                 models.OrderItem.product_id == effective_product_id,
                 models.OrderItem.removed_by_customer == False,
-                models.OrderItem.status != models.OrderItemStatus.delivered
+                models.OrderItem.removed_by_user_id.is_(None),
+                models.OrderItem.status == models.OrderItemStatus.pending,
+                models.OrderItem.added_by_session == order_data.session_id,
+                ~models.OrderItem.id.in_(
+                    select(models.OrderPaymentItem.order_item_id)
+                    .join(models.OrderPayment, models.OrderPaymentItem.order_payment_id == models.OrderPayment.id)
+                    .where(
+                        models.OrderPayment.order_id == order.id,
+                        models.OrderPayment.tenant_id == table.tenant_id,
+                        models.OrderPayment.voided_at.is_(None),
+                    )
+                ),
             )
         ).all()
         existing_item = None
@@ -15346,6 +15338,9 @@ def update_order_status(
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_no_pending(session, order)
+    if status_update.status == models.OrderStatus.cancelled:
+        guest_pay_svc.assert_no_captured(session, order)
 
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -15416,6 +15411,7 @@ def mark_order_paid(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_no_pending(session, order)
 
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -15646,6 +15642,7 @@ def finish_order(
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_no_pending(session, order)
 
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -15759,6 +15756,7 @@ def unmark_order_paid(
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_no_captured(session, order)
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.status == models.OrderStatus.cancelled:
@@ -15811,6 +15809,7 @@ def delete_order(
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_no_captured(session, order)
     if order.deleted_at is not None:
         raise HTTPException(status_code=400, detail="Order is already deleted")
     assert_order_fiscally_mutable(session, current_user.tenant_id, order.id)
@@ -16373,6 +16372,8 @@ def update_order_item_status(
     
     # Update item status
     old_status = item.status
+    if status_update.status == models.OrderItemStatus.cancelled:
+        guest_pay_svc.assert_staff_item_mutation(session, order, item_id)
     item.status = status_update.status
     item.status_updated_at = datetime.now(timezone.utc)
     
@@ -16646,6 +16647,7 @@ def cancel_order_item_staff(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_staff_item_mutation(session, order, item_id)
     assert_order_fiscally_mutable(session, current_user.tenant_id, order.id)
 
     item = session.exec(
@@ -16727,6 +16729,7 @@ def update_order_item_staff(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_staff_item_mutation(session, order, item_id)
     assert_order_fiscally_mutable(session, current_user.tenant_id, order.id)
     
     item = session.exec(
@@ -16819,6 +16822,7 @@ def remove_order_item_staff(
     
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    guest_pay_svc.assert_staff_item_mutation(session, order, item_id)
     assert_order_fiscally_mutable(session, current_user.tenant_id, order.id)
 
     item = session.exec(
@@ -16909,6 +16913,8 @@ def remove_order_item(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    guest_pay_svc.assert_customer_mutation(session, order, table, session_id, item_id)
+
     if order.checkout_locked_at is not None:
         raise HTTPException(
             status_code=409,
@@ -17007,6 +17013,8 @@ def update_order_item_quantity(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    guest_pay_svc.assert_customer_mutation(session, order, table, session_id, item_id)
+
     if order.checkout_locked_at is not None:
         raise HTTPException(
             status_code=409,
@@ -17106,6 +17114,8 @@ def cancel_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    guest_pay_svc.assert_customer_mutation(session, order, table, session_id)
+
     if order.checkout_locked_at is not None:
         raise HTTPException(
             status_code=409,
@@ -17414,6 +17424,19 @@ def create_payment_intent(
         public_order_token=public_order_token,
     )
 
+    if table is not None:
+        guest_pay_svc.validate_table(order, table)
+        if guest_pay_svc.uses_split(session, order, session_id):
+            tenant = session.get(models.Tenant, order.tenant_id)
+            if not tenant:
+                raise HTTPException(404, "Tenant not found")
+            currency = (tenant.currency_code or _get_stripe_currency_code(tenant.currency) or settings.stripe_currency).lower()
+            try:
+                options = stripe_api_options(tenant)
+                return guest_pay_svc.create(session, order, table, session_id or "", currency, options)
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
+        guest_pay_svc.assert_no_pending(session, order)
     if table is not None and order.session_id and order.session_id != (session_id or "").strip():
         raise HTTPException(status_code=403, detail="Order does not belong to this session")
     if order.paid_at is not None or order.payment_state == "succeeded":
@@ -17521,6 +17544,28 @@ def create_payment_intent(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/orders/{order_id}/cancel-customer-payment")
+def cancel_customer_payment(
+    order_id: int,
+    table_token: str,
+    session_id: str,
+    payment_intent_id: str,
+    session: Session = Depends(get_session),
+) -> dict:
+    order, table, _ = _resolve_guest_payment_order(session, order_id, table_token=table_token, public_order_token=None)
+    if table is None:
+        raise HTTPException(403, "A table checkout is required")
+    tenant = session.get(models.Tenant, order.tenant_id)
+    if tenant is None:
+        raise HTTPException(404, "Tenant not found")
+    try:
+        return guest_pay_svc.cancel(session, order, table, session_id, payment_intent_id, stripe_api_options(tenant))
+    except ValueError as error:
+        raise HTTPException(400, "Payment configuration is unavailable") from error
+    except stripe.error.StripeError as error:
+        raise HTTPException(502, "Cancellation was not confirmed by the payment provider") from error
+
+
 @app.post("/orders/{order_id}/confirm-payment")
 @limiter.limit(f"{getattr(settings, 'rate_limit_payment_per_minute', 10)}/minute")
 @limiter.limit(
@@ -17566,6 +17611,14 @@ def confirm_payment(
         intent = stripe.PaymentIntent.retrieve(
             payment_intent_id, **api_options
         )
+        attempt = guest_pay_svc.lookup(session, intent, order.tenant_id)
+        if attempt:
+            if table is None or attempt.order_id != order.id:
+                raise HTTPException(403, "Checkout does not belong to this order")
+            guest_pay_svc.validate_table(order, table)
+            return guest_pay_svc.settle(session, attempt.id, intent, session_id or "")
+        if table is not None and guest_pay_svc.uses_split(session, order, session_id):
+            raise HTTPException(409, "A customer-scoped checkout is required")
         released_order, released = _release_paid_stripe_order(
             session, order_id=order.id, payment_intent=intent
         )
@@ -17640,22 +17693,39 @@ async def stripe_guest_webhook(
                 models.Order.tenant_id == tenant_id,
                 models.Order.stripe_payment_intent_id == intent_id,
             )).first()
-            if owned_order is not None:
+            owned_guest = session.exec(select(models.GuestPaymentAttempt.id).where(
+                models.GuestPaymentAttempt.tenant_id == tenant_id,
+                models.GuestPaymentAttempt.stripe_payment_intent_id == intent_id,
+            )).first()
+            if owned_order is not None or owned_guest is not None:
                 raise HTTPException(status_code=400, detail="Webhook payment ownership mismatch")
             if metadata_order_id is not None:
                 raw_order = str(metadata_order_id)
                 if not raw_order.isascii() or not raw_order.isdigit() or not 0 < int(raw_order) < 2**63:
                     raise HTTPException(status_code=400, detail="Invalid webhook order binding")
                 foreign_order = session.get(models.Order, int(raw_order))
+                guest_key = _stripe_object_value(metadata, "guest_payment_attempt_id")
+                foreign_guest = session.get(models.GuestPaymentAttempt, guest_key) if isinstance(guest_key, str) else None
+                valid_foreign_guest = bool(
+                    foreign_guest and foreign_guest.tenant_id == bound_tenant_id
+                    and foreign_guest.order_id == int(raw_order)
+                    and foreign_guest.stripe_payment_intent_id in (None, intent_id)
+                    and _stripe_object_value(metadata, "payment_account_snapshot") == foreign_guest.account_binding
+                    and _stripe_object_value(payment_object, "amount") == foreign_guest.amount_cents
+                    and _stripe_object_value(payment_object, "currency") == foreign_guest.currency
+                )
                 if (not intent_id or foreign_order is None
                     or foreign_order.tenant_id != bound_tenant_id
-                    or foreign_order.stripe_payment_intent_id != intent_id):
+                    or (foreign_order.stripe_payment_intent_id != intent_id and not valid_foreign_guest)):
                     raise HTTPException(status_code=400, detail="Webhook payment ownership mismatch")
                 logger.info("Ignoring verified Stripe %s event for another tenant", event_type)
                 return {"received": True, "handled": False}
             # Metadata-free legacy lifecycle/refund events still use the existing
             # tenant-scoped intent lookup below. Success requires both bindings.
 
+    scoped_result = guest_pay_svc.webhook(session, tenant_id, event_type, payment_object)
+    if scoped_result is not None:
+        return scoped_result
     if event_type == "payment_intent.succeeded":
         if str(metadata_tenant_id) != str(tenant_id):
             raise HTTPException(status_code=400, detail="Webhook tenant metadata mismatch")
@@ -17757,6 +17827,8 @@ def create_revolut_order(
         table_token=table_token,
         public_order_token=public_order_token,
     )
+
+    guest_pay_svc.assert_whole_provider_checkout(session, order)
 
     if order.requires_prepayment:
         raise HTTPException(
@@ -17868,6 +17940,9 @@ def confirm_revolut_payment(
         public_order_token=public_order_token,
     )
 
+    guest_pay_svc.assert_no_captured(session, order)
+    if not order.paid_at and order_pay_svc.amount_paid_cents(session, order.id) > 0:
+        raise HTTPException(409, "Partial payments require staff reconciliation before whole-bill confirmation")
     if not order.revolut_order_id:
         raise HTTPException(
             status_code=400,

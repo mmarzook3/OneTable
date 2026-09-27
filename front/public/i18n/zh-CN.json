@@ -727,6 +727,14 @@
     "GO_DASHBOARD": "打开员工控制台"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "尚未确认取消。再次付款前，请刷新订单或咨询工作人员。",
+    "YOUR_ITEMS_REFUNDED": "您的餐品有一笔退款记录。如需帮助，请联系工作人员。",
+    "YOUR_ITEMS_TOTAL": "您的餐品",
+    "YOUR_ITEMS_PAID": "您的餐品已付款",
+    "PAY_YOUR_ITEMS": "支付您的餐品",
+    "PAYMENT_REQUIRES_STAFF": "请联系工作人员结清此余额。",
+    "TRACKING_STALE": "暂时无法获取更新。正在显示订单最后的已知状态。",
+    "TRACKING_REFRESH": "刷新状态",
     "TITLE": "菜单",
     "ADD_TO_CART": "加入购物车",
     "VIEW_CART": "查看购物车",

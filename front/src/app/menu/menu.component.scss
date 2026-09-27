@@ -10,6 +10,21 @@ $subcategory-nav-height: 44px;
 $cart-collapsed-height: 72px;
 $cart-expanded-max: 60vh;
 
+.tracking-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #b7791f;
+  border-radius: 10px;
+  background: #fff7df;
+  color: #583b08;
+  button { min-height: 44px; padding: 8px 16px; cursor: pointer; }
+}
+
 // ============================================
 // LOADING SKELETON STATES
 // ============================================

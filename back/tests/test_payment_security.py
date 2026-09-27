@@ -53,6 +53,9 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         order_data = response.json()
         order_id = order_data["order_id"]
+        order = self.session.get(models.Order, order_id)
+        order.session_id = "payment-security-owner"
+        self.session.commit()
 
         mock_intent = MagicMock()
         mock_intent.status = "succeeded"
@@ -65,6 +68,7 @@ class TestPaymentSecurity(PgClientTestCase):
             f"/orders/{order_id}/confirm-payment",
             params={
                 "table_token": self.table.token,
+                "session_id": "payment-security-owner",
                 "payment_intent_id": "pi_cheap_123",
             },
         )
@@ -83,6 +87,9 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         order_data = response.json()
         order_id = order_data["order_id"]
+        order = self.session.get(models.Order, order_id)
+        order.session_id = "payment-security-owner"
+        self.session.commit()
 
         mock_intent = MagicMock()
         mock_intent.status = "succeeded"
@@ -95,6 +102,7 @@ class TestPaymentSecurity(PgClientTestCase):
             f"/orders/{order_id}/confirm-payment",
             params={
                 "table_token": self.table.token,
+                "session_id": "payment-security-owner",
                 "payment_intent_id": "pi_wrong_order",
             },
         )
@@ -113,6 +121,9 @@ class TestPaymentSecurity(PgClientTestCase):
         self.assertEqual(response.status_code, 200)
         order_data = response.json()
         order_id = order_data["order_id"]
+        order = self.session.get(models.Order, order_id)
+        order.session_id = "payment-security-owner"
+        self.session.commit()
 
         mock_intent = MagicMock()
         mock_intent.status = "succeeded"
@@ -125,6 +136,7 @@ class TestPaymentSecurity(PgClientTestCase):
             f"/orders/{order_id}/confirm-payment",
             params={
                 "table_token": self.table.token,
+                "session_id": "payment-security-owner",
                 "payment_intent_id": "pi_correct",
             },
         )

@@ -3,6 +3,7 @@ import { DomSanitizer, SafeResourceUrl, SafeStyle } from '@angular/platform-brow
 import { FormsModule } from '@angular/forms';
 import { CommonModule, SlicePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
+import { Subscription, timeout } from 'rxjs';
 import { ApiService, Product, ProductQuestion, OrderItemCreate, OrderHistoryItem, TableCartResponse } from '../services/api.service';
 import { AudioService } from '../services/audio.service';
 import { environment } from '../../environments/environment';
@@ -26,6 +27,8 @@ interface CartItem {
   lineId?: string;
   sessionId?: string;
   customerName?: string | null;
+  paid_cents?: number;
+  is_paid?: boolean;
 }
 
 interface PlacedOrder {
@@ -34,6 +37,13 @@ interface PlacedOrder {
   notes: string;
   total: number;
   status: string;
+  paid_at?: string | null;
+  payment_state?: string | null;
+  amount_remaining_cents?: number;
+  customer_payment_state?: string;
+  can_pay?: boolean;
+  can_cancel_order?: boolean;
+  payment_block_reason?: string | null;
 }
 
 type MenuQuickFilter = 'all' | 'offers' | 'vegetarian' | 'vegan' | 'gluten_free' | 'customisable';
@@ -121,6 +131,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   readonly maxNoteLength = 500;
   submitting = signal(false);
   placedOrders = signal<PlacedOrder[]>([]);
+  trackingStale = signal(false);
   orderHistory = signal<OrderHistoryItem[]>([]);
   expandedHistoryId = signal<number | null>(null);
   showSuccessToast = signal(false);
@@ -179,6 +190,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // Stripe payment
   showPaymentModal = signal(false);
   paymentAmount = signal(0);
+  customerItemCheckout = signal(false);
   cardError = signal('');
   processingPayment = signal(false);
   paymentSuccess = signal(false);
@@ -187,6 +199,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   private clientSecret = '';
   private currentOrderId = 0;
   private paymentIntentId = '';
+  private scopedStripeAttempt = false;
   private stripeConnectedAccountId: string | null = null;
 
   // Internal
@@ -197,6 +210,18 @@ export class MenuComponent implements OnInit, OnDestroy {
   /** When set (from staff link), PIN is not required; sent with getMenu and submitOrder. */
   private staffAccess: string | null = null;
   private pendingOrderIdempotencyKey: string | null = null;
+  private destroyed = false;
+  private routeSubscription?: Subscription;
+  private trackingTimer?: ReturnType<typeof setInterval>;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private trackingReady = false;
+  private trackingIdentityRestored = false;
+  private menuRequest = 0;
+  private menuRequestInFlight = false;
+  private trackingRequest = 0;
+  private trackingRequestInFlight = false;
+  private trackingRefreshQueued = false;
+  private historyRequest = 0;
 
   // Computed
   tableGreeting = computed(() => {
@@ -211,11 +236,35 @@ export class MenuComponent implements OnInit, OnDestroy {
   isPaid = computed(() => {
     const orders = this.placedOrders();
     if (orders.length === 0) return false;
-    return orders[0].status === 'paid';
+    return this.isOrderPaid(orders[0]);
   });
 
   ngOnInit() {
-    this.tableToken = this.route.snapshot.params['token'];
+    this.routeSubscription = this.route.params.subscribe(params => {
+      const token = String(params['token'] || '');
+      if (!token || token === this.tableToken) return;
+      this.closeTrackingSocket();
+      ++this.menuRequest; ++this.trackingRequest; ++this.historyRequest;
+      this.menuRequestInFlight = false;
+      this.trackingRequestInFlight = false;
+      this.trackingRefreshQueued = false;
+      this.trackingReady = false;
+      this.trackingIdentityRestored = false;
+      this.tableToken = token;
+      this.placedOrders.set([]); this.orderHistory.set([]); this.cart.set([]);
+      this.products.set([]); this.filteredProducts.set([]);
+      this.customerName.set(''); this.currentPin = '';
+      this.loading.set(true); this.error.set(false); this.tableClosed.set(false);
+      this.trackingStale.set(false); this.tableConfirmed.set(false);
+      this.showPaymentModal.set(false); this.showPaymentOptions.set(false);
+      this.processingPayment.set(false); this.paymentRequestSending.set(false);
+      this.paymentSuccess.set(false); this.customerItemCheckout.set(false);
+      this.currentOrderId = 0; this.clientSecret = ''; this.paymentIntentId = '';
+      this.scopedStripeAttempt = false;
+      this.cardElement?.destroy(); this.cardElement = null; this.stripe = null;
+      this.stripeConnectedAccountId = null;
+      this.pendingOrderIdempotencyKey = null;
+      this.orderingPointAssignmentVersion.set(null);
     this.staffAccess =
       this.route.snapshot.queryParams['staff_access'] ??
       (typeof window !== 'undefined' && window.location.search
@@ -224,12 +273,18 @@ export class MenuComponent implements OnInit, OnDestroy {
       null;
     this.initializeSession();
     this.loadMenu();
-    this.loadStoredOrders();
-    this.loadOrderHistory();
+    });
+    this.trackingTimer = setInterval(() => {
+      if (!document.hidden) this.refreshTracking();
+    }, 15000);
   }
 
   ngOnDestroy() {
-    this.ws?.close();
+    this.destroyed = true;
+    this.routeSubscription?.unsubscribe();
+    if (this.trackingTimer) clearInterval(this.trackingTimer);
+    this.closeTrackingSocket();
+    this.cardElement?.destroy(); this.cardElement = null;
     for (const t of this.notesSyncTimers.values()) {
       clearTimeout(t);
     }
@@ -248,6 +303,10 @@ export class MenuComponent implements OnInit, OnDestroy {
       localStorage.setItem(sessionKey, sessionId);
     }
     this.sessionId = sessionId;
+    const savedAssignment = localStorage.getItem(`tracking_assignment_${this.tableToken}`);
+    if (savedAssignment && Number.isSafeInteger(Number(savedAssignment))) {
+      this.orderingPointAssignmentVersion.set(Number(savedAssignment));
+    }
 
     const nameKey = `customer_name_${this.tableToken}`;
     const customerName = localStorage.getItem(nameKey);
@@ -260,11 +319,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    return crypto.randomUUID();
   }
 
   skipName() {
@@ -286,8 +341,31 @@ export class MenuComponent implements OnInit, OnDestroy {
   // MENU LOADING
   // ============================================
   loadMenu() {
-    this.api.getMenu(this.tableToken, this.staffAccess ?? undefined).subscribe({
+    if (this.destroyed || !this.tableToken || this.menuRequestInFlight) return;
+    const request = ++this.menuRequest;
+    const token = this.tableToken;
+    this.menuRequestInFlight = true;
+    this.api.getMenu(token, this.staffAccess ?? undefined).pipe(timeout(10000)).subscribe({
       next: data => {
+        if (this.destroyed || request !== this.menuRequest || token !== this.tableToken) return;
+        this.menuRequestInFlight = false;
+        this.error.set(false);
+        const previousAssignment = this.orderingPointAssignmentVersion();
+        const assignment = data.ordering_point_assignment_version ?? null;
+        if (previousAssignment != null && assignment != null && previousAssignment !== assignment) {
+          ++this.trackingRequest; ++this.historyRequest;
+          this.trackingRequestInFlight = false; this.trackingRefreshQueued = false;
+          this.sessionId = this.generateUUID();
+          this.trackingIdentityRestored = false;
+          localStorage.setItem(`session_${token}`, this.sessionId);
+          localStorage.removeItem(`tracking_${token}`);
+          localStorage.removeItem(`orders_${token}`);
+          localStorage.removeItem(`customer_name_${token}`);
+          sessionStorage.removeItem(`pin_${token}`);
+          this.placedOrders.set([]); this.orderHistory.set([]); this.cart.set([]);
+          this.customerName.set(''); this.currentPin = ''; this.showNameModal.set(true);
+        }
+        if (assignment != null) localStorage.setItem(`tracking_assignment_${token}`, String(assignment));
         const productsWithSource = data.products.map((product: Product) => ({
           ...product,
           _source: product._source || 'unknown'
@@ -302,8 +380,6 @@ export class MenuComponent implements OnInit, OnDestroy {
         );
         this.orderingPointAssignmentVersion.set(data.ordering_point_assignment_version ?? null);
         this.tenantId = data.tenant_id;
-
-        this.connectWebSocket();
 
         const categories = new Set<string>();
         productsWithSource.forEach((product: Product) => {
@@ -346,30 +422,15 @@ export class MenuComponent implements OnInit, OnDestroy {
         this.tableRequiresPin.set(data.table_requires_pin === true);
         this.sharedCartEnabled.set(data.table_shared_cart === true);
 
-        // Check if the table session has changed (table was closed and reopened).
-        // If active_order_id differs from what we stored, clear stale data and
-        // start a fresh customer session so new customers don't inherit old data.
+        // The active shared-order pointer is not the customer's identity.
+        // Payment or staff changes can replace it while their food is still active.
         const storedOrderId = localStorage.getItem(`active_order_${this.tableToken}`);
         const currentOrderId = data.active_order_id ? String(data.active_order_id) : null;
 
-        if (currentOrderId && storedOrderId !== currentOrderId) {
-          // Table session changed -- clear all stale data
+        if (currentOrderId && storedOrderId && storedOrderId !== currentOrderId) {
           sessionStorage.removeItem(`pin_${this.tableToken}`);
-          localStorage.removeItem(`session_${this.tableToken}`);
-          localStorage.removeItem(`customer_name_${this.tableToken}`);
-          localStorage.removeItem(`orders_${this.tableToken}`);
           this.currentPin = '';
-          this.placedOrders.set([]);
-          this.customerName.set('');
           this.cart.set([]);
-
-          // Re-initialize session with fresh IDs
-          const newSessionId = this.generateUUID();
-          localStorage.setItem(`session_${this.tableToken}`, newSessionId);
-          this.sessionId = newSessionId;
-          this.showNameModal.set(true);
-
-          // Store new active_order_id
           localStorage.setItem(`active_order_${this.tableToken}`, currentOrderId);
         } else if (currentOrderId) {
           // Same session -- restore stored PIN
@@ -384,9 +445,15 @@ export class MenuComponent implements OnInit, OnDestroy {
           this.loadSharedCart();
         }
 
+        this.trackingReady = true;
+        this.loadStoredOrders();
+        this.loadOrderHistory();
+        this.connectWebSocket();
         this.loading.set(false);
       },
       error: (err) => {
+        if (this.destroyed || request !== this.menuRequest || token !== this.tableToken) return;
+        this.menuRequestInFlight = false;
         if (err.status === 403 && err.error?.detail?.code === 'TABLE_CLOSED') {
           const detail = err.error.detail;
           this.tableClosed.set(true);
@@ -402,6 +469,8 @@ export class MenuComponent implements OnInit, OnDestroy {
           }
         } else {
           this.error.set(true);
+          this.trackingStale.set(true);
+          if (err.status == null || err.status === 0 || err.status >= 500) this.loadFromLocalStorageFallback();
         }
         this.loading.set(false);
       }
@@ -412,7 +481,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   // WEBSOCKET
   // ============================================
   connectWebSocket() {
-    if (this.ws || !this.tableToken) return;
+    if (this.destroyed || this.tableClosed() || this.ws || !this.tableToken) return;
     
     let wsUrl = environment.wsUrl;
     // Handle relative URLs (e.g. '/ws')
@@ -429,7 +498,12 @@ export class MenuComponent implements OnInit, OnDestroy {
     // If environment.wsUrl is absolute (e.g. ws://host:port/ws), it works
     // If it was relative, we fixed it above
     this.ws = new WebSocket(`${wsUrl}/table/${this.tableToken}`);
+    const socket = this.ws;
+    socket.onopen = () => {
+      if (!this.destroyed && this.ws === socket) this.refreshTracking();
+    };
     this.ws.onmessage = (event) => {
+      if (this.destroyed || this.ws !== socket) return;
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'table_closed') {
@@ -444,22 +518,11 @@ export class MenuComponent implements OnInit, OnDestroy {
           this.currentPin = '';
           this.ws?.close();
           return;
-        } else if (data.type === 'status_update') {
-          this.audio.playCustomerStatusChange();
-          this.placedOrders.update(orders => orders.map(o => o.id === data.order_id ? { ...o, status: data.status } : o));
-          this.saveOrders();
-          this.loadStoredOrders();
-        } else if (data.type === 'item_status_update') {
-          this.audio.playCustomerStatusChange();
-          if (data.status) {
-            this.placedOrders.update(orders =>
-              orders.map(o => o.id === data.order_id ? { ...o, status: data.status } : o)
-            );
-          }
-          this.loadStoredOrders();
-        } else if (data.type === 'item_removed' || data.type === 'item_updated' || data.type === 'order_cancelled' || data.type === 'items_added' || data.type === 'new_order') {
-          this.audio.playCustomerOrderChange();
-          this.loadStoredOrders();
+        } else if (['status_update', 'item_status_update', 'item_removed', 'item_updated',
+            'order_cancelled', 'items_added', 'new_order', 'order_updated', 'order_paid'].includes(data.type)) {
+          // A table-wide event is only an invalidation hint, never an owned order snapshot.
+          if (this.placedOrders().some(order => order.id === data.order_id)) this.audio.playCustomerStatusChange();
+          this.refreshTracking();
         } else if (data.type === 'cart_updated') {
           if (this.sharedCartEnabled()) {
             this.loadSharedCart();
@@ -468,13 +531,40 @@ export class MenuComponent implements OnInit, OnDestroy {
       } catch { }
     };
     this.ws.onclose = () => {
+      if (this.ws !== socket) return;
       this.ws = null;
-      setTimeout(() => this.connectWebSocket(), 5000);
+      if (this.destroyed || this.tableClosed()) return;
+      this.trackingStale.set(true);
+      this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
     };
   }
 
+  private closeTrackingSocket() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.ws) {
+      this.ws.onclose = null; this.ws.onmessage = null; this.ws.onopen = null;
+      this.ws.close(); this.ws = null;
+    }
+  }
+
+  @HostListener('window:online')
+  @HostListener('window:focus')
+  @HostListener('document:visibilitychange')
+  refreshTracking() {
+    if (this.destroyed || !this.tableToken || document.hidden || this.tableClosed()) return;
+    if (!this.trackingReady || this.error()) { this.loadMenu(); return; }
+    this.loadStoredOrders();
+    this.loadOrderHistory();
+  }
+
   saveOrders() {
-    localStorage.setItem(`orders_${this.tableToken}`, JSON.stringify(this.placedOrders()));
+    try {
+      localStorage.setItem(`tracking_${this.tableToken}`, JSON.stringify({
+        sessionId: this.sessionId, assignmentVersion: this.orderingPointAssignmentVersion(),
+        orders: this.placedOrders(), savedAt: Date.now(),
+      }));
+      localStorage.removeItem(`orders_${this.tableToken}`);
+    } catch { /* Authoritative online tracking continues if browser storage is full. */ }
   }
 
   // ============================================
@@ -1401,6 +1491,27 @@ export class MenuComponent implements OnInit, OnDestroy {
     return labels[status] || status;
   }
 
+  isOrderPaid(order: PlacedOrder): boolean {
+    if (order.customer_payment_state != null) return order.customer_payment_state === 'paid';
+    return order.status === 'paid' || !!order.paid_at || order.payment_state === 'paid';
+  }
+
+  canPayOrder(order: PlacedOrder): boolean {
+    return !this.trackingStale() && !this.isOrderPaid(order) && order.status !== 'cancelled'
+      && order.can_pay !== false && order.amount_remaining_cents !== 0;
+  }
+
+  getTrackingStatus(order: PlacedOrder): string {
+    if (order.status === 'cancelled') return 'cancelled';
+    const items = order.items.filter(item => item.status !== 'cancelled');
+    if (!items.length) return 'cancelled';
+    if (items.every(item => item.status === 'delivered')) return 'completed';
+    if (items.some(item => item.status === 'delivered')) return 'partially_delivered';
+    if (items.every(item => item.status === 'ready')) return 'ready';
+    if (items.some(item => item.status === 'preparing' || item.status === 'ready')) return 'preparing';
+    return 'pending';
+  }
+
   /**
    * Human-readable customization for cart / active order row.
    * Prefer API snapshot when present (placed items).
@@ -1439,15 +1550,25 @@ export class MenuComponent implements OnInit, OnDestroy {
   // ORDER STORAGE
   // ============================================
   loadStoredOrders() {
-    // Fetch the table's active shared order from the backend.
-    // The backend returns the order linked to table.active_order_id,
-    // which is the single shared order for the current table session.
-    this.api.getCurrentOrder(this.tableToken, this.sessionId).subscribe({
+    if (this.destroyed || !this.trackingReady || !this.tableToken || !this.sessionId) return;
+    if (this.trackingRequestInFlight) { this.trackingRefreshQueued = true; return; }
+    const request = ++this.trackingRequest;
+    const token = this.tableToken;
+    const session = this.sessionId;
+    this.trackingRequestInFlight = true;
+    const current = () => !this.destroyed && request === this.trackingRequest && token === this.tableToken && session === this.sessionId;
+    const finish = () => {
+      this.trackingRequestInFlight = false;
+      if (this.trackingRefreshQueued) { this.trackingRefreshQueued = false; this.loadStoredOrders(); }
+    };
+    this.api.getCurrentOrder(token, session).pipe(timeout(10000)).subscribe({
       next: (response) => {
-        if (response.order && response.order.items?.length > 0) {
-          const activeItems = response.order.items.filter((item: any) => !item.removed_by_customer);
-          const order: PlacedOrder = {
-            id: response.order.id,
+        if (!current()) return;
+        const rows = Array.isArray(response.orders) ? response.orders : response.order ? [response.order] : [];
+        const restored: PlacedOrder[] = rows.filter((row: any) => row.items?.length > 0).map((row: any) => {
+          const activeItems = row.items.filter((item: any) => !item.removed_by_customer && !item.removed_by_user_id);
+          return {
+            id: row.id,
             items: this.sortItems(activeItems.map((item: any) => ({
               product: {
                 id: item.product_id,
@@ -1459,46 +1580,74 @@ export class MenuComponent implements OnInit, OnDestroy {
               customization_answers: item.customization_answers || undefined,
               customization_summary: item.customization_summary ?? undefined,
               status: item.status,
-              itemId: item.id
+              itemId: item.id,
+              paid_cents: item.paid_cents,
+              is_paid: item.is_paid,
             } as CartItem))),
-            notes: response.order.notes || '',
-            total: response.order.total_cents,
-            status: response.order.status
+            notes: row.notes || '',
+            total: row.total_cents,
+            status: row.order_status || row.status,
+            paid_at: row.paid_at || null,
+            payment_state: row.payment_state || null,
+            amount_remaining_cents: row.amount_remaining_cents,
+            customer_payment_state: row.customer_payment_state,
+            can_pay: row.can_pay,
+            can_cancel_order: row.can_cancel_order,
+            payment_block_reason: row.payment_block_reason || null,
           };
-          this.placedOrders.set([order]);
-          this.saveOrders();
-        } else {
-          // No active order with items -- clear displayed orders
-          this.placedOrders.set([]);
-          this.saveOrders();
+        });
+        this.placedOrders.set(restored);
+        if (restored.length && !this.trackingIdentityRestored) {
+          this.showNameModal.set(false);
+          this.trackingIdentityRestored = true;
         }
+        this.trackingStale.set(false);
+        this.saveOrders();
+        finish();
       },
-      error: () => {
-        this.loadFromLocalStorageFallback();
+      error: (error) => {
+        if (!current()) return;
+        this.trackingStale.set(true);
+        if (error.status == null || error.status === 0 || error.status >= 500) this.loadFromLocalStorageFallback();
+        else {
+          this.placedOrders.set([]); this.orderHistory.set([]);
+          localStorage.removeItem(`tracking_${token}`);
+          if (error.status === 403 || error.status === 404 || error.status === 409) this.trackingReady = false;
+        }
+        finish();
       }
     });
   }
 
   private loadFromLocalStorageFallback() {
-    const stored = localStorage.getItem(`orders_${this.tableToken}`);
-    if (stored) {
-      try {
-        const orders: PlacedOrder[] = JSON.parse(stored);
-        const activeOrders = orders.filter(o => o.status !== 'paid' && o.status !== 'completed');
-        activeOrders.forEach(o => o.items = this.sortItems(o.items));
-        this.placedOrders.set(activeOrders);
-        if (activeOrders.length !== orders.length) {
-          this.saveOrders();
-        }
-      } catch { }
-    }
+    try {
+      const stored = localStorage.getItem(`tracking_${this.tableToken}`);
+      if (!stored) return;
+      const cache = JSON.parse(stored);
+      if (cache.sessionId !== this.sessionId || cache.assignmentVersion !== this.orderingPointAssignmentVersion()
+          || !Array.isArray(cache.orders) || typeof cache.savedAt !== 'number'
+          || Date.now() - cache.savedAt < 0 || Date.now() - cache.savedAt > 86400000) return;
+      this.placedOrders.set(cache.orders.filter((order: PlacedOrder) => Array.isArray(order.items)));
+      if (this.placedOrders().length && !this.trackingIdentityRestored) {
+        this.showNameModal.set(false);
+        this.trackingIdentityRestored = true;
+      }
+      this.trackingStale.set(true);
+    } catch { /* Never use an unscoped or malformed legacy cache. */ }
   }
 
   loadOrderHistory() {
-    if (!this.tableToken || !this.sessionId) return;
+    if (this.destroyed || !this.trackingReady || !this.tableToken || !this.sessionId) return;
+    const request = ++this.historyRequest;
+    const token = this.tableToken;
+    const session = this.sessionId;
     this.api.getOrderHistory(this.tableToken, this.sessionId, 10).subscribe({
-      next: (orders) => this.orderHistory.set(orders),
-      error: () => this.orderHistory.set([])
+      next: (orders) => {
+        if (!this.destroyed && request === this.historyRequest && token === this.tableToken && session === this.sessionId) this.orderHistory.set(orders);
+      },
+      error: () => {
+        if (!this.destroyed && request === this.historyRequest && token === this.tableToken && session === this.sessionId) this.orderHistory.set([]);
+      },
     });
   }
 
@@ -1519,7 +1668,8 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   canCancelOrder(order: PlacedOrder): boolean {
     // Can cancel if order is pending and has no items in preparing/ready/delivered status
-    if (order.status === 'paid' || order.status === 'completed' || order.status === 'cancelled') {
+    if (order.can_cancel_order === false || order.items.some(item => item.is_paid)
+      || this.isOrderPaid(order) || order.status === 'completed' || order.status === 'cancelled') {
       return false;
     }
     // Check if any items are being prepared, ready, or delivered
@@ -1536,8 +1686,8 @@ export class MenuComponent implements OnInit, OnDestroy {
 
     this.api.cancelOrder(this.tableToken, orderId, this.sessionId).subscribe({
       next: () => {
-        this.placedOrders.set([]);
-        localStorage.removeItem(`orders_${this.tableToken}`);
+        this.loadStoredOrders();
+        this.loadOrderHistory();
         alert('Order cancelled');
       },
       error: (err) => {
@@ -1604,8 +1754,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   // PAYMENT
   // ============================================
   startCheckout(order: PlacedOrder) {
+    if (!this.canPayOrder(order)) return;
     this.currentOrderId = order.id;
-    this.paymentAmount.set(order.total);
+    this.customerItemCheckout.set(order.customer_payment_state != null);
+    this.paymentAmount.set(order.amount_remaining_cents ?? order.total);
     this.paymentOptionsStep.set('choose');
     this.paymentMessage.set('');
     this.paymentMessageTarget.set(null);
@@ -1622,6 +1774,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   selectPayRevolut() {
+    if (this.customerItemCheckout()) return;
     if (!this.currentOrderId || !this.tableToken) return;
     this.paymentRequestSending.set(true);
     this.api.createRevolutOrder(this.currentOrderId, this.tableToken).subscribe({
@@ -1691,6 +1844,7 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   closePaymentOptions() {
+    if (this.paymentRequestSending()) return;
     this.showPaymentOptions.set(false);
     this.paymentMessage.set('');
     this.paymentMessageTarget.set(null);
@@ -1705,6 +1859,10 @@ export class MenuComponent implements OnInit, OnDestroy {
   // --- Stripe flow (existing, now triggered from payment options) ---
 
   private async doStripeCheckout() {
+    const orderId = this.currentOrderId;
+    const token = this.tableToken;
+    const session = this.sessionId;
+    const current = () => !this.destroyed && orderId === this.currentOrderId && token === this.tableToken && session === this.sessionId;
     // Verify Stripe publishable key is configured before proceeding
     const stripeKey = this.api.getStripePublishableKey();
     if (!stripeKey) {
@@ -1716,10 +1874,22 @@ export class MenuComponent implements OnInit, OnDestroy {
     // Reset stale state from previous attempts
     this.paymentSuccess.set(false);
     this.cardError.set('');
-    this.api.createPaymentIntent(this.currentOrderId, this.tableToken, null, this.sessionId).subscribe({
+    this.api.createPaymentIntent(orderId, token, null, session).subscribe({
       next: async (response: any) => {
+        if (!current()) return;
+        if (response.status === 'paid') {
+          this.processingPayment.set(false);
+          this.paymentRequestSending.set(false);
+          this.showPaymentOptions.set(false);
+          this.showPaymentModal.set(false);
+          this.paymentSuccess.set(true);
+          this.loadStoredOrders();
+          this.loadOrderHistory();
+          return;
+        }
         this.clientSecret = response.client_secret;
         this.paymentIntentId = response.payment_intent_id;
+        this.scopedStripeAttempt = response.payment_scope === 'session_items';
         this.paymentAmount.set(response.amount);
         this.processingPayment.set(false);
         this.paymentRequestSending.set(false);
@@ -1729,6 +1899,7 @@ export class MenuComponent implements OnInit, OnDestroy {
         await this.loadStripe();
       },
       error: (err) => {
+        if (!current()) return;
         this.processingPayment.set(false);
         this.paymentRequestSending.set(false);
         alert(err.error?.detail || 'Failed to create payment');
@@ -1795,29 +1966,37 @@ export class MenuComponent implements OnInit, OnDestroy {
 
   async processPayment() {
     if (!this.stripe || !this.cardElement) return;
+    const orderId = this.currentOrderId;
+    const token = this.tableToken;
+    const session = this.sessionId;
+    const intentId = this.paymentIntentId;
+    const current = () => !this.destroyed && orderId === this.currentOrderId && token === this.tableToken && session === this.sessionId;
     this.processingPayment.set(true);
     this.cardError.set('');
     const { error, paymentIntent } = await this.stripe.confirmCardPayment(this.clientSecret, {
       payment_method: { card: this.cardElement }
     });
         if (error) {
+      if (!current()) return;
       this.cardError.set(error.message);
       this.processingPayment.set(false);
     } else if (paymentIntent.status === 'succeeded') {
       this.api.confirmPayment(
-        this.currentOrderId,
-        this.tableToken,
-        this.paymentIntentId,
+        orderId,
+        token,
+        intentId,
         null,
-        this.sessionId,
+        session,
       ).subscribe({
         next: () => {
+          if (!current()) return;
           this.processingPayment.set(false);
           this.paymentSuccess.set(true);
           this.loadStoredOrders();
           this.loadOrderHistory();
         },
         error: () => {
+          if (!current()) return;
           this.processingPayment.set(false);
           this.cardError.set('Payment confirmed but failed to update order.');
         }
@@ -1826,6 +2005,22 @@ export class MenuComponent implements OnInit, OnDestroy {
   }
 
   cancelPayment() {
+    if (this.processingPayment()) return;
+    if (this.scopedStripeAttempt && this.paymentIntentId && !this.paymentSuccess()) {
+      const token = this.tableToken;
+      const session = this.sessionId;
+      this.api.cancelCustomerPayment(this.currentOrderId, token, this.paymentIntentId, session).subscribe({
+        next: () => {
+          if (!this.destroyed && token === this.tableToken && session === this.sessionId) this.refreshTracking();
+        },
+        error: () => {
+          if (!this.destroyed && token === this.tableToken && session === this.sessionId) {
+            this.trackingStale.set(true);
+            alert(this.translate.instant('MENU.PAYMENT_CANCEL_UNCONFIRMED'));
+          }
+        },
+      });
+    }
     this.showPaymentModal.set(false);
     this.cardError.set('');
     this.paymentSuccess.set(false);

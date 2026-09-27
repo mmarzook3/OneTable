@@ -602,6 +602,14 @@
     "LOGOUT": "Se déconnecter"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "Annulation non confirmée. Actualisez votre commande ou demandez au personnel avant de payer à nouveau.",
+    "YOUR_ITEMS_REFUNDED": "Un remboursement a été enregistré pour vos articles. Veuillez demander au personnel si vous avez besoin d'aide.",
+    "YOUR_ITEMS_TOTAL": "Vos articles",
+    "YOUR_ITEMS_PAID": "Vos articles sont payés",
+    "PAY_YOUR_ITEMS": "Payer vos articles",
+    "PAYMENT_REQUIRES_STAFF": "Veuillez demander au personnel de régler ce solde.",
+    "TRACKING_STALE": "Les mises à jour sont temporairement indisponibles. Le dernier statut connu de la commande est affiché.",
+    "TRACKING_REFRESH": "Actualiser le statut",
     "TITLE": "Menu",
     "ADD_TO_CART": "Ajouter au panier",
     "VIEW_CART": "Voir le panier",

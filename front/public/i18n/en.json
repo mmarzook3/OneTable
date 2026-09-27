@@ -988,6 +988,14 @@
     "GO_DASHBOARD": "Open staff dashboard"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "Cancellation was not confirmed. Refresh your order or ask staff before paying again.",
+    "YOUR_ITEMS_REFUNDED": "A refund was recorded for your items. Please ask staff if you need help.",
+    "YOUR_ITEMS_TOTAL": "Your items",
+    "YOUR_ITEMS_PAID": "Your items are paid",
+    "PAY_YOUR_ITEMS": "Pay for your items",
+    "PAYMENT_REQUIRES_STAFF": "Please ask staff to settle this balance.",
+    "TRACKING_STALE": "Updates are temporarily unavailable. Showing the last known order status.",
+    "TRACKING_REFRESH": "Refresh status",
     "TITLE": "Menu",
     "ADD_TO_CART": "Add to cart",
     "VIEW_CART": "View cart",

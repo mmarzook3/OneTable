@@ -602,6 +602,14 @@
     "LOGOUT": "Cerrar sesión"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "No se ha confirmado la cancelación. Actualiza tu pedido o consulta al personal antes de volver a pagar.",
+    "YOUR_ITEMS_REFUNDED": "Se ha registrado un reembolso por tus artículos. Pide ayuda al personal si la necesitas.",
+    "YOUR_ITEMS_TOTAL": "Tus artículos",
+    "YOUR_ITEMS_PAID": "Tus artículos están pagados",
+    "PAY_YOUR_ITEMS": "Paga tus artículos",
+    "PAYMENT_REQUIRES_STAFF": "Pide al personal que liquide este saldo.",
+    "TRACKING_STALE": "Las actualizaciones no están disponibles temporalmente. Se muestra el último estado conocido del pedido.",
+    "TRACKING_REFRESH": "Actualizar estado",
     "TITLE": "Menú",
     "ADD_TO_CART": "Añadir al carrito",
     "VIEW_CART": "Ver carrito",
