@@ -727,6 +727,14 @@
     "GO_DASHBOARD": "Obrir el panell del personal"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "La cancel·lació no està confirmada. Actualitza la comanda o pregunta al personal abans de tornar a pagar.",
+    "YOUR_ITEMS_REFUNDED": "S'ha registrat un reemborsament pels teus articles. Si necessites ajuda, demana-la al personal.",
+    "YOUR_ITEMS_TOTAL": "Els teus articles",
+    "YOUR_ITEMS_PAID": "Els teus articles estan pagats",
+    "PAY_YOUR_ITEMS": "Paga els teus articles",
+    "PAYMENT_REQUIRES_STAFF": "Demana al personal que liquidi aquest saldo.",
+    "TRACKING_STALE": "Les actualitzacions no estan disponibles temporalment. Es mostra el darrer estat conegut de la comanda.",
+    "TRACKING_REFRESH": "Actualitza estat",
     "TITLE": "Menú",
     "ADD_TO_CART": "Afegir al carret",
     "VIEW_CART": "Veure carret",

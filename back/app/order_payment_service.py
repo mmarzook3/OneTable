@@ -225,12 +225,22 @@ def record_payment(
     stripe_payment_intent_id: str | None = None,
     order_item_ids: list[int] | None = None,
     settle_if_covered: bool = True,
+    guest_attempt_id: str | None = None,
 ) -> tuple[models.OrderPayment, dict]:
     """Append a payment leg. When settle_if_covered and remaining hits 0, mark order paid.
 
     Pass ``order_item_ids`` for split-by-line (amount derived from lines). Otherwise
     ``amount_cents`` is required (split by amount).
     """
+    from . import guest_payment_service as guest_payments
+    if guest_attempt_id is None:
+        guest_payments.assert_no_pending(session, order)
+    else:
+        guest_payments.lock_order(session, order.id)
+        attempt = session.get(models.GuestPaymentAttempt, guest_attempt_id)
+        if (not attempt or attempt.order_id != order.id or attempt.tenant_id != order.tenant_id
+                or attempt.state != "succeeded" or attempt.stripe_payment_intent_id != stripe_payment_intent_id):
+            raise HTTPException(status_code=409, detail="Invalid customer settlement")
     if order.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Order not found")
     if order.status == models.OrderStatus.cancelled:
@@ -378,6 +388,9 @@ def ensure_full_payment_leg(
 
 
 def void_all_payments(session: Session, order_id: int) -> int:
+    from . import guest_payment_service as guest_payments
+    order = guest_payments.lock_order(session, order_id)
+    guest_payments.assert_no_captured(session, order)
     now = datetime.now(timezone.utc)
     n = 0
     for p in list_active_payments(session, order_id):
@@ -400,6 +413,8 @@ def void_payment(
     order: models.Order,
     payment_id: int,
 ) -> models.OrderPayment:
+    from . import guest_payment_service as guest_payments
+    guest_payments.assert_no_pending(session, order)
     if order.status == models.OrderStatus.paid or order.paid_at:
         raise HTTPException(
             status_code=400,
@@ -408,6 +423,12 @@ def void_payment(
     row = session.get(models.OrderPayment, payment_id)
     if not row or row.order_id != order.id or row.tenant_id != order.tenant_id:
         raise HTTPException(status_code=404, detail="Payment not found")
+    if row.stripe_payment_intent_id and session.exec(select(models.GuestPaymentAttempt.id).where(
+        models.GuestPaymentAttempt.tenant_id == order.tenant_id,
+        models.GuestPaymentAttempt.order_id == order.id,
+        models.GuestPaymentAttempt.stripe_payment_intent_id == row.stripe_payment_intent_id,
+    )).first():
+        raise HTTPException(status_code=409, detail="Captured customer payment cannot be voided without refund reconciliation")
     if row.voided_at is not None:
         raise HTTPException(status_code=400, detail="Payment already voided")
     row.voided_at = datetime.now(timezone.utc)

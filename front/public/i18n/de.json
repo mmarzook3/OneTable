@@ -602,6 +602,14 @@
     "LOGOUT": "Abmelden"
   },
   "MENU": {
+    "PAYMENT_CANCEL_UNCONFIRMED": "Die Stornierung wurde nicht bestätigt. Aktualisieren Sie Ihre Bestellung oder fragen Sie das Personal, bevor Sie erneut bezahlen.",
+    "YOUR_ITEMS_REFUNDED": "Für Ihre Artikel wurde eine Erstattung erfasst. Bitte wenden Sie sich bei Fragen an das Personal.",
+    "YOUR_ITEMS_TOTAL": "Ihre Artikel",
+    "YOUR_ITEMS_PAID": "Ihre Artikel sind bezahlt",
+    "PAY_YOUR_ITEMS": "Ihre Artikel bezahlen",
+    "PAYMENT_REQUIRES_STAFF": "Bitte wenden Sie sich zur Begleichung dieses Betrags an das Personal.",
+    "TRACKING_STALE": "Aktualisierungen sind vorübergehend nicht verfügbar. Der zuletzt bekannte Bestellstatus wird angezeigt.",
+    "TRACKING_REFRESH": "Status aktualisieren",
     "TITLE": "Speisekarte",
     "ADD_TO_CART": "In den Warenkorb",
     "VIEW_CART": "Warenkorb anzeigen",

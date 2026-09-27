@@ -1871,6 +1871,23 @@ class Order(TenantMixin, table=True):
     customer: Customer | None = Relationship()
 
 
+class GuestPaymentAttempt(TenantMixin, table=True):
+    """Durable reservation for a browser's whole-line Stripe checkout."""
+
+    __tablename__ = "guest_payment_attempt"
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True, max_length=36)
+    order_id: int = Field(foreign_key="order.id", index=True)
+    session_hash: str = Field(max_length=64, index=True)
+    item_ids: list[int] = Field(sa_column=Column(JSONB, nullable=False))
+    amount_cents: int = Field(ge=1)
+    currency: str = Field(max_length=3)
+    account_binding: str = Field(max_length=128)
+    stripe_payment_intent_id: str | None = Field(default=None, max_length=128, unique=True)
+    state: str = Field(default="creating", max_length=32)
+    refunded_amount_cents: int = Field(default=0)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class OrderPayment(TenantMixin, table=True):
     """One payment leg against an order (split bill / partial pay). See docs/0071-split-bill.md."""
 
