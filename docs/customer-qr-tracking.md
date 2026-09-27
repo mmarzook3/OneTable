@@ -45,7 +45,7 @@ The synthetic rescan smoke uses an isolated tenant, a fixture-created paid order
 
 - Deployment commit: pending.
 - Migration execution: first and repeated application passed on isolated PostgreSQL; production application pending deployment.
-- Automated regression results: 94 backend tests and 28 subtests passed; 94 frontend tests passed; production frontend build passed with existing stylesheet-size/CommonJS warnings.
+- Automated regression results: 131 backend tests and 32 subtests passed; 95 frontend tests passed; production frontend build passed with existing stylesheet-size/CommonJS warnings.
 - Isolated live rescan/restore smoke and fixture cleanup: pending.
 - Authorized Stripe sandbox settlement/refund regression: pending.
 - Customer live-payment acceptance: not established by this change.

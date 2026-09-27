@@ -514,6 +514,10 @@ def redeem_on_order(
     """Redeem one reward on an unpaid order. Sets loyalty_discount_cents (order-level via #322 helper)."""
     if order.tenant_id != membership.tenant_id:
         raise HTTPException(status_code=404, detail="Membership not found")
+    from . import guest_payment_service
+    guest_payment_service.assert_no_captured(session, order)
+    if order.checkout_locked_at is not None:
+        raise HTTPException(status_code=409, detail="Cancel the active checkout before changing its discount")
     if order.paid_at or order.status == models.OrderStatus.paid:
         raise HTTPException(status_code=400, detail="Cannot redeem on a paid order")
     if order.loyalty_units_redeemed and order.loyalty_units_redeemed > 0:

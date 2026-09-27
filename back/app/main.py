@@ -14342,7 +14342,18 @@ def create_order(
                 models.OrderItem.order_id == order.id,
                 models.OrderItem.product_id == effective_product_id,
                 models.OrderItem.removed_by_customer == False,
-                models.OrderItem.status != models.OrderItemStatus.delivered
+                models.OrderItem.removed_by_user_id.is_(None),
+                models.OrderItem.status == models.OrderItemStatus.pending,
+                models.OrderItem.added_by_session == order_data.session_id,
+                ~models.OrderItem.id.in_(
+                    select(models.OrderPaymentItem.order_item_id)
+                    .join(models.OrderPayment, models.OrderPaymentItem.order_payment_id == models.OrderPayment.id)
+                    .where(
+                        models.OrderPayment.order_id == order.id,
+                        models.OrderPayment.tenant_id == table.tenant_id,
+                        models.OrderPayment.voided_at.is_(None),
+                    )
+                ),
             )
         ).all()
         existing_item = None
@@ -16361,6 +16372,8 @@ def update_order_item_status(
     
     # Update item status
     old_status = item.status
+    if status_update.status == models.OrderItemStatus.cancelled:
+        guest_pay_svc.assert_staff_item_mutation(session, order, item_id)
     item.status = status_update.status
     item.status_updated_at = datetime.now(timezone.utc)
     

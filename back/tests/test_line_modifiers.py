@@ -69,19 +69,19 @@ class TestLineModifiersOrderMerge(PgClientTestCase):
 
     def test_merge_same_modifiers_increments_quantity(self):
         lm = {"remove": ["pepperoni"], "add": ["extra cheese"]}
-        p1 = {"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": lm}]}
+        p1 = {"session_id": "line-modifier-browser", "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": lm}]}
         r1 = self.client.post(f"/menu/{self.table.token}/order", json=p1)
         self.assertEqual(r1.status_code, 200, r1.text)
         oid = r1.json()["order_id"]
 
         r2 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 2, "line_modifiers": lm}]},
+            json={"session_id": "line-modifier-browser", "items": [{"product_id": self.product.id, "quantity": 2, "line_modifiers": lm}]},
         )
         self.assertEqual(r2.status_code, 200, r2.text)
         self.assertEqual(r2.json()["order_id"], oid)
 
-        r3 = self.client.get(f"/menu/{self.table.token}/order")
+        r3 = self.client.get(f"/menu/{self.table.token}/order", params={"session_id": "line-modifier-browser"})
         self.assertEqual(r3.status_code, 200, r3.text)
         body = r3.json()
         self.assertIsNotNone(body.get("order"))
@@ -93,15 +93,15 @@ class TestLineModifiersOrderMerge(PgClientTestCase):
     def test_different_modifiers_separate_lines(self):
         r1 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["a"]}}]},
+            json={"session_id": "line-modifier-browser", "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["a"]}}]},
         )
         self.assertEqual(r1.status_code, 200, r1.text)
         r2 = self.client.post(
             f"/menu/{self.table.token}/order",
-            json={"items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["b"]}}]},
+            json={"session_id": "line-modifier-browser", "items": [{"product_id": self.product.id, "quantity": 1, "line_modifiers": {"remove": ["b"]}}]},
         )
         self.assertEqual(r2.status_code, 200, r2.text)
-        r3 = self.client.get(f"/menu/{self.table.token}/order")
+        r3 = self.client.get(f"/menu/{self.table.token}/order", params={"session_id": "line-modifier-browser"})
         items = r3.json()["order"]["items"]
         self.assertEqual(len(items), 2)
 

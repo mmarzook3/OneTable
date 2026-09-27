@@ -447,3 +447,73 @@ class TestGuestSessionPayments(PgClientTestCase):
         response = self.webhook_route(obj)
         self.assertEqual(response.status_code, 400, response.text)
         self.assertEqual(payments.list_active_payments(self.session, self.order.id), [])
+
+    def test_generic_status_cancel_rejects_reserved_and_captured_guest_line(self):
+        from app import security
+        owner = models.User(email="generic-cancel-owner@scanaki.uk", hashed_password="unused",
+            tenant_id=self.tenant.id, role=models.UserRole.owner)
+        self.session.add(owner)
+        self.session.commit()
+        headers = {"Authorization": "Bearer " + security.create_access_token({
+            "sub": owner.email, "tenant_id": self.tenant.id, "token_version": owner.token_version})}
+        key = self.start("browser-one").json()["payment_intent_id"]
+        path = f"/orders/{self.order.id}/items/{self.items[0].id}/status"
+        response = self.client.put(path, headers=headers, json={"status": "cancelled"})
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(self.confirm("browser-one", key).status_code, 200)
+        response = self.client.put(path, headers=headers, json={"status": "cancelled"})
+        self.assertEqual(response.status_code, 409, response.text)
+        response = self.client.put(path, headers=headers, json={"status": "preparing"})
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_cancelled_unpaid_viewer_does_not_inherit_other_guest_full_payment(self):
+        self.items[0].status = models.OrderItemStatus.cancelled
+        self.session.commit()
+        key = self.start("browser-two").json()["payment_intent_id"]
+        self.assertEqual(self.confirm("browser-two", key).status_code, 200)
+        cancelled = self.client.get(f"/menu/{self.table.token}/order",
+            params={"session_id": "browser-one"}).json()["order"]
+        self.assertEqual(cancelled["customer_payment_state"], "cancelled")
+        self.assertFalse(cancelled["can_pay"])
+        self.assertFalse(cancelled["items"][0]["is_paid"])
+        self.assertEqual(cancelled["items"][0]["paid_cents"], 0)
+        other = self.client.get(f"/menu/{self.table.token}/order",
+            params={"session_id": "browser-two"}).json()["order"]
+        self.assertEqual(other["customer_payment_state"], "paid")
+        self.assertTrue(other["items"][0]["is_paid"])
+
+    def test_free_unpaid_line_is_not_reported_paid(self):
+        self.items[0].price_cents = 0
+        self.session.commit()
+        view = self.client.get(f"/menu/{self.table.token}/order",
+            params={"session_id": "browser-one"}).json()["order"]
+        self.assertEqual(view["customer_payment_state"], "unpaid")
+        self.assertFalse(view["items"][0]["is_paid"])
+
+    def test_pending_and_captured_guest_checkout_block_loyalty_without_debit(self):
+        from uuid import uuid4
+        from fastapi import HTTPException
+        from app import loyalty_service
+        program = models.LoyaltyProgram(tenant_id=self.tenant.id, enabled=True,
+            redemption_threshold=10, reward_discount_cents=100)
+        self.session.add(program)
+        self.session.flush()
+        membership = models.LoyaltyMembership(tenant_id=self.tenant.id, program_id=program.id,
+            display_name="Fixture member", member_token=str(uuid4()), referral_code=str(uuid4())[:24], balance=20)
+        self.session.add(membership)
+        self.session.commit()
+        key = self.start("browser-one").json()["payment_intent_id"]
+        for captured in (False, True):
+            with self.subTest(captured=captured):
+                if captured:
+                    self.assertEqual(self.confirm("browser-one", key).status_code, 200)
+                with self.assertRaises(HTTPException) as blocked:
+                    loyalty_service.redeem_on_order(self.session, order=self.order, membership=membership)
+                self.assertEqual(blocked.exception.status_code, 409)
+                self.session.refresh(membership)
+                self.session.refresh(self.order)
+                self.assertEqual(membership.balance, 20)
+                self.assertFalse(self.order.loyalty_discount_cents)
+                entries = self.session.exec(select(models.LoyaltyLedgerEntry).where(
+                    models.LoyaltyLedgerEntry.membership_id == membership.id)).all()
+                self.assertEqual(entries, [])

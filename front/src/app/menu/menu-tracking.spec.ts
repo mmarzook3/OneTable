@@ -423,6 +423,16 @@ describe('Menu rescan tracking', () => {
     expect(component.showPaymentModal()).toBeTrue();
   });
 
+  it('does not treat cancelled viewer items as paid despite a shared-order payment timestamp', () => {
+    const order = scopedOrder({ status: 'paid', paid_at: '2026-09-27T10:00:00Z',
+      payment_state: 'paid', customer_payment_state: 'cancelled', can_pay: false,
+      amount_remaining_cents: 0 });
+    order.items = [{ ...order.items[0], status: 'cancelled' }];
+    expect(component.isOrderPaid(order)).toBeFalse();
+    expect(component.canPayOrder(order)).toBeFalse();
+    expect(component.getTrackingStatus(order)).toBe('cancelled');
+  });
+
   it('never opens checkout for a cancelled order', () => {
     const order = scopedOrder({ status: 'cancelled', customer_payment_state: 'unpaid',
       can_pay: true, amount_remaining_cents: 800 });

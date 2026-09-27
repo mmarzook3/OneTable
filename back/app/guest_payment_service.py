@@ -123,12 +123,15 @@ def tracking(session: Session, order: models.Order, sid: str, items: list):
     full_paid = order.paid_at is not None
     line_fields = {}
     remaining = 0
+    payable_states = []
     for item in items:
         payable = (not item.removed_by_customer and item.removed_by_user_id is None
                    and item.status != models.OrderItemStatus.cancelled)
-        paid = item.id in allocated or full_paid
+        paid = item.id in allocated or (full_paid and payable)
         cents = item.price_cents * item.quantity
         line_fields[item.id] = {"paid_cents": cents if paid else 0, "is_paid": paid}
+        if payable:
+            payable_states.append(paid)
         if payable and not paid:
             remaining += cents
     own_attempts = [a for a in attempts(session, order) if a.session_hash == session_hash(sid)]
@@ -143,7 +146,8 @@ def tracking(session: Session, order: models.Order, sid: str, items: list):
         remaining = payments.order_due_cents(session, order)
     refunded_cents = sum(a.refunded_amount_cents for a in own_attempts)
     state = "refunded" if refunded_cents else "requires_staff_reconciliation" if refunded else (
-        "paid" if not remaining else "pending" if any(a.state in RESERVED for a in own_attempts) else "unpaid")
+        "cancelled" if not payable_states else "paid" if all(payable_states)
+        else "pending" if any(a.state in RESERVED for a in own_attempts) else "unpaid")
     return line_fields, {
         "amount_remaining_cents": remaining,
         "customer_payment_state": state,

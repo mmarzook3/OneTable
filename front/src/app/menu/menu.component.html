@@ -312,7 +312,7 @@
             <button class="btn-pay-now" (click)="startCheckout(order)" [disabled]="processingPayment() || !canPayOrder(order)">
               {{ processingPayment() ? ('PAYMENTS.PROCESSING' | translate) : ((order.customer_payment_state != null ? 'MENU.PAY_YOUR_ITEMS' : 'PAYMENTS.PAY_NOW') | translate) }}
             </button>
-            } @else if (order.can_pay === false && order.status !== 'cancelled') {
+            } @else if (order.can_pay === false && order.status !== 'cancelled' && order.customer_payment_state !== 'cancelled') {
             <p role="status">{{ (order.customer_payment_state === 'refunded' ? 'MENU.YOUR_ITEMS_REFUNDED' : 'MENU.PAYMENT_REQUIRES_STAFF') | translate }}</p>
             }
             }
