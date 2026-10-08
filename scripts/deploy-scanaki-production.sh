@@ -97,9 +97,15 @@ else
   exit 1
 fi
 
-echo "Applying idempotent Scanaki production seeds..."
-"${COMPOSE[@]}" exec -T back python -m app.seeds.ensure_landing_demo
-"${COMPOSE[@]}" exec -T back python -m app.seeds.seed_yue_tree_pilot
+# A routine release must not undo an approved reset or overwrite venue setup.
+# Bootstrap data is an explicit operator action, never a deployment default.
+if [[ "${SCANAKI_APPLY_PILOT_SEEDS:-0}" == "1" ]]; then
+  echo "Applying explicitly requested Scanaki bootstrap seeds..."
+  "${COMPOSE[@]}" exec -T back python -m app.seeds.ensure_landing_demo
+  "${COMPOSE[@]}" exec -T back python -m app.seeds.seed_yue_tree_pilot
+else
+  echo "Preserving restaurant data: automatic bootstrap seeds are disabled."
+fi
 
 echo "Waiting for Scanaki public health..."
 healthy=""
