@@ -3,38 +3,130 @@ name: Release checks
 on:
   pull_request:
     branches: [development, master]
-  push:
-    branches: [development]
+    paths:
+      - 'back/app/**'
+      - 'back/tests/**'
+      - 'back/migrations/*.sql'
+      - 'back/scripts/*.py'
+      - 'back/fixtures/migration/*.csv'
+      - 'back/requirements.txt'
+      - 'back/Dockerfile'
+      - 'front/src/**'
+      - 'front/public/**'
+      - 'front/sites/**'
+      - 'front/scripts/**'
+      - 'front/package.json'
+      - 'front/package-lock.json'
+      - 'front/.npmrc'
+      - 'front/.dockerignore'
+      - 'front/angular.json'
+      - 'front/tsconfig*.json'
+      - 'front/Dockerfile*'
+      - 'front/nginx.conf'
+      - 'front/docker-entrypoint*.sh'
+      - 'ws-bridge/main.py'
+      - 'ws-bridge/requirements.txt'
+      - 'ws-bridge/Dockerfile'
+      - 'config/marketing-sites.json'
+      - 'config/scanaki-runtime-assets.json'
+      - 'scripts/sync-all-marketing-sites.sh'
+      - 'scripts/fetch-marketing-artifact.sh'
+      - 'scripts/flatten-marketing-for-angular.sh'
+      - 'scripts/home-deploy/*.py'
+      - 'scripts/home-deploy/*.sh'
+      - 'scripts/home-deploy/*.service'
+      - '.github/workflows/release-checks.yml'
+      - '.github/workflows/deploy-scanaki-production.yml'
+      - '.github/workflows/release-checks-docs.yml'
   workflow_dispatch:
+    inputs:
+      verify_revision:
+        description: 'Explicitly run all release checks for this selected revision'
+        type: boolean
+        required: true
+        default: false
   workflow_call:
+    inputs:
+      eligible:
+        description: 'Caller has established application-change eligibility'
+        type: boolean
+        required: true
 
 permissions:
   contents: read
+  pull-requests: read
+concurrency:
+  # github.workflow is the caller name for reusable workflows: use a distinct prefix.
+  group: ${{ github.repository }}-release-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   release-checks:
+    if: >-
+      (github.workflow == 'Release checks' && github.event_name == 'pull_request') ||
+      inputs.eligible == true || inputs.verify_revision == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout release revision
-        uses: actions/checkout@v6
-
+      - name: Select relevant application changes
+        id: changes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const patterns = ["back/app/**", "back/tests/**", "back/migrations/*.sql", "back/scripts/*.py", "back/fixtures/migration/*.csv", "back/requirements.txt", "back/Dockerfile", "front/src/**", "front/public/**", "front/sites/**", "front/scripts/**", "front/package.json", "front/package-lock.json", "front/.npmrc", "front/.dockerignore", "front/angular.json", "front/tsconfig*.json", "front/Dockerfile*", "front/nginx.conf", "front/docker-entrypoint*.sh", "ws-bridge/main.py", "ws-bridge/requirements.txt", "ws-bridge/Dockerfile", "config/marketing-sites.json", "config/scanaki-runtime-assets.json", "scripts/sync-all-marketing-sites.sh", "scripts/fetch-marketing-artifact.sh", "scripts/flatten-marketing-for-angular.sh", "scripts/home-deploy/*.py", "scripts/home-deploy/*.sh", "scripts/home-deploy/*.service", ".github/workflows/release-checks.yml", ".github/workflows/deploy-scanaki-production.yml"];
+            patterns.push('.github/workflows/release-checks-docs.yml');
+            const matches = name => patterns.some(pattern => {
+              const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+              return new RegExp('^' + escaped.replace(/\*/g, '.*') + '$').test(name);
+            });
+            let eligible = true;
+            if (context.eventName === 'pull_request') {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                ...context.repo, pull_number: context.issue.number, per_page: 100
+              });
+              // GitHub caps this endpoint at 3000 files: uncertainty must run checks.
+              eligible = files.length >= 3000 || files.some(file =>
+                matches(file.filename) || (file.previous_filename && matches(file.previous_filename)));
+            }
+            core.setOutput('eligible', String(eligible));
+            if (!eligible) core.notice('No release inputs changed; required check satisfied without application builds.');
+      - uses: actions/checkout@v6
+        if: steps.changes.outputs.eligible == 'true'
+      - name: Validate HOME deployment contracts
+        if: steps.changes.outputs.eligible == 'true'
+        run: |
+          /usr/bin/python3 -c 'import yaml'
+          /usr/bin/python3 -m unittest discover -s scripts/home-deploy -p 'test_*.py'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.eligible == 'true'
       - name: Build backend test image
-        run: docker build --tag pos-release-back ./back
-
-      # These tests use in-memory SQLite or settings metadata, not a live database.
+        if: steps.changes.outputs.eligible == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: back
+          load: true
+          tags: pos-release-back
+          # BuildKit caches dependency layers keyed by Dockerfile + requirements content.
+          cache-from: type=gha,scope=checks-back-linux-amd64-python312
+          cache-to: type=gha,scope=checks-back-linux-amd64-python312,mode=max
       - name: Run targeted backend tests
+        if: steps.changes.outputs.eligible == 'true'
         run: >-
           docker run --rm --network none
           pos-release-back python -m pytest -x -q --tb=short
           tests/test_reservable_capacity_turn_walkin.py
           tests/test_settings_defaults.py
-
       - name: Build frontend check image
-        run: docker build --tag pos-release-front ./front
-
-      # Override the dev entrypoint to avoid starting servers or fetching marketing artifacts.
+        if: steps.changes.outputs.eligible == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: front
+          load: true
+          tags: pos-release-front
+          cache-from: type=gha,scope=checks-front-linux-amd64-node20
+          cache-to: type=gha,scope=checks-front-linux-amd64-node20,mode=max
       - name: Build production frontend
+        if: steps.changes.outputs.eligible == 'true'
         env:
           COMMIT_HASH: ${{ github.sha }}
         run: >-

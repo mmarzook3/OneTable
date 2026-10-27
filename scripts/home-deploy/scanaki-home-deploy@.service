@@ -1,0 +1,15 @@
+[Unit]
+Description=Durable Scanaki HOME deployment %i
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /usr/local/lib/scanaki-home-deploy/executor.py %i
+# CI disconnect/cancellation cannot stop this unit. Never impose a migration timeout.
+TimeoutStartSec=infinity
+Restart=no
+StandardOutput=journal
+StandardError=journal
