@@ -126,16 +126,19 @@ checksum verified under `C:\VPS-Backups\scanaki-home\cutover-20261027`.
 Post-cutover home backup `scanaki-home-20261027T135501Z` copied/hash-verified
 off-host. No live-payment, hardware, AC-loss or new full-host reboot claim.
 
-SMTP limitation: TLS/EHLO succeeded, but support@scanaki.uk sender probes
-returned550 from BOTH old VPS and home. No email sent; delivery/provider
-authorization remains unverified. The new outbound source IP must also be
-considered when repairing an IP-allowlisted SMTP relay.
+SMTP was subsequently repaired: IPv6 was not authorized by Google's relay.
+The private VPS SMTP gateway forces IPv4 while preserving end-to-end STARTTLS.
+The home backend uses smtp-relay.gmail.com mapped to10.77.0.1, port2587.
+Sender acceptance250 and actual alerts-group delivery into Gmail were verified.
 
-Legacy GitHub `Deploy Scanaki production` workflow was disabled to prevent
-resurrecting stale VPS writers. Verification workflows remain enabled. Future
-automated upgrades require a home-aware deployment workflow. Documentation-only
-push is withheld because current workflows lack path eligibility gates and
-would trigger unrelated builds. No application image upgrade was performed.
+The old VPS deployment workflow was replaced with the HOME-only workflow and
+re-enabled after provisioning dedicated restricted SSH identities. Its first
+supervised run40533785314 passed and deployed app revision
+35d34c16503c3c01badbcd56e4ad87bd5bb7fe51 to HOME only. Old VPS containers remained
+stopped; old VPS deployment secrets were retired. Required checks, strict path
+eligibility, scoped cancellation, caches and a trusted docs-only status gate
+are now configured. See scanaki-home-release-and-smtp-20261027.md for evidence
+and the installed executor/credential/recovery contract.
 
 ## Corrective evidence
 
