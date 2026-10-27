@@ -38,6 +38,10 @@ must be combined with those server-side restrictions (especially no remote forwa
 HOME account `scanaki-ci`: no Docker group, no writable deployment/config paths,
 no password or forwarding. Its authorized key uses:
 
+For a root-owned HOME account directory, keep `.ssh` root-owned0755 and its
+public `authorized_keys` root-owned0644: sshd must read it as the account, while
+only root may modify it. Private keys remain outside HOME and outside Git.
+
 ```
 restrict,command="/usr/local/lib/scanaki-home-deploy/forced-command.sh" ssh-ed25519 PUBLIC_KEY
 ```
