@@ -1,11 +1,16 @@
-# Scanaki home migration: private acceptance, 27 October 2026
+# Scanaki home migration and cutover, 27 October 2026
 
 ## Status
 
-Private preparation passed. **Public cutover is NOT performed or approved.**
-https://scanaki.uk still routes to the original VPS containers. The home copy
-is a rehearsal snapshot, not the authoritative writer. Refresh it from a final
-quiesced source snapshot before cutover; do not overwrite newer source data.
+**Public cutover completed with explicit owner approval.** The home database
+is authoritative; https://scanaki.uk reaches it through the VPS gateway.
+All five original VPS containers are stopped, restart disabled, with data intact.
+Maintenance lasted approximately475 seconds (about8 minutes).
+
+Final quiesced PostgreSQL, Redis, configuration and uploads were synchronized.
+All80 tables/324 rows matched before switch. Public health/login/HTTPS and9/9
+browser checks passed; test data removed. No recent matching application errors.
+After new home writes, rollback MUST synchronize current data back first.
 
 ## Deployment
 
@@ -15,13 +20,13 @@ quiesced source snapshot before cutover; do not overwrite newer source data.
 - Containers `scanaki-home-{front,back,ws-bridge,db,redis}`. Existing runtime
   images `scanaki-restored-{front,back,ws-bridge,db,redis}:20261002` imported;
   image IDs matched the running VPS images. No application upgrade.
-- PostgreSQL18 and Redis use dedicated `scanaki-home_database` and
-  `scanaki-home_cache` volumes. PostgreSQL restored from a fresh custom dump;
-  the private Redis is an empty rehearsal cache, NOT a final Redis migration.
+- Final volumes: `scanaki-home_database_cutover_20261027` and
+  `scanaki-home_cache_cutover_20261027`. Fresh native PostgreSQL and Redis RDB
+  snapshots restored; earlier rehearsal volumes remain separate.
 - Frontend `127.0.0.1:28420`; database/cache/backend ports unpublished.
 - Networks: web `172.30.48.0/28`; data `172.30.49.0/28` internal.
-- Backend belongs only to the internal network. Outbound connection denial was
-  tested. Email/payment/provider traffic cannot leave this rehearsal backend.
+- Backend egress was blocked and tested during rehearsal. Cutover added the
+  backend-only outbound network172.30.50.0/28; DB/Redis remain unpublished.
 - Original `safe_start.py` still pauses reminder/social-publishing loops.
   Preserve that pre-existing operational choice unless separately approved.
 - Original CPU/memory ceilings preserved; combined memory ceilings about
@@ -42,7 +47,8 @@ quiesced source snapshot before cutover; do not overwrite newer source data.
 - VPS policy `/etc/ssh/sshd_config.d/57-scanaki-home-relay.conf`.
 - UFW allows only current gateway address `172.19.0.5` to this bridge listener.
   Reconcile this scoped rule if the gateway container's address changes.
-- Existing `/opt/critical-services/nginx/conf.d/scanaki.uk.conf` is unchanged.
+- Only the Scanaki upstream in `/opt/critical-services/nginx/conf.d/scanaki.uk.conf`
+  changed to `http://172.19.0.1:18220`, after Nginx validation.
   DNS, public TLS, certificates/renewal and public80/443 stay on the VPS.
 - Administrative SCP now prefers the documented LAN/WireGuard route because
   public SSH rate limiting can otherwise interrupt several parallel relays.
@@ -88,7 +94,8 @@ quiesced source snapshot before cutover; do not overwrite newer source data.
   off-host storage, not independently verified cloud/offsite replication.
 - Home sets are not automatically deleted. Add verified off-host retention
   before significant growth; the space guard fails closed rather than filling
-  the filesystem. Existing VPS backups/tasks remain unchanged before cutover.
+  the filesystem. VPS backup timer and old Windows Scanaki backup pull task
+  are disabled; home backup timer and new Windows pull task are active.
 - VM100 daily backups on ssd2 are additional crash-consistent protection, not
   a substitute for native dumps or an independent offsite copy.
 
@@ -112,11 +119,23 @@ quiesced source snapshot before cutover; do not overwrite newer source data.
    writers. **After new writes, quiesce and synchronize data back before any
    rollback; never blindly start stale VPS data.**
 
-Pending: approval/window, final sync/Redis, public cutover and public post-cutover
-tests. No claim of live-payment, hardware, AC-loss or new full-host reboot tests.
-Legacy GitHub deployment still targets the VPS layout; do not dispatch it for
-the home deployment. Documentation-only push is withheld because current
-workflows lack the required path eligibility gates and would trigger builds.
+Cutover sequence completed. Final source checkpoint:
+`/opt/scanaki/app/tmp/cutover-20261027`; home checkpoint:
+`/opt/projects/scanaki/cutover-20261027`. Final source encrypted archive and
+checksum verified under `C:\VPS-Backups\scanaki-home\cutover-20261027`.
+Post-cutover home backup `scanaki-home-20261027T135501Z` copied/hash-verified
+off-host. No live-payment, hardware, AC-loss or new full-host reboot claim.
+
+SMTP limitation: TLS/EHLO succeeded, but support@scanaki.uk sender probes
+returned550 from BOTH old VPS and home. No email sent; delivery/provider
+authorization remains unverified. The new outbound source IP must also be
+considered when repairing an IP-allowlisted SMTP relay.
+
+Legacy GitHub `Deploy Scanaki production` workflow was disabled to prevent
+resurrecting stale VPS writers. Verification workflows remain enabled. Future
+automated upgrades require a home-aware deployment workflow. Documentation-only
+push is withheld because current workflows lack path eligibility gates and
+would trigger unrelated builds. No application image upgrade was performed.
 
 ## Corrective evidence
 
@@ -131,6 +150,10 @@ workflows lack the required path eligibility gates and would trigger builds.
   directories after restrictive umask; plaintext configuration remains private.
 - SSH denial assertion: one test correction for the observed authenticated
   `channel 0: open failed` response. Server restrictions were not changed.
+- Final-sync preflight: one correction for null Docker IPAM Config; caught
+  before home database mutation, corrected and passed.
+- SMTP probe: stage-specific checks with explicit EHLO established TLS success
+  and550 sender rejection on both hosts; no blind message-send retries.
 
 Detailed private operational reports are under
 `/opt/projects/scanaki/migration/`; browser report is
