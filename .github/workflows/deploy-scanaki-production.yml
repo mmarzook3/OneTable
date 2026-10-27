@@ -1,190 +1,148 @@
-# Scanaki production deployment.
-#
-# The production VPS is an rsync release at /opt/scanaki/app, not a Git checkout.
-# Repository secrets:
-#   SCANAKI_DEPLOY_HOST, SCANAKI_DEPLOY_USER, SSH_PRIVATE_KEY_SCANAKI
-# Repository variables (optional defaults shown):
-#   SCANAKI_DEPLOY_PORT=22, SCANAKI_DEPLOY_PATH=/opt/scanaki/app
-
 name: Deploy Scanaki production
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+    paths:
+      - 'back/app/**'
+      - 'back/tests/**'
+      - 'back/migrations/*.sql'
+      - 'back/scripts/*.py'
+      - 'back/fixtures/migration/*.csv'
+      - 'back/requirements.txt'
+      - 'back/Dockerfile'
+      - 'front/src/**'
+      - 'front/public/**'
+      - 'front/sites/**'
+      - 'front/scripts/**'
+      - 'front/package.json'
+      - 'front/package-lock.json'
+      - 'front/.npmrc'
+      - 'front/.dockerignore'
+      - 'front/angular.json'
+      - 'front/tsconfig*.json'
+      - 'front/Dockerfile*'
+      - 'front/nginx.conf'
+      - 'front/docker-entrypoint*.sh'
+      - 'ws-bridge/main.py'
+      - 'ws-bridge/requirements.txt'
+      - 'ws-bridge/Dockerfile'
+      - 'config/marketing-sites.json'
+      - 'config/scanaki-runtime-assets.json'
+      - 'scripts/sync-all-marketing-sites.sh'
+      - 'scripts/fetch-marketing-artifact.sh'
+      - 'scripts/flatten-marketing-for-angular.sh'
+      - 'scripts/home-deploy/*.py'
+      - 'scripts/home-deploy/*.sh'
+      - 'scripts/home-deploy/*.service'
+      - '.github/workflows/release-checks.yml'
+      - '.github/workflows/deploy-scanaki-production.yml'
   workflow_dispatch:
+    inputs:
+      deploy_home:
+        description: 'Deploy the selected master revision to HOME after release checks'
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.repository }}-deploy-scanaki-home-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  release-checks:
-    uses: ./.github/workflows/release-checks.yml
-
-  deploy:
-    needs: release-checks
+  eligibility:
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || inputs.deploy_home == true)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    concurrency:
-      group: deploy-scanaki-production
-      cancel-in-progress: false
-    env:
-      SCANAKI_DEPLOY_HOST: ${{ secrets.SCANAKI_DEPLOY_HOST }}
-      SCANAKI_DEPLOY_USER: ${{ secrets.SCANAKI_DEPLOY_USER }}
-      SCANAKI_DEPLOY_PORT: ${{ vars.SCANAKI_DEPLOY_PORT || '22' }}
-      SCANAKI_DEPLOY_PATH: ${{ vars.SCANAKI_DEPLOY_PATH || '/opt/scanaki/app' }}
-
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
     steps:
-      - name: Checkout production revision
-        uses: actions/checkout@v6
-
-      - name: Skip superseded queued revision
-        id: deployment_gate
+      - id: gate
         env:
           GH_TOKEN: ${{ github.token }}
+          HOME_ENABLED: ${{ vars.SCANAKI_HOME_DEPLOY_ENABLED }}
         run: |
           set -euo pipefail
-          [ "$GITHUB_REF" = "refs/heads/master" ] || {
-            echo "::error::Production deployment requires the protected master branch"
-            exit 1
-          }
-          LATEST_MASTER_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)"
-          if [ "$GITHUB_SHA" = "$LATEST_MASTER_SHA" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping superseded revision $GITHUB_SHA; master is now $LATEST_MASTER_SHA"
-          fi
-
-      - name: Validate deployment configuration
-        if: steps.deployment_gate.outputs.deploy == 'true'
+          [ "$HOME_ENABLED" = 1 ] || { echo '::error::HOME provisioning and acceptance not enabled'; exit 1; }
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)"
+          [ "$latest" = "$GITHUB_SHA" ] || { echo '::error::Superseded revision'; exit 1; }
+          echo 'eligible=true' >> "$GITHUB_OUTPUT"
+  release-checks:
+    needs: eligibility
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/release-checks.yml
+    with:
+      eligible: ${{ needs.eligibility.outputs.eligible == 'true' }}
+  deploy:
+    needs: [eligibility, release-checks]
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: scanaki-home
+    steps:
+      - uses: actions/checkout@v6
+      - name: Fetch pinned HOME marketing and Android assets
         env:
-          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/home-deploy/runtime_assets.py
+      - name: Prepare bridge Dockerfile from existing production sources
+        run: python3 scripts/home-deploy/prepare-build.py
+      - uses: docker/setup-buildx-action@v3
+      - name: Build HOME backend
+        uses: docker/build-push-action@v6
+        with:
+          context: back
+          load: true
+          platforms: linux/amd64
+          tags: scanaki-home-release-back:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=home-back-linux-amd64-python312
+          cache-to: type=gha,scope=home-back-linux-amd64-python312,mode=max
+      - name: Build HOME frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: front
+          file: front/Dockerfile.prod
+          load: true
+          platforms: linux/amd64
+          build-args: COMMIT_HASH=${{ github.sha }}
+          tags: scanaki-home-release-front:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=home-front-linux-amd64-node20
+          cache-to: type=gha,scope=home-front-linux-amd64-node20,mode=max
+      - name: Build HOME WebSocket bridge
+        uses: docker/build-push-action@v6
+        with:
+          context: tmp/home-build
+          file: tmp/home-build/Dockerfile
+          load: true
+          platforms: linux/amd64
+          tags: scanaki-home-release-ws-bridge:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=home-bridge-linux-amd64-python312
+          cache-to: type=gha,scope=home-bridge-linux-amd64-python312,mode=max
+      - name: Transfer and submit to durable HOME executor
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOME_KEY: ${{ secrets.SCANAKI_HOME_CI_KEY }}
+          JUMP_KEY: ${{ secrets.SCANAKI_HOME_JUMP_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SCANAKI_HOME_KNOWN_HOSTS }}
+          JUMP_HOST: ${{ vars.SCANAKI_HOME_JUMP_HOST }}
+          HOME_HOST: ${{ vars.SCANAKI_HOME_SSH_HOST }}
+          HOME_PORT: ${{ vars.SCANAKI_HOME_SSH_PORT }}
+        run: bash scripts/home-deploy/submit.sh
+      - name: Verify public HOME route
         run: |
           set -euo pipefail
-          [ -n "$SCANAKI_DEPLOY_HOST" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_HOST"; exit 1; }
-          [ -n "$SCANAKI_DEPLOY_USER" ] || { echo "::error::Missing repository secret SCANAKI_DEPLOY_USER"; exit 1; }
-          [ -n "$SSH_PRIVATE_KEY_SCANAKI" ] || { echo "::error::Missing repository secret SSH_PRIVATE_KEY_SCANAKI"; exit 1; }
-          [[ "$SCANAKI_DEPLOY_PORT" =~ ^[0-9]+$ ]] || { echo "::error::SCANAKI_DEPLOY_PORT must be numeric"; exit 1; }
-          [ "$SCANAKI_DEPLOY_PATH" = "/opt/scanaki/app" ] || {
-            echo "::error::Refusing unexpected SCANAKI_DEPLOY_PATH: $SCANAKI_DEPLOY_PATH"
-            exit 1
-          }
-
-      - name: Fetch marketing site artifacts
-        if: steps.deployment_gate.outputs.deploy == 'true'
-        env:
-          MARKETING_ARTIFACT_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
-          GH_TOKEN: ${{ secrets.MARKETING_ARTIFACT_TOKEN || secrets.GUSTAZO_ARTIFACT_TOKEN }}
-          MARKETING_SYNC_FORCE: "1"
-          MARKETING_VERIFY_NO_PLACEHOLDERS: "1"
-        run: bash scripts/sync-all-marketing-sites.sh
-
-      - name: Configure SSH
-        if: steps.deployment_gate.outputs.deploy == 'true'
-        env:
-          SSH_PRIVATE_KEY_SCANAKI: ${{ secrets.SSH_PRIVATE_KEY_SCANAKI }}
-        run: |
-          set -euo pipefail
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY_SCANAKI" | tr -d '\r' > ~/.ssh/scanaki_deploy_key
-          chmod 600 ~/.ssh/scanaki_deploy_key
-          ssh-keygen -y -f ~/.ssh/scanaki_deploy_key >/dev/null 2>&1 || {
-            echo "::error::SSH_PRIVATE_KEY_SCANAKI is not a valid private key"
-            exit 1
-          }
-          ssh-keyscan -H -p "$SCANAKI_DEPLOY_PORT" "$SCANAKI_DEPLOY_HOST" >> ~/.ssh/known_hosts
-
-      - name: Upload immutable release
-        if: steps.deployment_gate.outputs.deploy == 'true'
-        env:
-          RELEASE_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          RELEASE_ROOT="$(dirname "$SCANAKI_DEPLOY_PATH")/releases"
-          RELEASE_DIR="$RELEASE_ROOT/$RELEASE_SHA"
-          SSH=(ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30)
-          "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "mkdir -p '$RELEASE_DIR'"
-          rsync -az --delete \
-            --exclude '/.git/' \
-            --exclude '/.env' \
-            --exclude '/config.env' \
-            --exclude '/.secrets' \
-            --exclude '/deployment-secrets.env' \
-            --exclude '/docker-compose.scanaki.yml' \
-            --exclude '/nginx.scanaki.conf' \
-            --exclude '/data/' \
-            --exclude '/backups/' \
-            --exclude '/certbot/' \
-            --exclude '/tmp/' \
-            --exclude '/android/scanaki-kitchen/signing/' \
-            -e "ssh -p $SCANAKI_DEPLOY_PORT -i ~/.ssh/scanaki_deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30" \
-            ./ "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST:$RELEASE_DIR/"
-          printf '%s\n' "$RELEASE_SHA" | "${SSH[@]}" "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" "cat > '$RELEASE_DIR/release-commit.txt'"
-
-      - name: Promote release and deploy Scanaki stack
-        if: steps.deployment_gate.outputs.deploy == 'true'
-        env:
-          RELEASE_SHA: ${{ github.sha }}
-        timeout-minutes: 24
-        run: |
-          set -euo pipefail
-          RELEASE_DIR="$(dirname "$SCANAKI_DEPLOY_PATH")/releases/$RELEASE_SHA"
-          ssh -p "$SCANAKI_DEPLOY_PORT" -i ~/.ssh/scanaki_deploy_key \
-            -o BatchMode=yes -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
-            "$SCANAKI_DEPLOY_USER@$SCANAKI_DEPLOY_HOST" \
-            "bash -s -- '$SCANAKI_DEPLOY_PATH' '$RELEASE_DIR'" <<'REMOTE'
-          set -euo pipefail
-          APP_DIR="$1"
-          RELEASE_DIR="$2"
-          [ "$APP_DIR" = "/opt/scanaki/app" ] || { echo "Refusing unexpected app directory" >&2; exit 1; }
-          [ -d "$RELEASE_DIR" ] || { echo "Release directory is missing" >&2; exit 1; }
-          for required in config.env deployment-secrets.env docker-compose.scanaki.yml nginx.scanaki.conf; do
-            [ -s "$APP_DIR/$required" ] || { echo "Required server file is missing: $required" >&2; exit 1; }
-          done
-          rsync -a --delete \
-            --exclude '/config.env' \
-            --exclude '/.secrets' \
-            --exclude '/deployment-secrets.env' \
-            --exclude '/docker-compose.scanaki.yml' \
-            --exclude '/nginx.scanaki.conf' \
-            --exclude '/data/' \
-            --exclude '/backups/' \
-            --exclude '/certbot/' \
-            --exclude '/android/scanaki-kitchen/signing/' \
-            "$RELEASE_DIR/" "$APP_DIR/"
-          cd "$APP_DIR"
-          bash scripts/deploy-scanaki-production.sh
-          RELEASE_ROOT="$(dirname "$RELEASE_DIR")"
-          [ "$RELEASE_ROOT" = "/opt/scanaki/releases" ] || { echo "Refusing unexpected release root" >&2; exit 1; }
-          mapfile -t OLD_RELEASES < <(
-            find "$RELEASE_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-              | sort -rn | tail -n +6 | cut -d' ' -f2-
-          )
-          for old_release in "${OLD_RELEASES[@]}"; do
-            [ "$old_release" != "$RELEASE_DIR" ] && rm -rf -- "$old_release"
-          done
-          REMOTE
-
-      - name: Verify public production service
-        if: steps.deployment_gate.outputs.deploy == 'true'
-        env:
-          SMOKE_TEST_BASE_URL: ${{ vars.SMOKE_TEST_BASE_URL || 'https://scanaki.uk' }}
-        run: |
-          set -euo pipefail
-          BASE="${SMOKE_TEST_BASE_URL%/}"
-          for attempt in 1 2 3 4 5 6; do
-            if curl --fail --silent --show-error --max-time 15 "$BASE/" >/dev/null \
-              && curl --fail --silent --show-error --max-time 15 "$BASE/api/health" >/dev/null; then
-              HTML="$(curl --fail --silent --show-error --max-time 15 "$BASE/?release=${GITHUB_SHA}")"
-              echo "$HTML" | grep -qE 'name="app-version"[^>]*content="[0-9]+\.[0-9]+\.[0-9]+"' || {
-                echo "::error::Production landing page is missing the app-version meta tag"
-                exit 1
-              }
-              echo "Scanaki production smoke test passed."
-              exit 0
-            fi
-            [ "$attempt" -lt 6 ] && sleep 10
-          done
-          echo "::error::Scanaki production did not pass its public health checks"
-          exit 1
+          curl --fail --silent --show-error --max-time 20 https://scanaki.uk/api/health >/dev/null
+          curl --fail --silent --show-error --max-time 20 https://scanaki.uk/ | grep -q 'name="app-version"'
